@@ -17,6 +17,7 @@ interface UploadedItem {
   url: string;
   filename: string;
   size: number;
+  timestamp: number;
 }
 
 export default function Home() {
@@ -167,9 +168,7 @@ export default function Home() {
     cancelUploadRef.current = false;
     setCurrentUploadName(file.name);
     if (file.size > MAX_UPLOAD_BYTES) {
-      if (notify) {
-        showToast('File too large (max 200MB)', 'error');
-      }
+      showToast('File too large (max 200MB)', 'error');
       throw new Error('File too large');
     }
 
@@ -202,11 +201,14 @@ export default function Home() {
       }
 
       const newUrl = `${window.location.origin}/${blob.pathname}`;
+      const uploadedAt = Date.now();
+
       setUploadedFiles(prev => [
         {
           url: newUrl,
           filename: file.name,
-          size: file.size
+          size: file.size,
+          timestamp: uploadedAt
         },
         ...prev
       ]);
@@ -256,8 +258,11 @@ export default function Home() {
         await uploadFile(file, false);
         successCount += 1;
         showToast(`Uploaded ${current} of ${files.length}`, 'success');
-      } catch {
+      } catch (error) {
         errorCount += 1;
+        if (error instanceof Error && error.message === 'File too large') {
+          continue;
+        }
         showToast(`Failed ${current} of ${files.length}`, 'error');
       }
     }
@@ -414,6 +419,11 @@ export default function Home() {
         @keyframes pulse {
           0%, 100% { opacity: 0.6; }
           50% { opacity: 1; }
+        }
+
+        @keyframes sharePulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
         }
 
         /* Custom scrollbar */
@@ -831,7 +841,7 @@ export default function Home() {
                             fontSize: '0.75rem',
                             color: '#9a9a9a'
                           }}>
-                            d/{filename}
+                            Uploaded {formatTimestamp(fileItem.timestamp)}
                           </div>
                         </div>
                       </div>
@@ -871,16 +881,21 @@ export default function Home() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            animation: 'sharePulse 2.4s ease-in-out infinite'
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
+                            e.currentTarget.style.transform = 'scale(1.06)';
+                            e.currentTarget.style.boxShadow = '0 0 12px rgba(255, 255, 255, 0.25)';
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                            e.currentTarget.style.transform = 'scale(1)';
+                            e.currentTarget.style.boxShadow = 'none';
                           }}
                         >
-                          ↗
+                          ⤴
                         </button>
                       </div>
                     </div>
@@ -1084,7 +1099,7 @@ export default function Home() {
                             fontSize: '0.75rem',
                             color: '#9a9a9a'
                           }}>
-                            d/{record.filename}
+                            Uploaded {formatTimestamp(record.timestamp)}
                           </div>
                         </div>
                       </div>
@@ -1124,16 +1139,21 @@ export default function Home() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            animation: 'sharePulse 2.4s ease-in-out infinite'
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
+                            e.currentTarget.style.transform = 'scale(1.06)';
+                            e.currentTarget.style.boxShadow = '0 0 12px rgba(255, 255, 255, 0.25)';
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                            e.currentTarget.style.transform = 'scale(1)';
+                            e.currentTarget.style.boxShadow = 'none';
                           }}
                         >
-                          ↗
+                          ⤴
                         </button>
                       </div>
                     </div>
