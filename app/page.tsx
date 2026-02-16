@@ -229,7 +229,9 @@ export default function Home() {
         return;
       }
 
-      const newUrl = `${window.location.origin}/${blob.pathname}`;
+      // Extract filename from blob.pathname (e.g., 'd/randomname.ext') and create download page URL
+      const filename = blob.pathname.split('/').pop() || '';
+      const newUrl = `${window.location.origin}/download/${filename}`;
       const uploadedAt = Date.now();
 
       setUploadedFiles(prev => [
@@ -322,13 +324,25 @@ export default function Home() {
     showToast('Upload cancelled', 'info');
   };
 
+  const getDownloadLinks = (): string[] => {
+    return uploadedFiles.map(file => {
+      // For files uploaded in this session, the URL is already the download page link
+      if (file.url.includes('/download/')) {
+        return file.url;
+      }
+      // For legacy files or if needed, extract filename and create download page URL
+      const filename = file.url.split('/').pop() || '';
+      return `${window.location.origin}/download/${filename}`;
+    });
+  };
+
   const copyAllUploadedLinks = () => {
     if (uploadedFiles.length === 0) {
       showToast('No uploaded links yet', 'info');
       return;
     }
 
-    const allLinks = uploadedFiles.map((file) => file.url).join('\n');
+    const allLinks = getDownloadLinks().join('\n');
     copyText(allLinks, 'All links copied');
   };
 
@@ -965,7 +979,7 @@ export default function Home() {
                         Link
                       </div>
                       <a 
-                        href={url} 
+                        href={url.includes('/download/') ? url : `${window.location.origin}/download/${url.split('/').pop()}`} 
                         target="_blank" 
                         rel="noreferrer"
                         style={{
@@ -1239,7 +1253,7 @@ export default function Home() {
                         Link
                       </div>
                       <a 
-                        href={record.url} 
+                        href={record.url.includes('/download/') ? record.url : `${window.location.origin}/download/${record.url.split('/').pop()}`} 
                         target="_blank" 
                         rel="noreferrer"
                         style={{

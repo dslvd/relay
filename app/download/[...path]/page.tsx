@@ -1,0 +1,348 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+
+interface UploadRecord {
+  url: string;
+  filename: string;
+  timestamp: number;
+  size: number;
+}
+
+export default function DownloadPage() {
+  const params = useParams();
+  const pathArray = Array.isArray(params.path) ? params.path : [params.path];
+  const filename = pathArray[pathArray.length - 1];
+  
+  const [fileData, setFileData] = useState<UploadRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  const downloadUrl = `/d/${pathArray.join('/')}`;
+
+  useEffect(() => {
+    const fetchFileData = async () => {
+      try {
+        const response = await fetch('/api/history', { cache: 'no-store' });
+        if (response.ok) {
+          const data = await response.json();
+          const records = data.history || [];
+          const file = records.find((r: UploadRecord) => r.url.includes(pathArray.join('/')));
+          if (file) {
+            setFileData(file);
+          } else {
+            setNotFound(true);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch file data:', error);
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFileData();
+  }, [pathArray]);
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const formatDate = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        background: 'radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.06) 0%, transparent 45%), radial-gradient(circle at 85% 70%, rgba(255, 255, 255, 0.05) 0%, transparent 45%), #0a0a0a',
+        color: '#f5f5f5',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 0
+      }}
+    >
+      {/* Nav Bar */}
+      <nav
+        style={{
+          padding: '1rem 6vw',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          background: 'rgba(10, 10, 10, 0.6)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}
+      >
+        <a
+          href="/"
+          style={{
+            textDecoration: 'none',
+            color: '#f5f5f5',
+            fontFamily: "'Open Sans', sans-serif",
+            fontSize: '1rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+        >
+          ← Back to home
+        </a>
+      </nav>
+
+      {/* Content */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4rem 6vw'
+        }}
+      >
+        {loading ? (
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                fontSize: '0.85rem',
+                color: 'rgba(245, 245, 245, 0.6)',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase'
+              }}
+            >
+              Loading...
+            </div>
+          </div>
+        ) : notFound || !fileData ? (
+          <section
+            style={{
+              width: 'min(600px, 92vw)',
+              borderRadius: '28px',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              background: 'rgba(255, 255, 255, 0.04)',
+              padding: '3rem',
+              boxShadow: '0 22px 60px rgba(0, 0, 0, 0.45)',
+              textAlign: 'center'
+            }}
+          >
+            <div
+              style={{
+                fontSize: '0.8rem',
+                letterSpacing: '0.3em',
+                textTransform: 'uppercase',
+                color: 'rgba(245, 245, 245, 0.55)',
+                marginBottom: '0.9rem'
+              }}
+            >
+              404
+            </div>
+            <h1
+              style={{
+                margin: '0 0 0.6rem',
+                fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)',
+                letterSpacing: '-0.02em'
+              }}
+            >
+              File not found
+            </h1>
+            <p
+              style={{
+                margin: 0,
+                color: 'rgba(245, 245, 245, 0.7)',
+                fontSize: '1rem',
+                marginBottom: '2rem'
+              }}
+            >
+              The file you're looking for doesn't exist or has expired.
+            </p>
+            <a
+              href="/"
+              style={{
+                display: 'inline-block',
+                padding: '0.7rem 1.2rem',
+                borderRadius: '999px',
+                background: '#ffffff',
+                color: '#0a0a0a',
+                textDecoration: 'none',
+                fontWeight: 700
+              }}
+            >
+              Upload a new file
+            </a>
+          </section>
+        ) : (
+          <section
+            style={{
+              width: 'min(600px, 92vw)',
+              borderRadius: '28px',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              background: 'rgba(255, 255, 255, 0.04)',
+              padding: '3rem',
+              boxShadow: '0 22px 60px rgba(0, 0, 0, 0.45)'
+            }}
+          >
+            <div
+              style={{
+                fontSize: '0.8rem',
+                letterSpacing: '0.3em',
+                textTransform: 'uppercase',
+                color: 'rgba(245, 245, 245, 0.55)',
+                marginBottom: '0.9rem'
+              }}
+            >
+              Download
+            </div>
+            <h1
+              style={{
+                margin: '0 0 1.2rem',
+                fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)',
+                letterSpacing: '-0.02em',
+                wordBreak: 'break-word'
+              }}
+            >
+              {fileData.filename}
+            </h1>
+
+            {/* File Details */}
+            <div
+              style={{
+                padding: '1.2rem 1.4rem',
+                borderRadius: '18px',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'rgba(255, 255, 255, 0.03)',
+                marginBottom: '2rem'
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gap: '1rem'
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: '0.8rem',
+                      color: 'rgba(245, 245, 245, 0.55)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      marginBottom: '0.4rem'
+                    }}
+                  >
+                    File size
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '1rem',
+                      color: '#f5f5f5',
+                      fontWeight: 500
+                    }}
+                  >
+                    {formatFileSize(fileData.size)}
+                  </div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '0.8rem',
+                      color: 'rgba(245, 245, 245, 0.55)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      marginBottom: '0.4rem'
+                    }}
+                  >
+                    Uploaded
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '1rem',
+                      color: '#f5f5f5',
+                      fontWeight: 500
+                    }}
+                  >
+                    {formatDate(fileData.timestamp)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Download Button */}
+            <a
+              href={downloadUrl}
+              download
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '0.9rem 1.2rem',
+                borderRadius: '999px',
+                background: '#ffffff',
+                color: '#0a0a0a',
+                textDecoration: 'none',
+                fontWeight: 700,
+                textAlign: 'center',
+                fontSize: '1rem',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 12px 24px rgba(255, 255, 255, 0.2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              Download file
+            </a>
+          </section>
+        )}
+      </div>
+
+      {/* Footer with DMCA */}
+      <footer
+        style={{
+          padding: '2rem 6vw 1.5rem',
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          textAlign: 'center',
+          background: 'rgba(10, 10, 10, 0.3)'
+        }}
+      >
+        <a
+          href="/dmca"
+          style={{
+            fontSize: '0.75rem',
+            color: 'rgba(245, 245, 245, 0.5)',
+            textDecoration: 'none',
+            transition: 'color 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'rgba(245, 245, 245, 0.8)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'rgba(245, 245, 245, 0.5)';
+          }}
+        >
+          DMCA
+        </a>
+      </footer>
+    </main>
+  );
+}
