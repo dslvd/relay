@@ -30,14 +30,14 @@ export default function DmcaPage() {
           fontSize: 'clamp(2rem, 3.5vw, 3rem)',
           letterSpacing: '-0.02em'
         }}>
-          Copyright & Takedown Policy
+          DMCA Takedown Policy
         </h1>
         <p style={{
           margin: 0,
           color: 'rgba(245, 245, 245, 0.7)',
           fontSize: '1rem'
         }}>
-          Relay respects intellectual property rights and responds to valid DMCA notices.
+          Information for copyright holders and DMCA agents regarding takedown requests.
         </p>
 
         <div style={{
@@ -55,42 +55,21 @@ export default function DmcaPage() {
               margin: 0,
               fontSize: '1.1rem'
             }}>
-              Submit a takedown notice
-            </h2>
-            <ul style={{
-              margin: '0.75rem 0 0',
-              paddingLeft: '1.2rem',
-              color: 'rgba(245, 245, 245, 0.72)',
-              lineHeight: 1.6
-            }}>
-              <li>Identify the copyrighted work you believe is infringed.</li>
-              <li>Provide the exact URL(s) to the allegedly infringing material.</li>
-              <li>Include your contact information (name, email, address).</li>
-              <li>Include a statement of good faith belief and accuracy under penalty of perjury.</li>
-              <li>Provide your physical or electronic signature.</li>
-            </ul>
-          </div>
-
-          <div style={{
-            padding: '1.2rem 1.4rem',
-            borderRadius: '18px',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            background: 'rgba(255, 255, 255, 0.03)'
-          }}>
-            <h2 style={{
-              margin: 0,
-              fontSize: '1.1rem'
-            }}>
-              Counter-notice
+              Overview
             </h2>
             <p style={{
               margin: '0.75rem 0 0',
               color: 'rgba(245, 245, 245, 0.72)',
               lineHeight: 1.6
             }}>
-              If you believe material was removed in error, you may submit a counter-notice with your
-              contact details, the URL(s), a statement under penalty of perjury, and your consent to
-              jurisdiction in your local federal district court.
+              Rootz respects the intellectual property rights of others and expects our users to do the same. We are committed to responding to valid DMCA takedown notices in accordance with the Digital Millennium Copyright Act (DMCA) and other applicable copyright laws.
+            </p>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              While we cannot prevent all users from uploading copyrighted content, we take copyright infringement seriously and will promptly remove files when we receive a valid takedown request.
             </p>
           </div>
 
@@ -104,16 +83,200 @@ export default function DmcaPage() {
               margin: 0,
               fontSize: '1.1rem'
             }}>
-              Designated agent
+              Filing a DMCA Takedown Request
             </h2>
             <p style={{
               margin: '0.75rem 0 0',
               color: 'rgba(245, 245, 245, 0.72)',
               lineHeight: 1.6
             }}>
-              Email: dmca@yourdomain.com
+              If you believe that content hosted on Rootz infringes your copyright, you may submit a DMCA takedown notice. To be effective, your notice must include the following information:
+            </p>
+            <ul style={{
+              margin: '0.75rem 0 0',
+              paddingLeft: '1.2rem',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              <li><strong>Identification of the copyrighted work:</strong> A description or link to the copyrighted work that you claim has been infringed.</li>
+              <li><strong>Identification of the infringing material:</strong> The specific URL(s) or file link(s) where the allegedly infringing content is located on Rootz.</li>
+              <li><strong>Your contact information:</strong> Your full name, mailing address, telephone number, and email address.</li>
+              <li><strong>Good faith statement:</strong> A statement that you have a good faith belief that the use of the material is not authorized by the copyright owner, its agent, or the law.</li>
+              <li><strong>Accuracy statement:</strong> A statement that the information in your notice is accurate and, under penalty of perjury, that you are the copyright owner or authorized to act on behalf of the copyright owner.</li>
+              <li><strong>Physical or electronic signature:</strong> Your physical or electronic signature (or that of the person authorized to act on behalf of the copyright owner).</li>
+            </ul>
+          </div>
+
+          <div style={{
+            padding: '1.2rem 1.4rem',
+            borderRadius: '18px',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'rgba(255, 255, 255, 0.03)'
+          }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '1.1rem'
+            }}>
+              How to Submit a Takedown Request
+            </h2>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              Please send your DMCA takedown notice to our designated agent:
+            </p>
+            <p style={{
+              margin: '0.9rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6,
+              fontWeight: 600
+            }}>
+              Designated DMCA Agent
+            </p>
+            <p style={{
+              margin: '0.5rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              Email: contactdslvd@gmail.com
               <br />
-              Address: 123 Placeholder Ave, Suite 100, City, ST 00000
+              Subject Line: DMCA Takedown Request
+            </p>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              Please include all required information listed above in your email. Incomplete notices may delay our response.
+            </p>
+          </div>
+
+          <div style={{
+            padding: '1.2rem 1.4rem',
+            borderRadius: '18px',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'rgba(255, 255, 255, 0.03)'
+          }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '1.1rem'
+            }}>
+              Our Response Process
+            </h2>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              Upon receipt of a valid DMCA takedown notice, we will:
+            </p>
+            <ul style={{
+              margin: '0.75rem 0 0',
+              paddingLeft: '1.2rem',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              <li>Review the notice for completeness and validity</li>
+              <li>Remove or disable access to the allegedly infringing content</li>
+              <li>Notify the user who uploaded the content (if identifiable)</li>
+              <li>Respond to the copyright holder confirming the action taken</li>
+            </ul>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              We typically process valid takedown requests within 24-48 hours of receipt.
+            </p>
+          </div>
+
+          <div style={{
+            padding: '1.2rem 1.4rem',
+            borderRadius: '18px',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'rgba(255, 255, 255, 0.03)'
+          }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '1.1rem'
+            }}>
+              Counter-Notification
+            </h2>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              If you believe that your content was removed in error, you may submit a counter-notification. A valid counter-notification must include:
+            </p>
+            <ul style={{
+              margin: '0.75rem 0 0',
+              paddingLeft: '1.2rem',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              <li>Your physical or electronic signature</li>
+              <li>Identification of the material that was removed and its location before removal</li>
+              <li>A statement under penalty of perjury that you have a good faith belief the material was removed in error</li>
+              <li>Your name, address, and telephone number</li>
+              <li>A statement that you consent to the jurisdiction of the federal court in your district</li>
+            </ul>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              Counter-notifications should be sent to the same email address: contactdslvd@gmail.com
+            </p>
+          </div>
+
+          <div style={{
+            padding: '1.2rem 1.4rem',
+            borderRadius: '18px',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'rgba(255, 255, 255, 0.03)'
+          }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '1.1rem'
+            }}>
+              Repeat Infringers
+            </h2>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              In accordance with the DMCA, we maintain a policy of terminating the accounts of users who are repeat infringers of copyright. Users who repeatedly upload infringing content may have their accounts permanently suspended.
+            </p>
+          </div>
+
+          <div style={{
+            padding: '1.2rem 1.4rem',
+            borderRadius: '18px',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'rgba(255, 255, 255, 0.03)'
+          }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '1.1rem'
+            }}>
+              Disclaimer
+            </h2>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              This page is provided for informational purposes only and does not constitute legal advice. If you have questions about copyright law or the DMCA process, please consult with a qualified legal professional.
+            </p>
+            <p style={{
+              margin: '0.75rem 0 0',
+              color: 'rgba(245, 245, 245, 0.72)',
+              lineHeight: 1.6
+            }}>
+              By using Rootz, users agree not to upload copyrighted material without proper authorization. However, as a file hosting service, we cannot monitor all uploaded content and rely on copyright holders to notify us of infringements.
             </p>
           </div>
         </div>
@@ -138,7 +301,7 @@ export default function DmcaPage() {
             Back to home
           </a>
           <a
-            href="mailto:dmca@yourdomain.com"
+            href="mailto:contactdslvd@gmail.com?subject=DMCA%20Takedown%20Request"
             style={{
               padding: '0.7rem 1.2rem',
               borderRadius: '999px',
@@ -147,7 +310,7 @@ export default function DmcaPage() {
               textDecoration: 'none'
             }}
           >
-            Email DMCA agent
+            Contact DMCA Agent
           </a>
         </div>
       </section>
