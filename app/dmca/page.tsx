@@ -62,7 +62,7 @@ export default function DmcaPage() {
               color: 'rgba(245, 245, 245, 0.72)',
               lineHeight: 1.6
             }}>
-              Rootz respects the intellectual property rights of others and expects our users to do the same. We are committed to responding to valid DMCA takedown notices in accordance with the Digital Millennium Copyright Act (DMCA) and other applicable copyright laws.
+              Relay respects the intellectual property rights of others and expects our users to do the same. We are committed to responding to valid DMCA takedown notices in accordance with the Digital Millennium Copyright Act (DMCA) and other applicable copyright laws.
             </p>
             <p style={{
               margin: '0.75rem 0 0',
@@ -90,7 +90,7 @@ export default function DmcaPage() {
               color: 'rgba(245, 245, 245, 0.72)',
               lineHeight: 1.6
             }}>
-              If you believe that content hosted on Rootz infringes your copyright, you may submit a DMCA takedown notice. To be effective, your notice must include the following information:
+              If you believe that content hosted on Relay infringes your copyright, you may submit a DMCA takedown notice. To be effective, your notice must include the following information:
             </p>
             <ul style={{
               margin: '0.75rem 0 0',
@@ -99,7 +99,7 @@ export default function DmcaPage() {
               lineHeight: 1.6
             }}>
               <li><strong>Identification of the copyrighted work:</strong> A description or link to the copyrighted work that you claim has been infringed.</li>
-              <li><strong>Identification of the infringing material:</strong> The specific URL(s) or file link(s) where the allegedly infringing content is located on Rootz.</li>
+              <li><strong>Identification of the infringing material:</strong> The specific URL(s) or file link(s) where the allegedly infringing content is located on Relay.</li>
               <li><strong>Your contact information:</strong> Your full name, mailing address, telephone number, and email address.</li>
               <li><strong>Good faith statement:</strong> A statement that you have a good faith belief that the use of the material is not authorized by the copyright owner, its agent, or the law.</li>
               <li><strong>Accuracy statement:</strong> A statement that the information in your notice is accurate and, under penalty of perjury, that you are the copyright owner or authorized to act on behalf of the copyright owner.</li>
@@ -201,46 +201,6 @@ export default function DmcaPage() {
               margin: 0,
               fontSize: '1.1rem'
             }}>
-              Counter-Notification
-            </h2>
-            <p style={{
-              margin: '0.75rem 0 0',
-              color: 'rgba(245, 245, 245, 0.72)',
-              lineHeight: 1.6
-            }}>
-              If you believe that your content was removed in error, you may submit a counter-notification. A valid counter-notification must include:
-            </p>
-            <ul style={{
-              margin: '0.75rem 0 0',
-              paddingLeft: '1.2rem',
-              color: 'rgba(245, 245, 245, 0.72)',
-              lineHeight: 1.6
-            }}>
-              <li>Your physical or electronic signature</li>
-              <li>Identification of the material that was removed and its location before removal</li>
-              <li>A statement under penalty of perjury that you have a good faith belief the material was removed in error</li>
-              <li>Your name, address, and telephone number</li>
-              <li>A statement that you consent to the jurisdiction of the federal court in your district</li>
-            </ul>
-            <p style={{
-              margin: '0.75rem 0 0',
-              color: 'rgba(245, 245, 245, 0.72)',
-              lineHeight: 1.6
-            }}>
-              Counter-notifications should be sent to the same email address: contactdslvd@gmail.com
-            </p>
-          </div>
-
-          <div style={{
-            padding: '1.2rem 1.4rem',
-            borderRadius: '18px',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            background: 'rgba(255, 255, 255, 0.03)'
-          }}>
-            <h2 style={{
-              margin: 0,
-              fontSize: '1.1rem'
-            }}>
               Repeat Infringers
             </h2>
             <p style={{
@@ -276,7 +236,7 @@ export default function DmcaPage() {
               color: 'rgba(245, 245, 245, 0.72)',
               lineHeight: 1.6
             }}>
-              By using Rootz, users agree not to upload copyrighted material without proper authorization. However, as a file hosting service, we cannot monitor all uploaded content and rely on copyright holders to notify us of infringements.
+              By using Relay, users agree not to upload copyrighted material without proper authorization. However, as a file hosting service, we cannot monitor all uploaded content and rely on copyright holders to notify us of infringements.
             </p>
           </div>
         </div>
