@@ -76,35 +76,58 @@ export default function DownloadPage() {
         padding: 0
       }}
     >
-      {/* Nav Bar */}
-      <nav
+      {/* Back to Home - Fixed Top Left */}
+      <a
+        href="/"
         style={{
-          padding: '1rem 6vw',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          background: 'rgba(10, 10, 10, 0.6)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
+          position: 'fixed',
+          top: '1.5rem',
+          left: '1.5rem',
+          zIndex: 50,
+          textDecoration: 'none',
+          color: '#f5f5f5',
+          fontFamily: "'Open Sans', sans-serif",
+          fontSize: '0.85rem',
+          fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          gap: '0.4rem',
+          transition: 'colors 0.2s ease',
+          padding: '0.5rem 0.8rem',
+          borderRadius: '6px',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
         }}
       >
-        <a
-          href="/"
-          style={{
-            textDecoration: 'none',
-            color: '#f5f5f5',
-            fontFamily: "'Open Sans', sans-serif",
-            fontSize: '1rem',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}
-        >
-          ← Back to home
-        </a>
-      </nav>
+        ← Home
+      </a>
+
+      {/* DMCA - Fixed Bottom Right */}
+      <a
+        href="/dmca"
+        style={{
+          position: 'fixed',
+          bottom: '1.5rem',
+          right: '1.5rem',
+          zIndex: 50,
+          textDecoration: 'none',
+          fontSize: '0.75rem',
+          color: 'rgba(245, 245, 245, 0.5)',
+          transition: 'color 0.2s ease'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = 'rgba(245, 245, 245, 0.8)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = 'rgba(245, 245, 245, 0.5)';
+        }}
+      >
+        DMCA
+      </a>
 
       {/* Content */}
       <div
@@ -315,34 +338,6 @@ export default function DownloadPage() {
           </section>
         )}
       </div>
-
-      {/* Footer with DMCA */}
-      <footer
-        style={{
-          padding: '2rem 6vw 1.5rem',
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          textAlign: 'center',
-          background: 'rgba(10, 10, 10, 0.3)'
-        }}
-      >
-        <a
-          href="/dmca"
-          style={{
-            fontSize: '0.75rem',
-            color: 'rgba(245, 245, 245, 0.5)',
-            textDecoration: 'none',
-            transition: 'color 0.2s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = 'rgba(245, 245, 245, 0.8)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'rgba(245, 245, 245, 0.5)';
-          }}
-        >
-          DMCA
-        </a>
-      </footer>
     </main>
   );
 }
