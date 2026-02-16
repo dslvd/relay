@@ -9,6 +9,7 @@ interface UploadRecord {
   url: string;
   filename: string;
   timestamp: number;
+  expiresAt?: number;
   size: number;
   ip?: string;
 }
