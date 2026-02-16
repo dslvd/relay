@@ -23,6 +23,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${openSans.variable} antialiased`}>
         {children}
+        <a className="dmca-link" href="/dmca">
+          DMCA
+        </a>
       </body>
     </html>
   );
