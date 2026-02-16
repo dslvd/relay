@@ -122,29 +122,6 @@ export default function DownloadPage() {
         ← Home
       </a>
 
-      {/* DMCA - Fixed Bottom Right */}
-      <a
-        href="/dmca"
-        style={{
-          position: 'fixed',
-          bottom: '1.5rem',
-          right: '1.5rem',
-          zIndex: 50,
-          textDecoration: 'none',
-          fontSize: '0.75rem',
-          color: 'rgba(245, 245, 245, 0.5)',
-          transition: 'color 0.2s ease'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = 'rgba(245, 245, 245, 0.8)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = 'rgba(245, 245, 245, 0.5)';
-        }}
-      >
-        DMCA
-      </a>
-
       {/* Content */}
       <div
         style={{
