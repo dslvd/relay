@@ -5,14 +5,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-interface UploadRecord {
+type UploadHistoryEntry = {
   url: string;
-  filename: string;
-  timestamp: number;
-  expiresAt: number;
-  size: number;
-  ip?: string;
-}
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,7 +58,6 @@ async function removeDeletedFiles(urls: string[]): Promise<void> {
     return;
   }
   
-  global.uploadHistory = (global.uploadHistory as UploadRecord[]).filter(
-    record => !urls.includes(record.url)
-  );
+  const history = global.uploadHistory as UploadHistoryEntry[];
+  (global as any).uploadHistory = history.filter((record) => !urls.includes(record.url));
 }
