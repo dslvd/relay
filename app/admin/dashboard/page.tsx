@@ -267,7 +267,7 @@ export default function AdminDashboard() {
         }}>
           <div>
             <h1 style={{
-              fontFamily: "'Montserrat', sans-serif",
+              fontFamily: "'Open Sans', sans-serif",
               fontSize: '1.75rem',
               fontWeight: 300,
               marginBottom: '0.5rem'
@@ -296,7 +296,7 @@ export default function AdminDashboard() {
                 fontWeight: 400,
                 letterSpacing: '0.02em',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                fontFamily: "'Montserrat', sans-serif"
+                fontFamily: "'Open Sans', sans-serif"
               }}
             >
               {loading ? '🔄 Loading...' : '🔄 Refresh'}
@@ -314,7 +314,7 @@ export default function AdminDashboard() {
                 fontWeight: 400,
                 letterSpacing: '0.02em',
                 cursor: 'pointer',
-                fontFamily: "'Montserrat', sans-serif"
+                fontFamily: "'Open Sans', sans-serif"
               }}
             >
               🚪 Logout
@@ -390,7 +390,7 @@ export default function AdminDashboard() {
                 color: '#f5f5f5',
                 fontSize: '0.875rem',
                 outline: 'none',
-                fontFamily: "'Montserrat', sans-serif"
+                fontFamily: "'Open Sans', sans-serif"
               }}
             />
             
@@ -405,7 +405,7 @@ export default function AdminDashboard() {
                 color: '#f5f5f5',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Montserrat', sans-serif"
+                fontFamily: "'Open Sans', sans-serif"
               }}
             >
               <option value="all">All Types</option>
@@ -424,7 +424,7 @@ export default function AdminDashboard() {
                 color: '#f5f5f5',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Montserrat', sans-serif"
+                fontFamily: "'Open Sans', sans-serif"
               }}
             >
               📥 Export JSON
@@ -440,7 +440,7 @@ export default function AdminDashboard() {
                 color: '#f5f5f5',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Montserrat', sans-serif"
+                fontFamily: "'Open Sans', sans-serif"
               }}
             >
               📥 Export CSV
@@ -462,7 +462,7 @@ export default function AdminDashboard() {
                   color: '#f5f5f5',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  fontFamily: "'Montserrat', sans-serif"
+                  fontFamily: "'Open Sans', sans-serif"
                 }}
               >
                 🗑️ Delete Selected
@@ -477,7 +477,7 @@ export default function AdminDashboard() {
                   color: '#f5f5f5',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  fontFamily: "'Montserrat', sans-serif"
+                  fontFamily: "'Open Sans', sans-serif"
                 }}
               >
                 Clear Selection
@@ -516,7 +516,7 @@ export default function AdminDashboard() {
             letterSpacing: '0.02em',
               cursor: loading || files.length === 0 ? 'not-allowed' : 'pointer',
               opacity: loading || files.length === 0 ? 0.5 : 1,
-              fontFamily: "'Montserrat', sans-serif"
+              fontFamily: "'Open Sans', sans-serif"
             }}
           >
             🗑️ Delete All Files
@@ -715,7 +715,7 @@ export default function AdminDashboard() {
                             color: '#f5f5f5',
                             fontSize: '0.8rem',
                             cursor: 'pointer',
-                            fontFamily: "'Montserrat', sans-serif"
+                            fontFamily: "'Open Sans', sans-serif"
                           }}
                         >
                           📋
@@ -732,7 +732,7 @@ export default function AdminDashboard() {
                             fontSize: '0.8rem',
                             cursor: deleting === file.url ? 'not-allowed' : 'pointer',
                             opacity: deleting === file.url ? 0.5 : 1,
-                            fontFamily: "'Montserrat', sans-serif"
+                            fontFamily: "'Open Sans', sans-serif"
                           }}
                         >
                           {deleting === file.url ? '⏳' : '🗑️'}

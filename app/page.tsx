@@ -34,6 +34,7 @@ export default function Home() {
   const [verifyingFiles, setVerifyingFiles] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const toastTimeoutRef = useRef<number | null>(null);
+  const cancelUploadRef = useRef(false);
   const emptyMessages = [
     'No uploads yet 🚀',
     'Empty for now 👀',
@@ -162,6 +163,7 @@ export default function Home() {
   };
 
   const uploadFile = async (file: File, notify: boolean = true) => {
+    cancelUploadRef.current = false;
     if (file.size > MAX_UPLOAD_BYTES) {
       if (notify) {
         showToast('File too large (max 200MB)', 'error');
@@ -181,6 +183,9 @@ export default function Home() {
         access: 'public',
         handleUploadUrl: '/api/upload',
         onUploadProgress: (progress) => {
+          if (cancelUploadRef.current) {
+            return;
+          }
           const total = progress.total ?? file.size;
           const percent = total > 0 ? Math.round((progress.loaded / total) * 100) : 0;
           setUploadProgress(Math.min(100, percent));
@@ -189,6 +194,10 @@ export default function Home() {
           setUploadTotalBytes(total);
         }
       });
+
+      if (cancelUploadRef.current) {
+        return;
+      }
 
       const newUrl = `${window.location.origin}/${blob.pathname}`;
       setUploadedFiles(prev => [
@@ -236,6 +245,9 @@ export default function Home() {
     let errorCount = 0;
 
     for (const [index, file] of files.entries()) {
+      if (cancelUploadRef.current) {
+        break;
+      }
       const current = index + 1;
       showToast(`Uploading ${current} of ${files.length}`, 'info');
       try {
@@ -252,8 +264,32 @@ export default function Home() {
       showToast(`${successCount} file${successCount === 1 ? '' : 's'} uploaded`, 'success');
     }
     if (errorCount > 0) {
-      showToast('Some uploads failed', 'error');
+      showToast('Upload failed', 'error');
     }
+  };
+
+  const cancelUpload = () => {
+    if (!uploading) {
+      return;
+    }
+
+    cancelUploadRef.current = true;
+    setUploadStatus('');
+    setUploadProgress(0);
+    setUploadLoadedBytes(0);
+    setUploadTotalBytes(0);
+    setUploading(false);
+    showToast('Upload cancelled', 'info');
+  };
+
+  const copyAllUploadedLinks = () => {
+    if (uploadedFiles.length === 0) {
+      showToast('No uploaded links yet', 'info');
+      return;
+    }
+
+    const allLinks = uploadedFiles.map((file) => file.url).join('\n');
+    copyText(allLinks, 'All links copied');
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -316,19 +352,10 @@ export default function Home() {
     return `relaycdn.vercel.app/d/${filename}`;
   };
 
-  const buildEmbedHtml = (url: string) => {
-    return `<iframe src="${url}" width="100%" height="500" style="border:0;" loading="lazy"></iframe>`;
-  };
-
-  const buildEmbedMarkdown = (url: string, filename: string) => {
-    return `[${filename}](${url})`;
-  };
-
-
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap');
 
         * {
           margin: 0;
@@ -339,7 +366,7 @@ export default function Home() {
         body {
           background: #0a0a0a;
           color: #f5f5f5;
-          font-family: 'Montserrat', sans-serif;
+          font-family: 'Open Sans', sans-serif;
           min-height: 100vh;
           overflow-x: hidden;
         }
@@ -415,6 +442,90 @@ export default function Home() {
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
+        {uploading && (
+          <div style={{
+            width: '100%',
+            maxWidth: '860px',
+            marginBottom: '1.5rem',
+            padding: '0.65rem 0.9rem',
+            borderRadius: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
+            background: 'rgba(10, 10, 10, 0.7)',
+            boxShadow: '0 10px 24px rgba(0, 0, 0, 0.35)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            flexWrap: 'wrap'
+          }}>
+            <button
+              onClick={cancelUpload}
+              style={{
+                padding: '0.5rem 0.9rem',
+                borderRadius: '999px',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                background: 'transparent',
+                color: '#f5f5f5',
+                fontSize: '0.8rem',
+                fontWeight: 500,
+                letterSpacing: '0.02em',
+                cursor: 'pointer'
+              }}
+            >
+              ← Back
+            </button>
+            <div style={{
+              fontSize: '0.78rem',
+              color: '#d8d8d8',
+              letterSpacing: '0.03em'
+            }}>
+              {uploadProgress > 0 ? `Uploading ${uploadProgress}%` : 'Preparing upload…'}
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem'
+            }}>
+              <button
+                onClick={cancelUpload}
+                style={{
+                  padding: '0.5rem 0.9rem',
+                  borderRadius: '999px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  color: '#f5f5f5',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  letterSpacing: '0.02em',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={copyAllUploadedLinks}
+                disabled={uploadedFiles.length === 0}
+                style={{
+                  padding: '0.5rem 0.95rem',
+                  borderRadius: '999px',
+                  border: '1px solid #ffffff',
+                  background: uploadedFiles.length === 0 ? 'rgba(255, 255, 255, 0.3)' : '#ffffff',
+                  color: '#0a0a0a',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
+                  cursor: uploadedFiles.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Copy all links
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!uploading && (
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -430,7 +541,7 @@ export default function Home() {
             style={{}}
           />
           <h1 style={{
-          fontFamily: "'Montserrat', sans-serif",
+          fontFamily: "'Open Sans', sans-serif",
           fontSize: '1.6rem',
           fontWeight: 700,
           letterSpacing: '-0.02em',
@@ -443,6 +554,7 @@ export default function Home() {
           effortless file sharing.
         </h1>
         </div>
+        )}
 
 
         <input
@@ -453,7 +565,7 @@ export default function Home() {
           style={{ display: 'none' }}
         />
 
-        {isDragging && (
+        {!uploading && isDragging && (
           <div
             style={{
               marginTop: '0.25rem',
@@ -489,6 +601,7 @@ export default function Home() {
           </div>
         )}
         
+        {!uploading && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -501,7 +614,7 @@ export default function Home() {
           <button
             onClick={() => setActiveView(activeView === 'history' ? 'upload' : 'history')}
             style={{
-              fontFamily: "'Montserrat', sans-serif",
+              fontFamily: "'Open Sans', sans-serif",
               padding: '0.75rem 1.75rem',
               fontSize: '0.95rem',
               fontWeight: 400,
@@ -535,7 +648,7 @@ export default function Home() {
             }}
             disabled={uploading}
             style={{
-              fontFamily: "'Montserrat', sans-serif",
+              fontFamily: "'Open Sans', sans-serif",
               padding: '0.75rem 1.75rem',
               fontSize: '0.95rem',
               fontWeight: 400,
@@ -569,7 +682,9 @@ export default function Home() {
             {uploading ? 'Uploading...' : 'Choose File'}
           </button>
         </div>
+        )}
 
+        {!uploading && (
         <p style={{
           marginTop: '0.85rem',
           fontSize: '0.65rem',
@@ -579,6 +694,7 @@ export default function Home() {
         }}>
           Max upload size: 200MB per file
         </p>
+        )}
 
 
         {activeView === 'upload' && uploading && (
@@ -659,17 +775,8 @@ export default function Home() {
                       border: '1px solid rgba(255, 255, 255, 0.08)',
                       borderRadius: '16px',
                       transition: 'all 0.3s',
-                      cursor: 'pointer',
+                      cursor: 'default',
                       boxShadow: '0 10px 24px rgba(0, 0, 0, 0.25)'
-                    }}
-                    onClick={() => copyToClipboard(url)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.05))';
-                      e.currentTarget.style.borderColor = '#ffffff';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.03))';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                     }}
                   >
                     <div style={{
@@ -760,78 +867,7 @@ export default function Home() {
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em'
                       }}>
-                        Embed
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        flexWrap: 'wrap'
-                      }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyText(buildEmbedHtml(url), 'Embed HTML copied');
-                          }}
-                          style={{
-                            fontFamily: "'Montserrat', sans-serif",
-                            fontSize: '0.7rem',
-                            fontWeight: 400,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: '#0a0a0a',
-                            background: '#ffffff',
-                            border: '1px solid #ffffff',
-                            borderRadius: '999px',
-                            padding: '0.3rem 0.65rem',
-                            cursor: 'pointer'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = '#e6e6e6';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = '#ffffff';
-                          }}
-                        >
-                          HTML
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyText(buildEmbedMarkdown(url, filename), 'Embed markdown copied');
-                          }}
-                          style={{
-                            fontFamily: "'Montserrat', sans-serif",
-                            fontSize: '0.7rem',
-                            fontWeight: 400,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: '#f5f5f5',
-                            background: '#111111',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            borderRadius: '999px',
-                            padding: '0.3rem 0.65rem',
-                            cursor: 'pointer'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = '#1a1a1a';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = '#111111';
-                          }}
-                        >
-                          MD
-                        </button>
-                      </div>
-
-
-                      <div style={{
-                        fontSize: '0.7rem',
-                        color: '#9a9a9a',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em'
-                      }}>
-                        Action
+                        Share link
                       </div>
                       <button
                         onClick={(e) => {
@@ -840,26 +876,25 @@ export default function Home() {
                         }}
                         style={{
                           justifySelf: 'start',
-                          fontFamily: "'Montserrat', sans-serif",
-                          fontSize: '0.75rem',
-                          fontWeight: 400,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: '#0a0a0a',
-                          background: '#ffffff',
-                          border: '1px solid #ffffff',
+                          fontFamily: "'Open Sans', sans-serif",
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          letterSpacing: '0.02em',
+                          color: '#f5f5f5',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.25)',
                           borderRadius: '999px',
-                          padding: '0.35rem 0.75rem',
+                          padding: '0.4rem 0.85rem',
                           cursor: 'pointer'
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#e6e6e6';
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#ffffff';
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                         }}
                       >
-                        Copy
+                        Share link
                       </button>
                     </div>
                   </div>
@@ -992,17 +1027,8 @@ export default function Home() {
                       border: '1px solid rgba(255, 255, 255, 0.08)',
                       borderRadius: '16px',
                       transition: 'all 0.3s',
-                      cursor: 'pointer',
+                      cursor: 'default',
                       boxShadow: '0 10px 24px rgba(0, 0, 0, 0.25)'
-                    }}
-                    onClick={() => copyToClipboard(record.url)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.05))';
-                      e.currentTarget.style.borderColor = '#ffffff';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.03))';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                     }}
                   >
                     <div style={{
@@ -1109,7 +1135,7 @@ export default function Home() {
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em'
                       }}>
-                        Action
+                        Share link
                       </div>
                       <button
                         onClick={(e) => {
@@ -1118,26 +1144,25 @@ export default function Home() {
                         }}
                         style={{
                           justifySelf: 'start',
-                          fontFamily: "'Montserrat', sans-serif",
-                          fontSize: '0.75rem',
-                          fontWeight: 400,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: '#0a0a0a',
-                          background: '#ffffff',
-                          border: '1px solid #ffffff',
+                          fontFamily: "'Open Sans', sans-serif",
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          letterSpacing: '0.02em',
+                          color: '#f5f5f5',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.25)',
                           borderRadius: '999px',
-                          padding: '0.35rem 0.75rem',
+                          padding: '0.4rem 0.85rem',
                           cursor: 'pointer'
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#e6e6e6';
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#ffffff';
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                         }}
                       >
-                        Copy
+                        Share link
                       </button>
                     </div>
                   </div>

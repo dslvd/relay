@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { pruneExpiredHistoryCache } from '@/app/lib/retention';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 interface UploadRecord {
   url: string;
@@ -10,6 +15,7 @@ interface UploadRecord {
 
 export async function POST(request: NextRequest) {
   try {
+    pruneExpiredHistoryCache();
     const body = await request.json();
     const { urls } = body;
 
@@ -25,6 +31,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true,
       removed: urls.length 
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
     });
   } catch (error) {
     console.error('Error cleaning up history:', error);

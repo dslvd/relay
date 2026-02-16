@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, RETENTION_MS } from '@/app/lib/retention';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 const MAX_DAILY_BYTES = 1024 * 1024 * 1024; // 1GB per IP
 const MAX_DAILY_UPLOADS = 100;
@@ -7,6 +12,7 @@ interface UploadRecord {
   url: string;
   filename: string;
   timestamp: number;
+  expiresAt: number;
   size: number;
   ip?: string;
 }
@@ -21,6 +27,8 @@ interface UploadQuota {
 // For production, use a database like Vercel KV, PostgreSQL, or similar
 export async function GET() {
   try {
+    await deleteExpiredBlobs();
+    pruneExpiredHistoryCache();
     // In a real implementation, fetch from database
     // For now, using Vercel KV or similar would be ideal
     
@@ -33,7 +41,9 @@ export async function GET() {
       },
       {
         headers: {
-          'Cache-Control': 'no-store'
+          'Cache-Control': 'no-store, max-age=0, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       }
     );
@@ -48,6 +58,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    await deleteExpiredBlobs();
+    pruneExpiredHistoryCache();
     const body = await request.json();
     const { url, filename, size } = body;
 
@@ -88,7 +100,8 @@ export async function POST(request: NextRequest) {
       url,
       filename,
       size: uploadSize,
-      timestamp: Date.now(),
+      timestamp: now,
+      expiresAt: now + RETENTION_MS,
       ip
     };
 
@@ -128,8 +141,15 @@ async function getHistoryFromStorage(): Promise<UploadRecord[]> {
   if (typeof global.uploadHistory === 'undefined') {
     global.uploadHistory = [];
   }
-  
-  return (global.uploadHistory as UploadRecord[])
+
+  const history = global.uploadHistory as UploadRecord[];
+  const filtered = history.filter((record) => !isExpired(record.timestamp));
+
+  if (filtered.length !== history.length) {
+    global.uploadHistory = filtered;
+  }
+
+  return filtered
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 100);
 }

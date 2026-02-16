@@ -1,8 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { del } from '@vercel/blob';
+import { del, list } from '@vercel/blob';
+
+const ADMIN_COOKIE_NAME = 'admin_auth';
+
+function requireAdmin(request: NextRequest): NextResponse | null {
+  const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
+  const cookieValue = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
+
+  if (!cookieValue || cookieValue !== adminPassword) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+
+  return null;
+}
+
+async function deleteAllBlobs(): Promise<number> {
+  let cursor: string | undefined;
+  let deleted = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const response = await list({
+      limit: 1000,
+      cursor
+    });
+
+    for (const blob of response.blobs) {
+      await del(blob.url);
+      deleted += 1;
+    }
+
+    cursor = response.cursor;
+    hasMore = response.hasMore;
+  }
+
+  return deleted;
+}
 
 export async function DELETE(request: NextRequest) {
   try {
+    const authError = requireAdmin(request);
+    if (authError) {
+      return authError;
+    }
+
     const body = await request.json();
     const { url } = body;
 
@@ -44,32 +88,22 @@ export async function DELETE(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authError = requireAdmin(request);
+    if (authError) {
+      return authError;
+    }
+
     const body = await request.json();
     const { action } = body;
 
     if (action === 'clear_all') {
-      // Clear all history
-      if (typeof global.uploadHistory !== 'undefined') {
-        const urlsToDelete = [...(global.uploadHistory as any[])];
-        
-        // Delete all files from blob storage
-        for (const record of urlsToDelete) {
-          try {
-            // Convert proxied URL to blob storage URL
-            const urlObj = new URL(record.url);
-            const blobUrl = `https://rcltxppgseuupozb.public.blob.vercel-storage.com${urlObj.pathname}`;
-            await del(blobUrl);
-          } catch (err) {
-            console.error('Failed to delete:', record.url, err);
-          }
-        }
-        
-        global.uploadHistory = [];
-      }
+      const deleted = await deleteAllBlobs();
+      global.uploadHistory = [];
 
       return NextResponse.json({ 
         success: true,
-        message: 'All files deleted successfully' 
+        message: 'All files deleted successfully',
+        deleted
       });
     }
 

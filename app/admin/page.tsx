@@ -58,7 +58,7 @@ export default function AdminLogin() {
         boxShadow: '0 18px 40px rgba(0, 0, 0, 0.45)'
       }}>
         <h1 style={{
-          fontFamily: "'Montserrat', sans-serif",
+          fontFamily: "'Open Sans', sans-serif",
           fontSize: '1.5rem',
           fontWeight: 300,
           color: '#f5f5f5',
@@ -116,7 +116,7 @@ export default function AdminLogin() {
               letterSpacing: '0.02em',
               cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'transform 0.2s, background 0.2s',
-              fontFamily: "'Montserrat', sans-serif"
+              fontFamily: "'Open Sans', sans-serif"
             }}
             onMouseEnter={(e) => {
               if (!loading) {

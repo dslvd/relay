@@ -9,10 +9,21 @@ export async function POST(request: NextRequest) {
     const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
 
     if (password === adminPassword) {
-      return NextResponse.json({ 
+      const response = NextResponse.json({
         success: true,
         message: 'Authentication successful'
       });
+
+      response.cookies.set({
+        name: 'admin_auth',
+        value: adminPassword,
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/'
+      });
+
+      return response;
     } else {
       return NextResponse.json(
         { success: false, message: 'Invalid password' },

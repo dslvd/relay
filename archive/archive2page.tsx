@@ -30,7 +30,7 @@ export default function Home() {
   return (
     <>
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap');
 
         * {
           margin: 0;
@@ -41,7 +41,7 @@ export default function Home() {
         body {
           background: #0a0a0a;
           color: #f5f5f0;
-          font-family: 'Montserrat', sans-serif;
+          font-family: 'Open Sans', sans-serif;
           min-height: 100vh;
           overflow-x: hidden;
         }
@@ -88,7 +88,7 @@ export default function Home() {
         margin: '0 auto'
       }}>
         <h1 style={{
-          fontFamily: "'Montserrat', sans-serif",
+          fontFamily: "'Open Sans', sans-serif",
           fontSize: '2rem',
           fontWeight: 700,
           letterSpacing: '-0.02em',
@@ -114,7 +114,7 @@ export default function Home() {
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
           style={{
-            fontFamily: "'Montserrat', sans-serif",
+            fontFamily: "'Open Sans', sans-serif",
             padding: '0.75rem 1.75rem',
             fontSize: '0.95rem',
             fontWeight: 700,

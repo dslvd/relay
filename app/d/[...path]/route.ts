@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: { path: string[] } }
 ) {
   try {
-    const { path } = await params;
+    const { path } = params;
     const pathname = `d/${path.join('/')}`;
     
     // Construct the Vercel Blob storage URL
@@ -22,15 +22,20 @@ export async function GET(
     }
     
     // Get the file content
-    const blob = await response.blob();
+    if (!response.body) {
+      return NextResponse.json(
+        { error: 'File not found' },
+        { status: 404 }
+      );
+    }
     
     // Return the file with proper headers
-    return new NextResponse(blob, {
+    return new NextResponse(response.body, {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('Content-Type') || 'application/octet-stream',
         'Content-Length': response.headers.get('Content-Length') || '',
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Cache-Control': 'public, max-age=604800, must-revalidate',
       }
     });
   } catch (error) {
@@ -44,10 +49,10 @@ export async function GET(
 
 export async function HEAD(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: { path: string[] } }
 ) {
   try {
-    const { path } = await params;
+    const { path } = params;
     const pathname = `d/${path.join('/')}`;
     const blobUrl = `https://rcltxppgseuupozb.public.blob.vercel-storage.com/${pathname}`;
     

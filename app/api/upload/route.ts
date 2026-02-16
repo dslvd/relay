@@ -1,5 +1,6 @@
 import { handleUpload } from '@vercel/blob/client';
 import { NextResponse } from 'next/server';
+import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/retention';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -56,6 +57,8 @@ export async function POST(request: Request) {
     },
     onUploadCompleted: async ({ blob }) => {
       console.log('Upload completed:', blob.url);
+      await deleteExpiredBlobs();
+      pruneExpiredHistoryCache();
     },
   });
 
