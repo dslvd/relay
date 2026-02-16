@@ -101,11 +101,10 @@ function fileNotFoundResponse(): NextResponse {
       <h1>File not found</h1>
       <p>The link points to a file that no longer exists or never did.</p>
       <div class="actions">
-        <a class="button" href="/">Back to home</a>
         <a class="button ghost" href="/">Upload a new file</a>
       </div>
       <div class="divider"></div>
-      <div class="hint">If this keeps happening, ask the sender to re-upload the file.</div>
+      <div class="hint">Contact the file owner if you believe this is an error.</div>
     </section>
   </body>
 </html>`;
