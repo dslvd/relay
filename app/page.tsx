@@ -29,6 +29,7 @@ export default function Home() {
   const [uploadLoadedBytes, setUploadLoadedBytes] = useState(0);
   const [uploadTotalBytes, setUploadTotalBytes] = useState(0);
   const [currentUploadName, setCurrentUploadName] = useState('');
+  const [uploadFilePreview, setUploadFilePreview] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const [activeView, setActiveView] = useState<'upload' | 'history'>('upload');
   const [publicHistory, setPublicHistory] = useState<UploadRecord[]>([]);
@@ -172,6 +173,34 @@ export default function Home() {
       throw new Error('File too large');
     }
 
+    // Generate preview for images and videos
+    if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (file.type.startsWith('video/')) {
+          // For videos, extract a frame (use the video element)
+          const video = document.createElement('video');
+          video.onloadedmetadata = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(video, 0, 0);
+              setUploadFilePreview(canvas.toDataURL('image/jpeg', 0.7));
+            }
+          };
+          video.src = e.target?.result as string;
+        } else {
+          // For images, use directly
+          setUploadFilePreview(e.target?.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setUploadFilePreview('');
+    }
+
     setUploading(true);
     setUploadProgress(0);
     setUploadStatus('Preparing upload...');
@@ -241,6 +270,7 @@ export default function Home() {
       setUploadStatus('');
       setUploadLoadedBytes(0);
       setUploadTotalBytes(0);
+      setUploadFilePreview('');
     }
   };
 
@@ -499,6 +529,19 @@ export default function Home() {
             >
               ← Back
             </button>
+            {uploadFilePreview && (
+              <img
+                src={uploadFilePreview}
+                alt="Upload preview"
+                style={{
+                  height: '32px',
+                  width: '32px',
+                  borderRadius: '6px',
+                  objectFit: 'cover',
+                  border: '1px solid rgba(255, 255, 255, 0.15)'
+                }}
+              />
+            )}
             <div style={{
               fontSize: '0.78rem',
               color: '#d8d8d8',
