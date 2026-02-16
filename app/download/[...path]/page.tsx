@@ -269,16 +269,55 @@ export default function DownloadPage() {
                 >
                   Download
                 </div>
-                <h1
+                <div
                   style={{
-                    margin: '0 0 1.2rem',
-                    fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)',
-                    letterSpacing: '-0.02em',
-                    wordBreak: 'break-word'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.8rem',
+                    marginBottom: '1.2rem',
+                    flexWrap: 'wrap'
                   }}
                 >
-                  {fileData.filename}
-                </h1>
+                  <h1
+                    style={{
+                      margin: 0,
+                      fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)',
+                      letterSpacing: '-0.02em',
+                      wordBreak: 'break-word'
+                    }}
+                  >
+                    {fileData.filename}
+                  </h1>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/download/${pathArray.join('/')}`);
+                    }}
+                    title="Copy download link"
+                    style={{
+                      padding: '0.5rem 0.6rem',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      color: '#f5f5f5',
+                      fontSize: '1.1rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                    }}
+                  >
+                    🔗
+                  </button>
+                </div>
 
                 {/* File Details */}
                 <div
@@ -397,7 +436,7 @@ export default function DownloadPage() {
                         e.currentTarget.style.background = 'transparent';
                       }}
                     >
-                      👁 Preview
+                    Preview
                     </button>
                   )}
                 </div>
