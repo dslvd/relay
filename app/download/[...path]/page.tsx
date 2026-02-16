@@ -18,8 +18,24 @@ export default function DownloadPage() {
   const [fileData, setFileData] = useState<UploadRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const downloadUrl = `/d/${pathArray.join('/')}`;
+
+  const isPreviewable = (fname: string): boolean => {
+    const ext = fname.split('.').pop()?.toLowerCase() || '';
+    const previewableTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'ogg', 'pdf', 'txt', 'json', 'md'];
+    return previewableTypes.includes(ext);
+  };
+
+  const getFileType = (fname: string): string => {
+    const ext = fname.split('.').pop()?.toLowerCase() || '';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
+    if (['mp4', 'webm', 'ogg'].includes(ext)) return 'video';
+    if (ext === 'pdf') return 'pdf';
+    if (['txt', 'json', 'md'].includes(ext)) return 'text';
+    return 'unknown';
+  };
 
   useEffect(() => {
     const fetchFileData = async () => {
@@ -217,126 +233,200 @@ export default function DownloadPage() {
               border: '1px solid rgba(255, 255, 255, 0.16)',
               background: 'rgba(255, 255, 255, 0.04)',
               padding: '3rem',
-              boxShadow: '0 22px 60px rgba(0, 0, 0, 0.45)'
+              boxShadow: '0 22px 60px rgba(0, 0, 0, 0.45)',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'auto'
             }}
           >
-            <div
-              style={{
-                fontSize: '0.8rem',
-                letterSpacing: '0.3em',
-                textTransform: 'uppercase',
-                color: 'rgba(245, 245, 245, 0.55)',
-                marginBottom: '0.9rem'
-              }}
-            >
-              Download
-            </div>
-            <h1
-              style={{
-                margin: '0 0 1.2rem',
-                fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)',
-                letterSpacing: '-0.02em',
-                wordBreak: 'break-word'
-              }}
-            >
-              {fileData.filename}
-            </h1>
+            {showPreview ? (
+              <>
+                <button
+                  onClick={() => setShowPreview(false)}
+                  style={{
+                    alignSelf: 'flex-start',
+                    padding: '0.5rem 0.9rem',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    color: '#f5f5f5',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    marginBottom: '1.5rem'
+                  }}
+                >
+                  ← Back to details
+                </button>
 
-            {/* File Details */}
-            <div
-              style={{
-                padding: '1.2rem 1.4rem',
-                borderRadius: '18px',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                background: 'rgba(255, 255, 255, 0.03)',
-                marginBottom: '2rem'
-              }}
-            >
-              <div
-                style={{
-                  display: 'grid',
-                  gap: '1rem'
-                }}
-              >
-                <div>
+                {/* Preview Content */}
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+                  {getFileType(fileData.filename) === 'image' && (
+                    <img src={downloadUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }} />
+                  )}
+                  {getFileType(fileData.filename) === 'video' && (
+                    <video controls style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }}>
+                      <source src={downloadUrl} />
+                      Your browser does not support the video tag.
+                    </video>
+                  )}
+                  {getFileType(fileData.filename) === 'pdf' && (
+                    <iframe src={downloadUrl} style={{ width: '100%', height: '100%', borderRadius: '12px', border: 'none' }} />
+                  )}
+                  {getFileType(fileData.filename) === 'text' && (
+                    <iframe src={downloadUrl} style={{ width: '100%', height: '100%', borderRadius: '12px', border: 'none' }} />
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div
+                  style={{
+                    fontSize: '0.8rem',
+                    letterSpacing: '0.3em',
+                    textTransform: 'uppercase',
+                    color: 'rgba(245, 245, 245, 0.55)',
+                    marginBottom: '0.9rem'
+                  }}
+                >
+                  Download
+                </div>
+                <h1
+                  style={{
+                    margin: '0 0 1.2rem',
+                    fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)',
+                    letterSpacing: '-0.02em',
+                    wordBreak: 'break-word'
+                  }}
+                >
+                  {fileData.filename}
+                </h1>
+
+                {/* File Details */}
+                <div
+                  style={{
+                    padding: '1.2rem 1.4rem',
+                    borderRadius: '18px',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    marginBottom: '2rem'
+                  }}
+                >
                   <div
                     style={{
-                      fontSize: '0.8rem',
-                      color: 'rgba(245, 245, 245, 0.55)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                      marginBottom: '0.4rem'
+                      display: 'grid',
+                      gap: '1rem'
                     }}
                   >
-                    File size
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '1rem',
-                      color: '#f5f5f5',
-                      fontWeight: 500
-                    }}
-                  >
-                    {formatFileSize(fileData.size)}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '0.8rem',
+                          color: 'rgba(245, 245, 245, 0.55)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          marginBottom: '0.4rem'
+                        }}
+                      >
+                        File size
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '1rem',
+                          color: '#f5f5f5',
+                          fontWeight: 500
+                        }}
+                      >
+                        {formatFileSize(fileData.size)}
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '0.8rem',
+                          color: 'rgba(245, 245, 245, 0.55)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          marginBottom: '0.4rem'
+                        }}
+                      >
+                        Uploaded
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '1rem',
+                          color: '#f5f5f5',
+                          fontWeight: 500
+                        }}
+                      >
+                        {formatDate(fileData.timestamp)}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: '0.8rem',
-                      color: 'rgba(245, 245, 245, 0.55)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                      marginBottom: '0.4rem'
-                    }}
-                  >
-                    Uploaded
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '1rem',
-                      color: '#f5f5f5',
-                      fontWeight: 500
-                    }}
-                  >
-                    {formatDate(fileData.timestamp)}
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Download Button */}
-            <a
-              href={downloadUrl}
-              download
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '0.9rem 1.2rem',
-                borderRadius: '999px',
-                background: '#ffffff',
-                color: '#0a0a0a',
-                textDecoration: 'none',
-                fontWeight: 700,
-                textAlign: 'center',
-                fontSize: '1rem',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 12px 24px rgba(255, 255, 255, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              Download file
-            </a>
+                {/* Download & Preview Buttons */}
+                <div style={{ display: 'grid', gridTemplateColumns: isPreviewable(fileData.filename) ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+                  <a
+                    href={downloadUrl}
+                    download
+                    style={{
+                      display: 'block',
+                      padding: '0.9rem 1.2rem',
+                      borderRadius: '999px',
+                      background: '#ffffff',
+                      color: '#0a0a0a',
+                      textDecoration: 'none',
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      fontSize: '1rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 12px 24px rgba(255, 255, 255, 0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    ⬇ Download
+                  </a>
+                  {isPreviewable(fileData.filename) && (
+                    <button
+                      onClick={() => setShowPreview(true)}
+                      style={{
+                        padding: '0.9rem 1.2rem',
+                        borderRadius: '999px',
+                        background: 'transparent',
+                        border: '1px solid rgba(255, 255, 255, 0.3)',
+                        color: '#f5f5f5',
+                        fontWeight: 700,
+                        textAlign: 'center',
+                        fontSize: '1rem',
+                        cursor: 'pointer',
+                        transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      👁 Preview
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </section>
-        )}
       </div>
     </main>
   );
