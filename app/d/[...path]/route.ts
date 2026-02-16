@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const pathname = `d/${path.join('/')}`;
     
     // Construct the Vercel Blob storage URL
@@ -49,10 +49,10 @@ export async function GET(
 
 export async function HEAD(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const pathname = `d/${path.join('/')}`;
     const blobUrl = `https://rcltxppgseuupozb.public.blob.vercel-storage.com/${pathname}`;
     
