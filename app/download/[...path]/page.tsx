@@ -426,8 +426,7 @@ export default function DownloadPage() {
                 </div>
               </>
             )}
-          </section>
-      </div>
+          </section>        )}      </div>
     </main>
   );
 }
