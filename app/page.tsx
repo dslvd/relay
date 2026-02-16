@@ -27,6 +27,7 @@ export default function Home() {
   const [uploadStatus, setUploadStatus] = useState('');
   const [uploadLoadedBytes, setUploadLoadedBytes] = useState(0);
   const [uploadTotalBytes, setUploadTotalBytes] = useState(0);
+  const [currentUploadName, setCurrentUploadName] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [activeView, setActiveView] = useState<'upload' | 'history'>('upload');
   const [publicHistory, setPublicHistory] = useState<UploadRecord[]>([]);
@@ -164,6 +165,7 @@ export default function Home() {
 
   const uploadFile = async (file: File, notify: boolean = true) => {
     cancelUploadRef.current = false;
+    setCurrentUploadName(file.name);
     if (file.size > MAX_UPLOAD_BYTES) {
       if (notify) {
         showToast('File too large (max 200MB)', 'error');
@@ -266,6 +268,8 @@ export default function Home() {
     if (errorCount > 0) {
       showToast('Upload failed', 'error');
     }
+
+    setCurrentUploadName('');
   };
 
   const cancelUpload = () => {
@@ -274,6 +278,7 @@ export default function Home() {
     }
 
     cancelUploadRef.current = true;
+    setCurrentUploadName('');
     setUploadStatus('');
     setUploadProgress(0);
     setUploadLoadedBytes(0);
@@ -348,8 +353,8 @@ export default function Home() {
     return date.toLocaleDateString();
   };
 
-  const formatShortUrl = (filename: string) => {
-    return `relaycdn.vercel.app/d/${filename}`;
+  const formatDisplayName = (filename: string) => {
+    return filename;
   };
 
   return (
@@ -454,6 +459,9 @@ export default function Home() {
             boxShadow: '0 10px 24px rgba(0, 0, 0, 0.35)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
+            position: 'sticky',
+            top: '1.25rem',
+            zIndex: 20,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -481,6 +489,7 @@ export default function Home() {
               color: '#d8d8d8',
               letterSpacing: '0.03em'
             }}>
+              {currentUploadName ? `${currentUploadName} • ` : ''}
               {uploadProgress > 0 ? `Uploading ${uploadProgress}%` : 'Preparing upload…'}
             </div>
             <div style={{
@@ -704,6 +713,16 @@ export default function Home() {
             maxWidth: '420px',
             animation: 'fadeSlideIn 0.5s ease-out'
           }}>
+            {currentUploadName && (
+              <div style={{
+                marginBottom: '0.35rem',
+                fontSize: '0.78rem',
+                color: '#bfbfbf',
+                textAlign: 'center'
+              }}>
+                {currentUploadName}
+              </div>
+            )}
             <div style={{
               height: '8px',
               background: 'rgba(255, 255, 255, 0.08)',
@@ -806,7 +825,7 @@ export default function Home() {
                             fontWeight: 500,
                             wordBreak: 'break-all'
                           }}>
-                            {formatShortUrl(filename)}
+                            {formatDisplayName(filename)}
                           </div>
                           <div style={{
                             fontSize: '0.75rem',
@@ -818,15 +837,51 @@ export default function Home() {
                       </div>
 
                       <div style={{
-                        fontSize: '0.7rem',
-                        color: '#f5f5f5',
-                        background: 'rgba(255, 255, 255, 0.12)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        padding: '0.25rem 0.6rem',
-                        borderRadius: '999px',
-                        letterSpacing: '0.08em'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem'
                       }}>
-                        {extension}
+                        <div style={{
+                          fontSize: '0.7rem',
+                          color: '#f5f5f5',
+                          background: 'rgba(255, 255, 255, 0.12)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '999px',
+                          letterSpacing: '0.08em'
+                        }}>
+                          {extension}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(url);
+                          }}
+                          aria-label="Share link"
+                          title="Share link"
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '999px',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: '#f5f5f5',
+                            fontSize: '0.9rem',
+                            lineHeight: '1',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                          }}
+                        >
+                          ↗
+                        </button>
                       </div>
                     </div>
 
@@ -861,41 +916,6 @@ export default function Home() {
                         {url}
                       </a>
 
-                      <div style={{
-                        fontSize: '0.7rem',
-                        color: '#9a9a9a',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em'
-                      }}>
-                        Share link
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard(url);
-                        }}
-                        style={{
-                          justifySelf: 'start',
-                          fontFamily: "'Open Sans', sans-serif",
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          letterSpacing: '0.02em',
-                          color: '#f5f5f5',
-                          background: 'rgba(255, 255, 255, 0.08)',
-                          border: '1px solid rgba(255, 255, 255, 0.25)',
-                          borderRadius: '999px',
-                          padding: '0.4rem 0.85rem',
-                          cursor: 'pointer'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                        }}
-                      >
-                        Share link
-                      </button>
                     </div>
                   </div>
                 );
@@ -1058,27 +1078,63 @@ export default function Home() {
                             fontWeight: 500,
                             wordBreak: 'break-all'
                           }}>
-                            {formatShortUrl(record.filename)}
+                            {formatDisplayName(record.filename)}
                           </div>
                           <div style={{
                             fontSize: '0.75rem',
                             color: '#9a9a9a'
                           }}>
-                            Uploaded {formatTimestamp(record.timestamp)}
+                            d/{record.filename}
                           </div>
                         </div>
                       </div>
 
                       <div style={{
-                        fontSize: '0.7rem',
-                        color: '#f5f5f5',
-                        background: 'rgba(255, 255, 255, 0.12)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        padding: '0.25rem 0.6rem',
-                        borderRadius: '999px',
-                        letterSpacing: '0.08em'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem'
                       }}>
-                        {extension}
+                        <div style={{
+                          fontSize: '0.7rem',
+                          color: '#f5f5f5',
+                          background: 'rgba(255, 255, 255, 0.12)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '999px',
+                          letterSpacing: '0.08em'
+                        }}>
+                          {extension}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(record.url);
+                          }}
+                          aria-label="Share link"
+                          title="Share link"
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '999px',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: '#f5f5f5',
+                            fontSize: '0.9rem',
+                            lineHeight: '1',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                          }}
+                        >
+                          ↗
+                        </button>
                       </div>
                     </div>
 
@@ -1129,41 +1185,6 @@ export default function Home() {
                         {record.url}
                       </a>
 
-                      <div style={{
-                        fontSize: '0.7rem',
-                        color: '#9a9a9a',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em'
-                      }}>
-                        Share link
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard(record.url);
-                        }}
-                        style={{
-                          justifySelf: 'start',
-                          fontFamily: "'Open Sans', sans-serif",
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          letterSpacing: '0.02em',
-                          color: '#f5f5f5',
-                          background: 'rgba(255, 255, 255, 0.08)',
-                          border: '1px solid rgba(255, 255, 255, 0.25)',
-                          borderRadius: '999px',
-                          padding: '0.4rem 0.85rem',
-                          cursor: 'pointer'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                        }}
-                      >
-                        Share link
-                      </button>
                     </div>
                   </div>
                 );
