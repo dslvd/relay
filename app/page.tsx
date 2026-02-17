@@ -82,18 +82,28 @@ export default function Home() {
       handleFileDrop(event.dataTransfer);
     };
 
+    const handleVisibilityChange = () => {
+      if (document.hidden && uploading) {
+        // User switched tabs during upload - warn them
+        console.warn('Tab switched during upload. Upload may be throttled by browser.');
+        showToast('⚠️ Keep this tab open during upload!', 'info');
+      }
+    };
+
     window.addEventListener('dragover', handleWindowDragOver);
     window.addEventListener('dragenter', handleWindowDragEnter);
     window.addEventListener('dragleave', handleWindowDragLeave);
     window.addEventListener('drop', handleWindowDrop);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('dragover', handleWindowDragOver);
       window.removeEventListener('dragenter', handleWindowDragEnter);
       window.removeEventListener('dragleave', handleWindowDragLeave);
       window.removeEventListener('drop', handleWindowDrop);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [uploading]);
 
   const fetchPublicHistory = async () => {
     const startTime = Date.now();
@@ -540,10 +550,22 @@ export default function Home() {
             <div style={{
               fontSize: '0.78rem',
               color: '#c3cad6',
-              letterSpacing: '0.03em'
+              letterSpacing: '0.03em',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.2rem'
             }}>
-              {currentUploadName ? `${currentUploadName} • ` : ''}
-              {uploadProgress > 0 ? `Uploading ${uploadProgress}%` : 'Preparing upload…'}
+              <div>
+                {currentUploadName ? `${currentUploadName} • ` : ''}
+                {uploadProgress > 0 ? `Uploading ${uploadProgress}%` : 'Preparing upload…'}
+              </div>
+              <div style={{ 
+                fontSize: '0.65rem', 
+                color: '#858d9d',
+                fontStyle: 'italic'
+              }}>
+                Keep this tab open during upload
+              </div>
             </div>
             <div style={{
               display: 'flex',
