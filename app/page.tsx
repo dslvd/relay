@@ -738,7 +738,7 @@ export default function Home() {
         {!uploading && (
         <p style={{
           marginTop: '0.85rem',
-          fontSize: '0.65rem',
+          fontSize: '0.5rem',
           color: '#8a92a1',
           textAlign: 'center',
           letterSpacing: '0.02em'

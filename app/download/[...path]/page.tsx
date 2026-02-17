@@ -19,6 +19,7 @@ export default function DownloadPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const downloadUrl = `/d/${pathArray.join('/')}`;
 
@@ -121,6 +122,13 @@ export default function DownloadPage() {
       >
         ← Home
       </a>
+
+      <style>{`
+        @keyframes previewSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
 
       {/* Content */}
       <div
@@ -231,28 +239,88 @@ export default function DownloadPage() {
                     fontSize: '0.8rem',
                     fontWeight: 500,
                     cursor: 'pointer',
-                    marginBottom: '1.5rem'
+                    marginBottom: '1.5rem',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2
                   }}
                 >
                   ← Back to details
                 </button>
 
                 {/* Preview Content */}
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: '400px',
+                    position: 'relative'
+                  }}
+                >
+                  {previewLoading && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.6rem',
+                        background: 'rgba(10, 10, 10, 0.6)',
+                        borderRadius: '12px'
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '999px',
+                          border: '2px solid rgba(245, 245, 245, 0.5)',
+                          borderTopColor: 'transparent',
+                          animation: 'previewSpin 0.8s linear infinite'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.8rem', color: 'rgba(245, 245, 245, 0.7)' }}>
+                        Loading preview...
+                      </span>
+                    </div>
+                  )}
                   {getFileType(fileData.filename) === 'image' && (
-                    <img src={downloadUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }} />
+                    <img
+                      src={downloadUrl}
+                      alt="Preview"
+                      style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }}
+                      onLoad={() => setPreviewLoading(false)}
+                      onError={() => setPreviewLoading(false)}
+                    />
                   )}
                   {getFileType(fileData.filename) === 'video' && (
-                    <video controls style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }}>
+                    <video
+                      controls
+                      style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }}
+                      onLoadedData={() => setPreviewLoading(false)}
+                      onError={() => setPreviewLoading(false)}
+                    >
                       <source src={downloadUrl} />
                       Your browser does not support the video tag.
                     </video>
                   )}
                   {getFileType(fileData.filename) === 'pdf' && (
-                    <iframe src={downloadUrl} style={{ width: '100%', height: '100%', borderRadius: '12px', border: 'none' }} />
+                    <iframe
+                      src={downloadUrl}
+                      style={{ width: '100%', height: '100%', borderRadius: '12px', border: 'none' }}
+                      onLoad={() => setPreviewLoading(false)}
+                    />
                   )}
                   {getFileType(fileData.filename) === 'text' && (
-                    <iframe src={downloadUrl} style={{ width: '100%', height: '100%', borderRadius: '12px', border: 'none' }} />
+                    <iframe
+                      src={downloadUrl}
+                      style={{ width: '100%', height: '100%', borderRadius: '12px', border: 'none' }}
+                      onLoad={() => setPreviewLoading(false)}
+                    />
                   )}
                 </div>
               </>
@@ -414,7 +482,10 @@ export default function DownloadPage() {
                   </a>
                   {isPreviewable(fileData.filename) && (
                     <button
-                      onClick={() => setShowPreview(true)}
+                      onClick={() => {
+                        setPreviewLoading(true);
+                        setShowPreview(true);
+                      }}
                       style={{
                         padding: '0.9rem 1.2rem',
                         borderRadius: '999px',
