@@ -143,6 +143,28 @@ In Vercel Dashboard → Settings → Environment Variables:
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob storage token | Yes |
 | `ADMIN_PASSWORD` | Admin dashboard password | Yes |
 | `CRON_SECRET` | Secret for cron authentication | Yes (for auto-cleanup) |
+| `NEXT_PUBLIC_ADSENSE_CLIENT_ID` | Google AdSense Publisher ID | No (for monetization) |
+
+## 💰 Monetization (Optional)
+
+To enable ads and earn revenue:
+
+1. **Sign up for Google AdSense**: Visit [google.com/adsense](https://www.google.com/adsense) and create an account
+2. **Get approved**: Submit your site for review (may take 1-3 days)
+3. **Get your Publisher ID**: Format is `ca-pub-XXXXXXXXXXXXXXXX`
+4. **Add to environment**: 
+   ```bash
+   NEXT_PUBLIC_ADSENSE_CLIENT_ID=ca-pub-XXXXXXXXXXXXXXXX
+   ```
+5. **Get Ad Slot IDs**: Create ad units in AdSense dashboard and replace the placeholder IDs in:
+   - `app/page.tsx` (line with `dataAdSlot="1234567890"`)
+   - `app/download/[...path]/page.tsx` (line with `dataAdSlot="9876543210"`)
+
+**Ad Placements:**
+- Main page: After uploaded files list
+- Download page: Below download/preview buttons
+
+**Note**: Ads won't show in development mode. Deploy to production to see them.
 
 ## 🛡️ Security Features
 

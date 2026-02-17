@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import AdBanner from '../../components/AdBanner';
 
 interface UploadRecord {
   url: string;
@@ -526,6 +527,12 @@ export default function DownloadPage() {
                     </button>
                   )}
                 </div>
+                
+                {/* Ad Banner */}
+                <AdBanner 
+                  dataAdSlot="9876543210" 
+                  style={{ marginTop: '1.5rem' }}
+                />
               </>
             )}
           </section>

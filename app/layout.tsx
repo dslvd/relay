@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Open_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import ClickRipple from "./click-ripple";
 
@@ -23,6 +24,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${openSans.variable} antialiased`}>
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7504951431311068"
+          crossOrigin="anonymous"
+          strategy="beforeInteractive"
+        />
         {children}
         <ClickRipple />
         <a className="dmca-link" href="/dmca">

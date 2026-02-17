@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { upload } from '@vercel/blob/client';
+import AdBanner from './components/AdBanner';
 import logo from './logo.png';
 
 interface UploadRecord {
@@ -985,6 +986,14 @@ export default function Home() {
               })}
             </div>
           </div>
+        )}
+
+        {/* Ad Banner */}
+        {activeView === 'upload' && uploadedFiles.length > 0 && (
+          <AdBanner 
+            dataAdSlot="1234567890" 
+            style={{ marginTop: '2rem', marginBottom: '1rem' }}
+          />
         )}
 
         {/* Public Upload History */}
