@@ -12,6 +12,7 @@ interface UploadRecord {
   url: string;
   filename: string;
   timestamp: number;
+  lastAccessTime: number;
   expiresAt: number;
   size: number;
   ip?: string;
@@ -101,6 +102,7 @@ export async function POST(request: NextRequest) {
       filename,
       size: uploadSize,
       timestamp: now,
+      lastAccessTime: now, // Initialize with upload time
       expiresAt: now + RETENTION_MS,
       ip
     };

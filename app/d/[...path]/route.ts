@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { updateLastAccessTime } from '@/app/lib/retention';
 
 function fileNotFoundResponse(): NextResponse {
   const html = `<!doctype html>
@@ -141,13 +142,33 @@ export async function GET(
       return fileNotFoundResponse();
     }
     
+    // Update last access time to reset the deletion timer
+    const filename = path[path.length - 1];
+    updateLastAccessTime(filename);
+    
+    // Track download for analytics
+    try {
+      const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                 request.headers.get('x-real-ip') ||
+                 'Unknown';
+      
+      // Don't await - fire and forget to not slow down downloads
+      fetch(`${new URL(request.url).origin}/api/analytics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'download', filename })
+      }).catch(() => {}); // Silently fail if analytics fails
+    } catch (error) {
+      // Ignore analytics errors
+    }
+    
     // Return the file with proper headers
     return new NextResponse(response.body, {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('Content-Type') || 'application/octet-stream',
         'Content-Length': response.headers.get('Content-Length') || '',
-        'Cache-Control': 'public, max-age=604800, must-revalidate',
+        'Cache-Control': 'public, max-age=1296000, must-revalidate',
       }
     });
   } catch (error) {

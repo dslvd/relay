@@ -49,6 +49,13 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Track page view
+    fetch('/api/analytics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'pageview', path: '/' })
+    }).catch(() => {}); // Silently fail
+    
     fetchPublicHistory();
   }, []);
 

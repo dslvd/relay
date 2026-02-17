@@ -41,6 +41,13 @@ export default function DownloadPage() {
   useEffect(() => {
     const fetchFileData = async () => {
       try {
+        // Track page view
+        fetch('/api/analytics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'pageview', path: `/download/${pathArray.join('/')}` })
+        }).catch(() => {}); // Silently fail
+        
         const response = await fetch('/api/history', { cache: 'no-store' });
         if (response.ok) {
           const data = await response.json();
@@ -48,6 +55,14 @@ export default function DownloadPage() {
           const file = records.find((r: UploadRecord) => r.url.includes(pathArray.join('/')));
           if (file) {
             setFileData(file);
+            
+            // Update last access time when viewing the download page
+            const filename = pathArray[pathArray.length - 1];
+            fetch('/api/access', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename })
+            }).catch(err => console.error('Failed to update access time:', err));
           } else {
             setNotFound(true);
           }

@@ -11,11 +11,42 @@ interface UploadRecord {
   ip?: string;
 }
 
+interface AnalyticsData {
+  pageViews: {
+    total: number;
+    last24h: number;
+    last7days: number;
+  };
+  visitors: {
+    unique: number;
+    unique24h: number;
+    live: number;
+  };
+  downloads: {
+    total: number;
+    last24h: number;
+    last7days: number;
+  };
+  topFiles: Array<{
+    filename: string;
+    totalDownloads: number;
+    last24h: number;
+    last7days: number;
+    uniqueUsers: number;
+  }>;
+  recentDownloads: Array<{
+    filename: string;
+    timestamp: number;
+    ip: string;
+  }>;
+}
+
 type SortKey = 'filename' | 'size' | 'timestamp' | 'ip';
 type SortOrder = 'asc' | 'desc';
 
 export default function AdminDashboard() {
   const [files, setFiles] = useState<UploadRecord[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,6 +54,7 @@ export default function AdminDashboard() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [filterType, setFilterType] = useState<string>('all');
+  const [showAnalytics, setShowAnalytics] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -34,15 +66,31 @@ export default function AdminDashboard() {
     }
 
     fetchFiles();
+    
+    // Auto-refresh analytics every 30 seconds
+    const interval = setInterval(() => {
+      fetchFiles();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, [router]);
 
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/history', { cache: 'no-store' });
-      if (response.ok) {
-        const data = await response.json();
+      const [historyResponse, analyticsResponse] = await Promise.all([
+        fetch('/api/history', { cache: 'no-store' }),
+        fetch('/api/analytics', { cache: 'no-store' })
+      ]);
+      
+      if (historyResponse.ok) {
+        const data = await historyResponse.json();
         setFiles(data.history || []);
+      }
+      
+      if (analyticsResponse.ok) {
+        const data = await analyticsResponse.json();
+        setAnalytics(data);
       }
     } catch (error) {
       console.error('Failed to fetch files:', error);
@@ -116,6 +164,17 @@ export default function AdminDashboard() {
 
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
+  };
+
+  const formatTimeAgo = (timestamp: number) => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
   };
 
   const toggleSort = (key: SortKey) => {
@@ -366,6 +425,260 @@ export default function AdminDashboard() {
             <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{uniqueIPs}</div>
           </div>
         </div>
+
+        {/* Analytics Section */}
+        {analytics && (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '16px',
+            padding: '1.5rem',
+            marginBottom: '2rem'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '1.5rem'
+            }}>
+              <h3 style={{
+                fontSize: '1.1rem',
+                fontWeight: 300,
+                color: '#f5f5f5',
+                margin: 0
+              }}>
+                📊 Analytics Dashboard
+              </h3>
+              <button
+                onClick={() => setShowAnalytics(!showAnalytics)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'transparent',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '10px',
+                  color: '#f5f5f5',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  fontFamily: "'Open Sans', sans-serif"
+                }}
+              >
+                {showAnalytics ? 'Hide' : 'Show'}
+              </button>
+            </div>
+
+            {showAnalytics && (
+              <>
+                {/* Analytics Stats Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '1rem',
+                  marginBottom: '1.5rem'
+                }}>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    padding: '1.25rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>🔴 Live Visitors</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>{analytics.visitors.live}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Last 5 minutes</div>
+                  </div>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    padding: '1.25rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>👥 Unique Visitors (24h)</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>{analytics.visitors.unique24h}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Total: {analytics.visitors.unique}</div>
+                  </div>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    padding: '1.25rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>📄 Page Views (24h)</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>{analytics.pageViews.last24h}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Total: {analytics.pageViews.total}</div>
+                  </div>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    padding: '1.25rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>⬇️ Downloads (24h)</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>{analytics.downloads.last24h}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Total: {analytics.downloads.total}</div>
+                  </div>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    padding: '1.25rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>📈 7-Day Page Views</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>{analytics.pageViews.last7days}</div>
+                  </div>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    padding: '1.25rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>📈 7-Day Downloads</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>{analytics.downloads.last7days}</div>
+                  </div>
+                </div>
+
+                {/* Top Downloaded Files */}
+                {analytics.topFiles && analytics.topFiles.length > 0 && (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h4 style={{
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      color: '#f5f5f5',
+                      marginBottom: '1rem'
+                    }}>
+                      🏆 Most Downloaded Files
+                    </h4>
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '12px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        maxHeight: '300px',
+                        overflowY: 'auto'
+                      }}>
+                        {analytics.topFiles.slice(0, 10).map((file, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '40px 1fr auto auto auto',
+                              gap: '1rem',
+                              alignItems: 'center',
+                              padding: '1rem',
+                              borderBottom: index < analytics.topFiles.slice(0, 10).length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none'
+                            }}
+                          >
+                            <div style={{
+                              fontSize: '1.2rem',
+                              fontWeight: 700,
+                              color: index < 3 ? '#FFD700' : '#666666',
+                              textAlign: 'center'
+                            }}>
+                              #{index + 1}
+                            </div>
+                            <div style={{
+                              fontSize: '0.875rem',
+                              color: '#f5f5f5',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {file.filename}
+                            </div>
+                            <div style={{
+                              fontSize: '0.8rem',
+                              color: '#666666',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              <strong>{file.totalDownloads}</strong> total
+                            </div>
+                            <div style={{
+                              fontSize: '0.8rem',
+                              color: '#666666',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {file.last24h} today
+                            </div>
+                            <div style={{
+                              fontSize: '0.8rem',
+                              color: '#666666',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {file.uniqueUsers} users
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent Downloads */}
+                {analytics.recentDownloads && analytics.recentDownloads.length > 0 && (
+                  <div>
+                    <h4 style={{
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      color: '#f5f5f5',
+                      marginBottom: '1rem'
+                    }}>
+                      🕒 Recent Downloads
+                    </h4>
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '12px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        maxHeight: '200px',
+                        overflowY: 'auto'
+                      }}>
+                        {analytics.recentDownloads.slice(0, 10).map((download, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '1fr auto auto',
+                              gap: '1rem',
+                              alignItems: 'center',
+                              padding: '0.75rem 1rem',
+                              borderBottom: index < analytics.recentDownloads.slice(0, 10).length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none'
+                            }}
+                          >
+                            <div style={{
+                              fontSize: '0.85rem',
+                              color: '#f5f5f5',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {download.filename}
+                            </div>
+                            <div style={{
+                              fontSize: '0.75rem',
+                              color: '#666666',
+                              fontFamily: 'monospace'
+                            }}>
+                              {download.ip}
+                            </div>
+                            <div style={{
+                              fontSize: '0.75rem',
+                              color: '#666666',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {formatTimeAgo(download.timestamp)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* Search, Filter & Export */}
         <div style={{
