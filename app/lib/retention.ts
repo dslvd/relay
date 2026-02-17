@@ -10,6 +10,10 @@ export function isExpired(timestamp: number, now = Date.now()): boolean {
 }
 
 export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: number; scanned: number }> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return { deleted: 0, scanned: 0 };
+  }
+
   const cutoff = now - RETENTION_MS;
   let cursor: string | undefined;
   let hasMore = true;
@@ -17,10 +21,17 @@ export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: n
   let scanned = 0;
 
   while (hasMore) {
-    const response = await list({
-      limit: 1000,
-      cursor
-    });
+    let response;
+
+    try {
+      response = await list({
+        limit: 1000,
+        cursor
+      });
+    } catch (error) {
+      console.warn('Skipping retention cleanup: missing or invalid blob token.', error);
+      return { deleted, scanned };
+    }
 
     for (const blob of response.blobs) {
       scanned += 1;

@@ -409,7 +409,7 @@ export default function Home() {
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
 
         * {
           margin: 0;
@@ -419,29 +419,10 @@ export default function Home() {
 
         body {
           background: #0a0a0a;
-          color: #f5f5f5;
-          font-family: 'Open Sans', sans-serif;
+          color: #eef1f6;
+          font-family: 'Sora', sans-serif;
           min-height: 100vh;
           overflow-x: hidden;
-        }
-
-        body::before {
-          content: '';
-          position: fixed;
-          top: -50%;
-          left: -50%;
-          width: 200%;
-          height: 200%;
-          background: 
-            radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.06) 0%, transparent 50%),
-            radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.04) 0%, transparent 50%);
-          animation: bgRotate 20s linear infinite;
-          z-index: -1;
-        }
-
-        @keyframes bgRotate {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
         }
 
         @keyframes fadeSlideIn {
@@ -465,28 +446,23 @@ export default function Home() {
           50% { opacity: 1; }
         }
 
-        @keyframes sharePulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-        }
-
         /* Custom scrollbar */
         ::-webkit-scrollbar {
           width: 8px;
         }
 
         ::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.05);
+          background: rgba(255, 255, 255, 0.04);
           border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.35);
+          background: rgba(255, 255, 255, 0.2);
           border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.6);
+          background: rgba(255, 255, 255, 0.35);
         }
       `}} />
 
@@ -508,12 +484,10 @@ export default function Home() {
             marginBottom: '1.5rem',
             padding: '0.75rem 1.2rem',
             borderRadius: '0 0 18px 18px',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
+            border: '1px solid #1f232b',
             borderTop: 'none',
-            background: 'rgba(10, 10, 10, 0.82)',
-            boxShadow: '0 14px 30px rgba(0, 0, 0, 0.45)',
-            backdropFilter: 'blur(14px)',
-            WebkitBackdropFilter: 'blur(14px)',
+            background: '#111318',
+            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.25)',
             position: 'fixed',
             top: 0,
             left: 0,
@@ -532,9 +506,9 @@ export default function Home() {
               style={{
                 padding: '0.5rem 0.9rem',
                 borderRadius: '999px',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                background: 'transparent',
-                color: '#f5f5f5',
+                border: '1px solid #262a33',
+                background: '#14161b',
+                color: '#eef1f6',
                 fontSize: '0.8rem',
                 fontWeight: 500,
                 letterSpacing: '0.02em',
@@ -558,7 +532,7 @@ export default function Home() {
             )}
             <div style={{
               fontSize: '0.78rem',
-              color: '#d8d8d8',
+              color: '#c3cad6',
               letterSpacing: '0.03em'
             }}>
               {currentUploadName ? `${currentUploadName} • ` : ''}
@@ -574,9 +548,9 @@ export default function Home() {
                 style={{
                   padding: '0.5rem 0.9rem',
                   borderRadius: '999px',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  color: '#f5f5f5',
+                  border: '1px solid #262a33',
+                  background: '#14161b',
+                  color: '#eef1f6',
                   fontSize: '0.8rem',
                   fontWeight: 500,
                   letterSpacing: '0.02em',
@@ -591,9 +565,9 @@ export default function Home() {
                 style={{
                   padding: '0.5rem 0.95rem',
                   borderRadius: '999px',
-                  border: '1px solid #ffffff',
-                  background: uploadedFiles.length === 0 ? 'rgba(255, 255, 255, 0.3)' : '#ffffff',
-                  color: '#0a0a0a',
+                  border: '1px solid #e9ecf2',
+                  background: uploadedFiles.length === 0 ? '#2a2f3a' : '#e9ecf2',
+                  color: uploadedFiles.length === 0 ? '#8a92a1' : '#0b0c10',
                   fontSize: '0.8rem',
                   fontWeight: 700,
                   letterSpacing: '0.02em',
@@ -622,11 +596,11 @@ export default function Home() {
             style={{}}
           />
           <h1 style={{
-          fontFamily: "'Open Sans', sans-serif",
+          fontFamily: "'Sora', sans-serif",
           fontSize: '1.6rem',
           fontWeight: 700,
           letterSpacing: '-0.02em',
-          color: '#f5f5f5',
+          color: '#eef1f6',
           animation: 'fadeSlideIn 1s ease-out',
           textAlign: 'center'
         }}>
@@ -655,12 +629,11 @@ export default function Home() {
               maxWidth: '520px',
               padding: '1.6rem 1.5rem',
               borderRadius: '18px',
-              border: '1.5px solid #ffffff',
-              background: 'rgba(255, 255, 255, 0.08)',
-              color: '#f5f5f5',
+              border: '1px dashed #2a2f3a',
+              background: '#14161b',
+              color: '#eef1f6',
               cursor: 'default',
-              transition: 'all 0.25s ease',
-              boxShadow: '0 12px 30px rgba(0, 0, 0, 0.35)'
+              transition: 'border-color 0.2s ease'
             }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
@@ -675,7 +648,7 @@ export default function Home() {
             <div style={{
               marginTop: '0.35rem',
               fontSize: '0.75rem',
-              color: '#9a9a9a'
+              color: '#8a92a1'
             }}>
               Release to start uploading
             </div>
@@ -695,28 +668,25 @@ export default function Home() {
           <button
             onClick={() => setActiveView(activeView === 'history' ? 'upload' : 'history')}
             style={{
-              fontFamily: "'Open Sans', sans-serif",
+              fontFamily: "'Sora', sans-serif",
               padding: '0.75rem 1.75rem',
               fontSize: '0.95rem',
               fontWeight: 400,
               letterSpacing: '0.02em',
-              color: activeView === 'history' ? '#f5f5f5' : '#f5f5f5',
-              background: activeView === 'history' ? '#1a1a1a' : '#111111',
-              border: '2px solid',
-              borderColor: '#2a2a2a',
+              color: '#eef1f6',
+              background: activeView === 'history' ? '#181c22' : '#14161b',
+              border: '1px solid #242833',
               borderRadius: '50px',
               cursor: 'pointer',
               transition: 'all 0.3s'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#2a2a2a';
-              e.currentTarget.style.color = '#f5f5f5';
-              e.currentTarget.style.background = '#1a1a1a';
+              e.currentTarget.style.borderColor = '#2f3541';
+              e.currentTarget.style.background = '#181c22';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#2a2a2a';
-              e.currentTarget.style.color = '#f5f5f5';
-              e.currentTarget.style.background = activeView === 'history' ? '#1a1a1a' : '#111111';
+              e.currentTarget.style.borderColor = '#242833';
+              e.currentTarget.style.background = activeView === 'history' ? '#181c22' : '#14161b';
             }}
           >
             Upload History
@@ -729,15 +699,15 @@ export default function Home() {
             }}
             disabled={uploading}
             style={{
-              fontFamily: "'Open Sans', sans-serif",
+              fontFamily: "'Sora', sans-serif",
               padding: '0.75rem 1.75rem',
               fontSize: '0.95rem',
               fontWeight: 400,
               letterSpacing: '0.02em',
-              color: uploading ? '#666666' : '#0a0a0a',
-              background: uploading ? '#f0f0f0' : '#ffffff',
-              border: '2px solid',
-              borderColor: uploading ? '#666666' : '#ffffff',
+              color: uploading ? '#8a92a1' : '#0b0c10',
+              background: uploading ? '#2a2f3a' : '#e9ecf2',
+              border: '1px solid',
+              borderColor: uploading ? '#2a2f3a' : '#e9ecf2',
               borderRadius: '50px',
               cursor: uploading ? 'not-allowed' : 'pointer',
               transition: 'all 0.3s',
@@ -747,16 +717,16 @@ export default function Home() {
             }}
             onMouseEnter={(e) => {
               if (!uploading) {
-                e.currentTarget.style.borderColor = '#ffffff';
-                e.currentTarget.style.color = '#0a0a0a';
-                e.currentTarget.style.background = '#e6e6e6';
+                e.currentTarget.style.borderColor = '#d6dbe4';
+                e.currentTarget.style.color = '#0b0c10';
+                e.currentTarget.style.background = '#dfe4ee';
               }
             }}
             onMouseLeave={(e) => {
               if (!uploading) {
-                e.currentTarget.style.borderColor = '#ffffff';
-                e.currentTarget.style.color = '#0a0a0a';
-                e.currentTarget.style.background = '#ffffff';
+                e.currentTarget.style.borderColor = '#e9ecf2';
+                e.currentTarget.style.color = '#0b0c10';
+                e.currentTarget.style.background = '#e9ecf2';
               }
             }}
           >
@@ -769,7 +739,7 @@ export default function Home() {
         <p style={{
           marginTop: '0.85rem',
           fontSize: '0.65rem',
-          color: '#9a9a9a',
+          color: '#8a92a1',
           textAlign: 'center',
           letterSpacing: '0.02em'
         }}>
@@ -789,7 +759,7 @@ export default function Home() {
               <div style={{
                 marginBottom: '0.35rem',
                 fontSize: '0.78rem',
-                color: '#bfbfbf',
+                color: '#b5bcc9',
                 textAlign: 'center'
               }}>
                 {currentUploadName}
@@ -797,22 +767,22 @@ export default function Home() {
             )}
             <div style={{
               height: '8px',
-              background: 'rgba(255, 255, 255, 0.08)',
+              background: '#1a1e26',
               borderRadius: '999px',
               overflow: 'hidden',
-              border: '1px solid rgba(255, 255, 255, 0.12)'
+              border: '1px solid #242833'
             }}>
               <div style={{
                 height: '100%',
                 width: `${uploadProgress}%`,
-                background: 'linear-gradient(90deg, #ffffff 0%, #bfbfbf 100%)',
+                background: '#e9ecf2',
                 transition: 'width 0.2s ease-out'
               }} />
             </div>
             <p style={{
               marginTop: '0.6rem',
               fontSize: '0.85rem',
-              color: '#666666',
+              color: '#8a92a1',
               fontStyle: 'italic',
               textAlign: 'center'
             }}>
@@ -834,8 +804,8 @@ export default function Home() {
             <p style={{
               fontSize: '1rem',
               marginBottom: '1rem',
-              color: '#f5f5f5',
-              fontWeight: 200,
+              color: '#eef1f6',
+              fontWeight: 500,
               textAlign: 'center'
             }}>
               Uploaded Files • {uploadedFiles.length}
@@ -844,9 +814,9 @@ export default function Home() {
             <div style={{
               maxHeight: '320px',
               overflowY: 'auto',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '18px',
+              background: '#111318',
+              border: '1px solid #1f232b',
+              borderRadius: '16px',
               padding: '0.85rem'
             }}>
               {uploadedFiles.map((fileItem, index) => {
@@ -862,12 +832,11 @@ export default function Home() {
                     style={{
                       marginBottom: index < uploadedFiles.length - 1 ? '0.85rem' : '0',
                       padding: '0.95rem 1.1rem',
-                      background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.03))',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: '#14161b',
+                      border: '1px solid #22262f',
                       borderRadius: '16px',
-                      transition: 'all 0.3s',
-                      cursor: 'default',
-                      boxShadow: '0 10px 24px rgba(0, 0, 0, 0.25)'
+                      transition: 'border-color 0.2s ease',
+                      cursor: 'default'
                     }}
                   >
                     <div style={{
@@ -886,14 +855,13 @@ export default function Home() {
                           width: '8px',
                           height: '8px',
                           borderRadius: '999px',
-                          background: '#ffffff',
-                          opacity: 0.7,
-                          boxShadow: '0 0 12px rgba(255, 255, 255, 0.4)'
+                          background: '#e9ecf2',
+                          opacity: 0.8
                         }} />
                         <div style={{ textAlign: 'left', minWidth: 0 }}>
                           <div style={{
                             fontSize: '0.95rem',
-                            color: '#f5f5f5',
+                            color: '#eef1f6',
                             fontWeight: 500,
                             wordBreak: 'break-all'
                           }}>
@@ -901,7 +869,7 @@ export default function Home() {
                           </div>
                           <div style={{
                             fontSize: '0.75rem',
-                            color: '#9a9a9a'
+                            color: '#8a92a1'
                           }}>
                             Uploaded {formatTimestamp(fileItem.timestamp)}
                           </div>
@@ -915,9 +883,9 @@ export default function Home() {
                       }}>
                         <div style={{
                           fontSize: '0.7rem',
-                          color: '#f5f5f5',
-                          background: 'rgba(255, 255, 255, 0.12)',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: '#eef1f6',
+                          background: '#1a1e26',
+                          border: '1px solid #262a33',
                           padding: '0.25rem 0.6rem',
                           borderRadius: '999px',
                           letterSpacing: '0.08em'
@@ -935,26 +903,15 @@ export default function Home() {
                             width: '28px',
                             height: '28px',
                             borderRadius: '999px',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            color: '#f5f5f5',
+                            border: '1px solid #262a33',
+                            background: '#14161b',
+                            color: '#e9ecf2',
                             fontSize: '0.9rem',
                             lineHeight: '1',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: 'pointer',
-                            animation: 'sharePulse 2.4s ease-in-out infinite'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
-                            e.currentTarget.style.transform = 'scale(1.06)';
-                            e.currentTarget.style.boxShadow = '0 0 12px rgba(255, 255, 255, 0.25)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                            e.currentTarget.style.transform = 'scale(1)';
-                            e.currentTarget.style.boxShadow = 'none';
+                            cursor: 'pointer'
                           }}
                         >
                           ⤴
@@ -972,7 +929,7 @@ export default function Home() {
                     }}>
                       <div style={{
                         fontSize: '0.7rem',
-                        color: '#9a9a9a',
+                        color: '#8a92a1',
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em'
                       }}>
@@ -983,7 +940,7 @@ export default function Home() {
                         target="_blank" 
                         rel="noreferrer"
                         style={{
-                          color: '#bfbfbf',
+                          color: '#b5bcc9',
                           fontSize: '0.8rem',
                           textDecoration: 'none',
                           wordBreak: 'break-all'
@@ -1018,9 +975,9 @@ export default function Home() {
           }}>
             <h2 style={{
               fontSize: '1rem',
-              fontWeight: 200,
+              fontWeight: 500,
               textAlign: 'center',
-              color: '#f5f5f5'
+              color: '#eef1f6'
             }}>
               Public Upload History
             </h2>
@@ -1031,8 +988,8 @@ export default function Home() {
                 width: '32px',
                 height: '32px',
                 borderRadius: '999px',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid #262a33',
+                background: '#14161b',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1041,14 +998,14 @@ export default function Home() {
               }}
               onMouseEnter={(e) => {
                 if (!verifyingFiles) {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)';
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.borderColor = '#2f3541';
+                  e.currentTarget.style.background = '#181c22';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!verifyingFiles) {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = '#262a33';
+                  e.currentTarget.style.background = '#14161b';
                 }
               }}
             >
@@ -1058,7 +1015,7 @@ export default function Home() {
                   width: '14px',
                   height: '14px',
                   borderRadius: '999px',
-                  border: '2px solid rgba(255, 255, 255, 0.7)',
+                  border: '2px solid rgba(233, 236, 242, 0.7)',
                   borderTopColor: 'transparent',
                   animation: 'spin 0.8s linear infinite'
                 }} />
@@ -1068,7 +1025,7 @@ export default function Home() {
                   height="16"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="rgba(255, 255, 255, 0.85)"
+                  stroke="rgba(233, 236, 242, 0.9)"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1084,7 +1041,7 @@ export default function Home() {
             <div style={{
               textAlign: 'center',
               padding: '2rem',
-              color: '#666666',
+              color: '#8a92a1',
               animation: 'pulse 1.5s ease-in-out infinite'
             }}>
               Loading history...
@@ -1093,18 +1050,18 @@ export default function Home() {
             <div style={{
               textAlign: 'center',
               padding: '2rem',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: '#111318',
+              border: '1px solid #1f232b',
               borderRadius: '12px',
-              color: '#666666'
+              color: '#8a92a1'
             }}>
               {emptyMessages[emptyMessageIndex]}
             </div>
           ) : (
             <div style={{
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '18px',
+              background: '#111318',
+              border: '1px solid #1f232b',
+              borderRadius: '16px',
               padding: '0.85rem',
               maxHeight: '320px',
               overflowY: 'auto'
@@ -1120,12 +1077,11 @@ export default function Home() {
                     style={{
                       marginBottom: index < publicHistory.length - 1 ? '0.85rem' : '0',
                       padding: '0.95rem 1.1rem',
-                      background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.03))',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: '#14161b',
+                      border: '1px solid #22262f',
                       borderRadius: '16px',
-                      transition: 'all 0.3s',
-                      cursor: 'default',
-                      boxShadow: '0 10px 24px rgba(0, 0, 0, 0.25)'
+                      transition: 'border-color 0.2s ease',
+                      cursor: 'default'
                     }}
                   >
                     <div style={{
@@ -1144,14 +1100,13 @@ export default function Home() {
                           width: '8px',
                           height: '8px',
                           borderRadius: '999px',
-                          background: '#ffffff',
-                          opacity: 0.7,
-                          boxShadow: '0 0 12px rgba(255, 255, 255, 0.4)'
+                          background: '#e9ecf2',
+                          opacity: 0.8
                         }} />
                         <div style={{ textAlign: 'left', minWidth: 0 }}>
                           <div style={{
                             fontSize: '0.95rem',
-                            color: '#f5f5f5',
+                            color: '#eef1f6',
                             fontWeight: 500,
                             wordBreak: 'break-all'
                           }}>
@@ -1159,7 +1114,7 @@ export default function Home() {
                           </div>
                           <div style={{
                             fontSize: '0.75rem',
-                            color: '#9a9a9a'
+                            color: '#8a92a1'
                           }}>
                             Uploaded {formatTimestamp(record.timestamp)}
                           </div>
@@ -1173,9 +1128,9 @@ export default function Home() {
                       }}>
                         <div style={{
                           fontSize: '0.7rem',
-                          color: '#f5f5f5',
-                          background: 'rgba(255, 255, 255, 0.12)',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: '#eef1f6',
+                          background: '#1a1e26',
+                          border: '1px solid #262a33',
                           padding: '0.25rem 0.6rem',
                           borderRadius: '999px',
                           letterSpacing: '0.08em'
@@ -1193,26 +1148,15 @@ export default function Home() {
                             width: '28px',
                             height: '28px',
                             borderRadius: '999px',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            color: '#f5f5f5',
+                            border: '1px solid #262a33',
+                            background: '#14161b',
+                            color: '#e9ecf2',
                             fontSize: '0.9rem',
                             lineHeight: '1',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: 'pointer',
-                            animation: 'sharePulse 2.4s ease-in-out infinite'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.16)';
-                            e.currentTarget.style.transform = 'scale(1.06)';
-                            e.currentTarget.style.boxShadow = '0 0 12px rgba(255, 255, 255, 0.25)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                            e.currentTarget.style.transform = 'scale(1)';
-                            e.currentTarget.style.boxShadow = 'none';
+                            cursor: 'pointer'
                           }}
                         >
                           ⤴
@@ -1230,7 +1174,7 @@ export default function Home() {
                     }}>
                       <div style={{
                         fontSize: '0.7rem',
-                        color: '#9a9a9a',
+                        color: '#8a92a1',
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em'
                       }}>
@@ -1238,7 +1182,7 @@ export default function Home() {
                       </div>
                       <div style={{
                         fontSize: '0.8rem',
-                        color: '#bfbfbf'
+                        color: '#b5bcc9'
                       }}>
                         {formatFileSize(record.size)}
                       </div>
@@ -1246,7 +1190,7 @@ export default function Home() {
 
                       <div style={{
                         fontSize: '0.7rem',
-                        color: '#9a9a9a',
+                        color: '#8a92a1',
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em'
                       }}>
@@ -1257,7 +1201,7 @@ export default function Home() {
                         target="_blank" 
                         rel="noreferrer"
                         style={{
-                          color: '#bfbfbf',
+                          color: '#b5bcc9',
                           fontSize: '0.8rem',
                           textDecoration: 'none',
                           wordBreak: 'break-all'
@@ -1285,7 +1229,7 @@ export default function Home() {
             <p style={{
               opacity: 0.7,
               fontSize: '0.8rem',
-              color: '#666666',
+              color: '#8a92a1',
               margin: 0
             }}>
               Showing {publicHistory.length} recent uploads {verifyingFiles ? '• Verifying files...' : ''}
@@ -1300,12 +1244,12 @@ export default function Home() {
             position: 'fixed',
             bottom: '1.25rem',
             right: '1.25rem',
-            background: toast.type === 'error' ? '#1a1a1a' : '#ffffff',
-            color: toast.type === 'error' ? '#f5f5f5' : '#0a0a0a',
+            background: '#14161b',
+            color: '#eef1f6',
             padding: '0.65rem 0.95rem',
             borderRadius: '10px',
-            boxShadow: '0 10px 26px rgba(0, 0, 0, 0.35)',
-            border: toast.type === 'error' ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid #ffffff',
+            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #242833',
             animation: 'fadeSlideIn 0.25s ease-out',
             zIndex: 1000,
             fontSize: '0.75rem',

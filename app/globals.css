@@ -21,6 +21,29 @@ body {
   font-family: var(--font-open-sans), "Open Sans", sans-serif;
 }
 
+.click-ripple {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(233, 236, 242, 0.6);
+  transform: translate(-50%, -50%) scale(0.2);
+  pointer-events: none;
+  z-index: 9999;
+  animation: clickRipple 520ms ease-out forwards;
+}
+
+@keyframes clickRipple {
+  0% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.2);
+  }
+}
+
 .dmca-link {
   position: fixed;
   right: 1rem;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Open_Sans } from "next/font/google";
 import "./globals.css";
+import ClickRipple from "./click-ripple";
 
 const openSans = Open_Sans({
   variable: "--font-open-sans",
@@ -23,6 +24,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${openSans.variable} antialiased`}>
         {children}
+        <ClickRipple />
         <a className="dmca-link" href="/dmca">
           DMCA
         </a>
