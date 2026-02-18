@@ -21,6 +21,7 @@ export default function DownloadPage() {
   const [notFound, setNotFound] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const downloadUrl = `/d/${pathArray.join('/')}`;
 
@@ -96,6 +97,24 @@ export default function DownloadPage() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const getExpiresIn = (): string => {
+    if (!fileData) return 'Unknown';
+    const uploadedTime = fileData.timestamp;
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    const expiresTime = uploadedTime + thirtyDaysMs;
+    const now = Date.now();
+    const diffMs = expiresTime - now;
+
+    if (diffMs <= 0) return 'Expired';
+
+    const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    const hours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+
+    if (days > 0) return `In ${days} day${days !== 1 ? 's' : ''}`;
+    if (hours > 0) return `In ${hours} hour${hours !== 1 ? 's' : ''}`;
+    return 'Less than 1 hour';
   };
 
   return (
@@ -343,192 +362,115 @@ export default function DownloadPage() {
               </>
             ) : (
               <>
-                <div
-                  style={{
-                    fontSize: '0.7rem',
-                    letterSpacing: '0.3em',
-                    textTransform: 'uppercase',
-                    color: 'rgba(245, 245, 245, 0.55)',
-                    marginBottom: '0.6rem'
-                  }}
-                >
-                  Download
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.6rem',
-                    marginBottom: '1rem',
-                    flexWrap: 'wrap'
-                  }}
-                >
-                  <h1
-                    style={{
-                      margin: 0,
-                      fontSize: 'clamp(1.3rem, 2.5vw, 1.8rem)',
-                      letterSpacing: '-0.02em',
-                      wordBreak: 'break-word'
-                    }}
-                  >
-                    {fileData.filename}
+                {/* Title Section */}
+                <div style={{ marginBottom: '0.8rem' }}>
+                  <h1 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>
+                    Download your file
                   </h1>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/download/${pathArray.join('/')}`);
-                    }}
-                    title="Copy download link"
-                    style={{
-                      padding: '0.4rem 0.5rem',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      color: '#f5f5f5',
-                      fontSize: '0.9rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                    }}
-                  >
-                    🔗
-                  </button>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'rgba(245, 245, 245, 0.6)' }}>
+                    Securely delivered by Rootz, ads enabled
+                  </p>
                 </div>
 
-                {/* File Details */}
-                <div
-                  style={{
-                    padding: '0.8rem 1rem',
-                    borderRadius: '14px',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    marginBottom: '1rem'
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'grid',
-                      gap: '0.6rem'
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: '0.7rem',
-                          color: 'rgba(245, 245, 245, 0.55)',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          marginBottom: '0.25rem'
-                        }}
-                      >
-                        File size
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '0.9rem',
-                          color: '#f5f5f5',
-                          fontWeight: 500
-                        }}
-                      >
-                        {formatFileSize(fileData.size)}
-                      </div>
+                {/* File Details Table */}
+                <div style={{ marginBottom: '1.2rem', fontSize: '0.8rem' }}>
+                  <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
+                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Name:</div>
+                    <div style={{ flex: 1, color: '#f5f5f5', wordBreak: 'break-all' }}>
+                      {fileData.filename}
                     </div>
-                    <div>
-                      <div
-                        style={{
-                          fontSize: '0.7rem',
-                          color: 'rgba(245, 245, 245, 0.55)',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          marginBottom: '0.25rem'
-                        }}
-                      >
-                        Uploaded
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '0.9rem',
-                          color: '#f5f5f5',
-                          fontWeight: 500
-                        }}
-                      >
-                        {formatDate(fileData.timestamp)}
-                      </div>
+                  </div>
+                  <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
+                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Size:</div>
+                    <div style={{ flex: 1, color: '#f5f5f5' }}>
+                      {formatFileSize(fileData.size)}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
+                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Downloads:</div>
+                    <div style={{ flex: 1, color: '#f5f5f5' }}>0</div>
+                  </div>
+                  <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
+                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Uploaded:</div>
+                    <div style={{ flex: 1, color: '#f5f5f5' }}>
+                      {new Date(fileData.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex' }}>
+                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Expires:</div>
+                    <div style={{ flex: 1, color: '#f5f5f5' }}>
+                      {getExpiresIn()}
                     </div>
                   </div>
                 </div>
 
-                {/* Download & Preview Buttons */}
-                <div style={{ display: 'grid', gridTemplateColumns: isPreviewable(fileData.filename) ? '1fr 1fr' : '1fr', gap: '0.6rem' }}>
-                  <a
-                    href={downloadUrl}
-                    download
-                    style={{
-                      display: 'block',
-                      padding: '0.6rem 1rem',
-                      borderRadius: '999px',
-                      background: '#ffffff',
-                      color: '#0a0a0a',
-                      textDecoration: 'none',
-                      fontWeight: 700,
-                      textAlign: 'center',
-                      fontSize: '0.9rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 12px 24px rgba(255, 255, 255, 0.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    ⬇ Download
-                  </a>
-                  {isPreviewable(fileData.filename) && (
-                    <button
-                      onClick={() => {
-                        setPreviewLoading(true);
-                        setShowPreview(true);
-                      }}
-                      style={{
-                        padding: '0.6rem 1rem',
-                        borderRadius: '999px',
-                        background: 'transparent',
-                        border: '1px solid rgba(255, 255, 255, 0.3)',
-                        color: '#f5f5f5',
-                        fontWeight: 700,
-                        textAlign: 'center',
-                        fontSize: '0.9rem',
-                        cursor: 'pointer',
-                        transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.background = 'transparent';
-                      }}
-                    >
-                    Preview
-                    </button>
-                  )}
-                </div>
-                
+                {/* Download Button */}
+                <a
+                  href={downloadUrl}
+                  download
+                  style={{
+                    display: 'block',
+                    padding: '0.6rem 1rem',
+                    borderRadius: '6px',
+                    background: '#ffffff',
+                    color: '#0a0a0a',
+                    textDecoration: 'none',
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    fontSize: '0.85rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    marginBottom: '0.8rem',
+                    transition: 'transform 0.2s ease, opacity 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.opacity = '0.9';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.opacity = '1';
+                  }}
+                >
+                  Download
+                </a>
+
+                {/* Copy Link Button */}
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/download/${pathArray.join('/')}`);
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2000);
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '0.6rem 1rem',
+                    borderRadius: '6px',
+                    background: isCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                    border: `1px solid ${isCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.16)'}`,
+                    color: isCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
+                    fontWeight: 600,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isCopied) {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.24)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isCopied) {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
+                    }
+                  }}
+                >
+                  {isCopied ? '✓ Copied' : 'Copy link'}
+                </button>
+
                 {/* Ad Banner */}
                 <AdBanner 
                   dataAdSlot="9876543210" 
