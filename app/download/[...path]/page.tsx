@@ -153,7 +153,7 @@ export default function DownloadPage() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '4rem 6vw'
+          padding: '2rem 4vw'
         }}
       >
         {loading ? (
@@ -172,30 +172,30 @@ export default function DownloadPage() {
         ) : notFound || !fileData ? (
           <section
             style={{
-              width: 'min(600px, 92vw)',
-              borderRadius: '28px',
+              width: 'min(500px, 92vw)',
+              borderRadius: '20px',
               border: '1px solid rgba(255, 255, 255, 0.16)',
               background: 'rgba(255, 255, 255, 0.04)',
-              padding: '3rem',
+              padding: '1.5rem',
               boxShadow: '0 22px 60px rgba(0, 0, 0, 0.45)',
               textAlign: 'center'
             }}
           >
             <div
               style={{
-                fontSize: '0.8rem',
+                fontSize: '0.7rem',
                 letterSpacing: '0.3em',
                 textTransform: 'uppercase',
                 color: 'rgba(245, 245, 245, 0.55)',
-                marginBottom: '0.9rem'
+                marginBottom: '0.6rem'
               }}
             >
               404
             </div>
             <h1
               style={{
-                margin: '0 0 0.6rem',
-                fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)',
+                margin: '0 0 0.4rem',
+                fontSize: 'clamp(1.3rem, 2.5vw, 1.8rem)',
                 letterSpacing: '-0.02em'
               }}
             >
@@ -205,8 +205,8 @@ export default function DownloadPage() {
               style={{
                 margin: 0,
                 color: 'rgba(245, 245, 245, 0.7)',
-                fontSize: '1rem',
-                marginBottom: '2rem'
+                fontSize: '0.85rem',
+                marginBottom: '1.2rem'
               }}
             >
               The file you're looking for doesn't exist or has expired.
@@ -215,12 +215,13 @@ export default function DownloadPage() {
               href="/"
               style={{
                 display: 'inline-block',
-                padding: '0.7rem 1.2rem',
+                padding: '0.5rem 1rem',
                 borderRadius: '999px',
                 background: '#ffffff',
                 color: '#0a0a0a',
                 textDecoration: 'none',
-                fontWeight: 700
+                fontWeight: 700,
+                fontSize: '0.85rem'
               }}
             >
               Upload a new file
@@ -229,11 +230,11 @@ export default function DownloadPage() {
         ) : (
           <section
             style={{
-              width: 'min(600px, 92vw)',
-              borderRadius: '28px',
+              width: 'min(500px, 92vw)',
+              borderRadius: '20px',
               border: '1px solid rgba(255, 255, 255, 0.16)',
               background: 'rgba(255, 255, 255, 0.04)',
-              padding: '3rem',
+              padding: '1.5rem',
               boxShadow: '0 22px 60px rgba(0, 0, 0, 0.45)',
               maxHeight: '80vh',
               display: 'flex',
@@ -247,15 +248,15 @@ export default function DownloadPage() {
                   onClick={() => setShowPreview(false)}
                   style={{
                     alignSelf: 'flex-start',
-                    padding: '0.5rem 0.9rem',
+                    padding: '0.4rem 0.8rem',
                     borderRadius: '999px',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
                     background: 'rgba(255, 255, 255, 0.04)',
                     color: '#f5f5f5',
-                    fontSize: '0.8rem',
+                    fontSize: '0.75rem',
                     fontWeight: 500,
                     cursor: 'pointer',
-                    marginBottom: '1.5rem',
+                    marginBottom: '1rem',
                     position: 'sticky',
                     top: 0,
                     zIndex: 2
@@ -344,11 +345,11 @@ export default function DownloadPage() {
               <>
                 <div
                   style={{
-                    fontSize: '0.8rem',
+                    fontSize: '0.7rem',
                     letterSpacing: '0.3em',
                     textTransform: 'uppercase',
                     color: 'rgba(245, 245, 245, 0.55)',
-                    marginBottom: '0.9rem'
+                    marginBottom: '0.6rem'
                   }}
                 >
                   Download
@@ -357,15 +358,15 @@ export default function DownloadPage() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.8rem',
-                    marginBottom: '1.2rem',
+                    gap: '0.6rem',
+                    marginBottom: '1rem',
                     flexWrap: 'wrap'
                   }}
                 >
                   <h1
                     style={{
                       margin: 0,
-                      fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)',
+                      fontSize: 'clamp(1.3rem, 2.5vw, 1.8rem)',
                       letterSpacing: '-0.02em',
                       wordBreak: 'break-word'
                     }}
@@ -378,12 +379,12 @@ export default function DownloadPage() {
                     }}
                     title="Copy download link"
                     style={{
-                      padding: '0.5rem 0.6rem',
+                      padding: '0.4rem 0.5rem',
                       borderRadius: '6px',
                       border: '1px solid rgba(255, 255, 255, 0.2)',
                       background: 'rgba(255, 255, 255, 0.04)',
                       color: '#f5f5f5',
-                      fontSize: '1.1rem',
+                      fontSize: '0.9rem',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -406,34 +407,34 @@ export default function DownloadPage() {
                 {/* File Details */}
                 <div
                   style={{
-                    padding: '1.2rem 1.4rem',
-                    borderRadius: '18px',
+                    padding: '0.8rem 1rem',
+                    borderRadius: '14px',
                     border: '1px solid rgba(255, 255, 255, 0.12)',
                     background: 'rgba(255, 255, 255, 0.03)',
-                    marginBottom: '2rem'
+                    marginBottom: '1rem'
                   }}
                 >
                   <div
                     style={{
                       display: 'grid',
-                      gap: '1rem'
+                      gap: '0.6rem'
                     }}
                   >
                     <div>
                       <div
                         style={{
-                          fontSize: '0.8rem',
+                          fontSize: '0.7rem',
                           color: 'rgba(245, 245, 245, 0.55)',
                           textTransform: 'uppercase',
                           letterSpacing: '0.05em',
-                          marginBottom: '0.4rem'
+                          marginBottom: '0.25rem'
                         }}
                       >
                         File size
                       </div>
                       <div
                         style={{
-                          fontSize: '1rem',
+                          fontSize: '0.9rem',
                           color: '#f5f5f5',
                           fontWeight: 500
                         }}
@@ -444,18 +445,18 @@ export default function DownloadPage() {
                     <div>
                       <div
                         style={{
-                          fontSize: '0.8rem',
+                          fontSize: '0.7rem',
                           color: 'rgba(245, 245, 245, 0.55)',
                           textTransform: 'uppercase',
                           letterSpacing: '0.05em',
-                          marginBottom: '0.4rem'
+                          marginBottom: '0.25rem'
                         }}
                       >
                         Uploaded
                       </div>
                       <div
                         style={{
-                          fontSize: '1rem',
+                          fontSize: '0.9rem',
                           color: '#f5f5f5',
                           fontWeight: 500
                         }}
@@ -467,20 +468,20 @@ export default function DownloadPage() {
                 </div>
 
                 {/* Download & Preview Buttons */}
-                <div style={{ display: 'grid', gridTemplateColumns: isPreviewable(fileData.filename) ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isPreviewable(fileData.filename) ? '1fr 1fr' : '1fr', gap: '0.6rem' }}>
                   <a
                     href={downloadUrl}
                     download
                     style={{
                       display: 'block',
-                      padding: '0.9rem 1.2rem',
+                      padding: '0.6rem 1rem',
                       borderRadius: '999px',
                       background: '#ffffff',
                       color: '#0a0a0a',
                       textDecoration: 'none',
                       fontWeight: 700,
                       textAlign: 'center',
-                      fontSize: '1rem',
+                      fontSize: '0.9rem',
                       border: 'none',
                       cursor: 'pointer',
                       transition: 'transform 0.2s ease, box-shadow 0.2s ease'
@@ -503,14 +504,14 @@ export default function DownloadPage() {
                         setShowPreview(true);
                       }}
                       style={{
-                        padding: '0.9rem 1.2rem',
+                        padding: '0.6rem 1rem',
                         borderRadius: '999px',
                         background: 'transparent',
                         border: '1px solid rgba(255, 255, 255, 0.3)',
                         color: '#f5f5f5',
                         fontWeight: 700,
                         textAlign: 'center',
-                        fontSize: '1rem',
+                        fontSize: '0.9rem',
                         cursor: 'pointer',
                         transition: 'transform 0.2s ease, box-shadow 0.2s ease'
                       }}
@@ -531,7 +532,7 @@ export default function DownloadPage() {
                 {/* Ad Banner */}
                 <AdBanner 
                   dataAdSlot="9876543210" 
-                  style={{ marginTop: '1.5rem' }}
+                  style={{ marginTop: '1rem' }}
                 />
               </>
             )}
