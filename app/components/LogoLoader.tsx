@@ -3,6 +3,16 @@
 import { useEffect, useRef } from 'react';
 import Image from 'next/image';
 
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+}
+
 export default function LogoLoader() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -17,18 +27,9 @@ export default function LogoLoader() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    interface Particle {
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      life: number;
-      maxLife: number;
-      size: number;
-    }
-
     const particles: Particle[] = [];
     let animationId: number;
+    let sparkInterval: NodeJS.Timeout;
 
     const createSparks = (x: number, y: number) => {
       const sparkCount = 8;
@@ -48,8 +49,6 @@ export default function LogoLoader() {
     };
 
     const animate = () => {
-      if (!ctx || !canvas) return;
-
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -79,7 +78,7 @@ export default function LogoLoader() {
     animate();
 
     // Create sparks periodically
-    const sparkInterval = setInterval(() => {
+    sparkInterval = setInterval(() => {
       const centerX = window.innerWidth / 2;
       const centerY = window.innerHeight / 2;
       createSparks(centerX, centerY);
@@ -87,8 +86,10 @@ export default function LogoLoader() {
 
     // Handle window resize
     const handleResize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      if (canvas) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
     };
 
     window.addEventListener('resize', handleResize);
