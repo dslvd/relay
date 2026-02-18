@@ -62,20 +62,3 @@ body {
   color: #ffffff;
   transform: translateY(-1px);
 }
-
-.logo-fill-animation {
-  animation: logoFill 2s ease-in-out infinite;
-  clip-path: inset(100% 0 0 0);
-}
-
-@keyframes logoFill {
-  0% {
-    clip-path: inset(100% 0 0 0);
-  }
-  50% {
-    clip-path: inset(0% 0 0 0);
-  }
-  100% {
-    clip-path: inset(100% 0 0 0);
-  }
-}
