@@ -7,8 +7,8 @@ import AdBanner from '../../components/AdBanner';
 interface UploadRecord {
   url: string;
   filename: string;
-  timestamp: number;
-  size: number;
+  timestamp?: number;
+  size?: number;
 }
 
 export default function DownloadPage() {
@@ -57,7 +57,7 @@ export default function DownloadPage() {
           const file = records.find((r: UploadRecord) => r.url.includes(pathArray.join('/')));
           if (file) {
             setFileData(file);
-            
+
             // Update last access time when viewing the download page
             const filename = pathArray[pathArray.length - 1];
             fetch('/api/access', {
@@ -66,7 +66,15 @@ export default function DownloadPage() {
               body: JSON.stringify({ filename })
             }).catch(err => console.error('Failed to update access time:', err));
           } else {
-            setNotFound(true);
+            const headResponse = await fetch(downloadUrl, { method: 'HEAD' });
+            if (headResponse.ok) {
+              const sizeHeader = headResponse.headers.get('Content-Length');
+              const size = sizeHeader ? Number(sizeHeader) : undefined;
+              setFileData({ url: downloadUrl, filename, size, timestamp: undefined });
+              setNotFound(false);
+            } else {
+              setNotFound(true);
+            }
           }
         }
       } catch (error) {
@@ -100,7 +108,7 @@ export default function DownloadPage() {
   };
 
   const getExpiresIn = (): string => {
-    if (!fileData) return 'Unknown';
+    if (!fileData?.timestamp) return 'Unknown';
     const uploadedTime = fileData.timestamp;
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
     const expiresTime = uploadedTime + thirtyDaysMs;
@@ -367,9 +375,9 @@ export default function DownloadPage() {
                   <h1 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>
                     Download your file
                   </h1>
-                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'rgba(245, 245, 245, 0.6)' }}>
+                  {/* <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'rgba(245, 245, 245, 0.6)' }}>
                     Securely delivered by Rootz, ads enabled
-                  </p>
+                  </p> */}
                 </div>
 
                 {/* File Details Table */}
@@ -383,17 +391,19 @@ export default function DownloadPage() {
                   <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
                     <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Size:</div>
                     <div style={{ flex: 1, color: '#f5f5f5' }}>
-                      {formatFileSize(fileData.size)}
+                      {typeof fileData.size === 'number' ? formatFileSize(fileData.size) : 'Unknown'}
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
-                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Downloads:</div>
-                    <div style={{ flex: 1, color: '#f5f5f5' }}>0</div>
                   </div>
                   <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
                     <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Uploaded:</div>
                     <div style={{ flex: 1, color: '#f5f5f5' }}>
-                      {new Date(fileData.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {fileData.timestamp
+                        ? new Date(fileData.timestamp).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })
+                        : 'Unknown'}
                     </div>
                   </div>
                   <div style={{ display: 'flex' }}>
@@ -434,6 +444,37 @@ export default function DownloadPage() {
                 >
                   Download
                 </a>
+
+                {isPreviewable(fileData.filename) && (
+                  <button
+                    onClick={() => {
+                      setPreviewLoading(true);
+                      setShowPreview(true);
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '0.6rem 1rem',
+                      borderRadius: '6px',
+                      background: 'transparent',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      color: '#f5f5f5',
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      marginBottom: '0.8rem',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    Preview
+                  </button>
+                )}
 
                 {/* Copy Link Button */}
                 <button
