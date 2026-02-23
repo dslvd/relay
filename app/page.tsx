@@ -22,7 +22,8 @@ interface UploadedItem {
 }
 
 export default function Home() {
-  const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+  const FREE_MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+  const PREMIUM_MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -37,6 +38,8 @@ export default function Home() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [verifyingFiles, setVerifyingFiles] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isPremium, setIsPremium] = useState(false);
+  const [premiumEmail, setPremiumEmail] = useState('');
   const toastTimeoutRef = useRef<number | null>(null);
   const cancelUploadRef = useRef(false);
   const emptyMessages = [
@@ -48,8 +51,20 @@ export default function Home() {
   ];
   const [emptyMessageIndex] = useState(() => Math.floor(Math.random() * emptyMessages.length));
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const maxUploadBytes = isPremium ? PREMIUM_MAX_UPLOAD_BYTES : FREE_MAX_UPLOAD_BYTES;
 
   useEffect(() => {
+    fetch('/api/premium/me', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => {
+        setIsPremium(Boolean(data.premium));
+        setPremiumEmail(data?.user?.email || '');
+      })
+      .catch(() => {
+        setIsPremium(false);
+        setPremiumEmail('');
+      });
+
     // Track page view
     fetch('/api/analytics', {
       method: 'POST',
@@ -59,6 +74,17 @@ export default function Home() {
     
     fetchPublicHistory();
   }, []);
+
+  const logoutPremium = async () => {
+    try {
+      await fetch('/api/premium/logout', { method: 'POST' });
+      setIsPremium(false);
+      setPremiumEmail('');
+      showToast('Premium logout successful', 'info');
+    } catch {
+      showToast('Failed to logout premium account', 'error');
+    }
+  };
 
   useEffect(() => {
     const handleWindowDragOver = (event: DragEvent) => {
@@ -186,8 +212,8 @@ export default function Home() {
   const uploadFile = async (file: File, notify: boolean = true) => {
     cancelUploadRef.current = false;
     setCurrentUploadName(file.name);
-    if (file.size > MAX_UPLOAD_BYTES) {
-      showToast('File too large (max 200MB)', 'error');
+    if (file.size > maxUploadBytes) {
+      showToast(`File too large (max ${formatFileSize(maxUploadBytes)})`, 'error');
       throw new Error('File too large');
     }
 
@@ -641,6 +667,21 @@ export default function Home() {
         </div>
         )}
 
+        {!uploading && (
+          <p
+            style={{
+              marginTop: '0.4rem',
+              marginBottom: '0.2rem',
+              fontSize: '0.7rem',
+              color: '#8a92a1',
+              textAlign: 'center',
+              letterSpacing: '0.03em'
+            }}
+          >
+            subscribe to get premium features
+          </p>
+        )}
+
 
         <input
           ref={fileInputRef}
@@ -719,7 +760,7 @@ export default function Home() {
               e.currentTarget.style.background = activeView === 'history' ? '#181c22' : '#14161b';
             }}
           >
-            Upload History
+            Uploads
           </button>
 
           <button
@@ -768,13 +809,70 @@ export default function Home() {
         {!uploading && (
         <p style={{
           marginTop: '0.85rem',
-          fontSize: '0.5rem',
+          fontSize: '0.6rem',
           color: '#8a92a1',
           textAlign: 'center',
           letterSpacing: '0.02em'
         }}>
-          Max upload size: 200MB per file
+          Max upload size: {formatFileSize(maxUploadBytes)} per file {isPremium ? '• Premium' : '• Free'}
         </p>
+        )}
+
+        {!uploading && (
+          <div
+            style={{
+              marginTop: '0.85rem',
+              width: '100%',
+              maxWidth: '520px',
+              padding: '0.75rem',
+              borderRadius: '12px',
+              border: '1px solid #242833',
+              background: '#111318',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.6rem',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div style={{ fontSize: '0.75rem', color: '#b5bcc9' }}>
+              {isPremium ? `Premium active${premiumEmail ? ` • ${premiumEmail}` : ''}` : 'Premium account required'}
+            </div>
+
+            {isPremium ? (
+              <button
+                onClick={logoutPremium}
+                style={{
+                  padding: '0.4rem 0.7rem',
+                  borderRadius: '999px',
+                  border: '1px solid #2f3541',
+                  background: '#14161b',
+                  color: '#eef1f6',
+                  fontSize: '0.72rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Logout
+              </button>
+            ) : (
+              <a
+                href="/premium"
+                style={{
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '999px',
+                  border: '1px solid #e9ecf2',
+                  background: '#e9ecf2',
+                  color: '#0b0c10',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textDecoration: 'none'
+                }}
+              >
+                Premium login
+              </a>
+            )}
+          </div>
         )}
 
 
@@ -989,7 +1087,7 @@ export default function Home() {
         )}
 
         {/* Ad Banner */}
-        {activeView === 'upload' && uploadedFiles.length > 0 && (
+        {activeView === 'upload' && uploadedFiles.length > 0 && !isPremium && (
           <AdBanner 
             dataAdSlot="1234567890" 
             style={{ marginTop: '2rem', marginBottom: '1rem' }}

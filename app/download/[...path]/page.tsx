@@ -25,6 +25,7 @@ export default function DownloadPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const [downloadCount, setDownloadCount] = useState<number | null>(null);
 
   const downloadUrl = `/d/${pathKey}`;
@@ -43,6 +44,17 @@ export default function DownloadPage() {
     if (['txt', 'json', 'md'].includes(ext)) return 'text';
     return 'unknown';
   };
+
+  useEffect(() => {
+    fetch('/api/premium/me', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => {
+        setIsPremium(Boolean(data.premium));
+      })
+      .catch(() => {
+        setIsPremium(false);
+      });
+  }, []);
 
   useEffect(() => {
     const fetchFileData = async () => {
@@ -552,10 +564,12 @@ export default function DownloadPage() {
                 </button>
 
                 {/* Ad Banner */}
-                <AdBanner 
-                  dataAdSlot="9876543210" 
-                  style={{ marginTop: '1rem' }}
-                />
+                {!isPremium && (
+                  <AdBanner 
+                    dataAdSlot="9876543210" 
+                    style={{ marginTop: '1rem' }}
+                  />
+                )}
               </>
             )}
           </section>

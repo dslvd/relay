@@ -41,6 +41,22 @@ interface AnalyticsData {
   }>;
 }
 
+interface PremiumInvite {
+  id: string;
+  token: string;
+  createdAt: number;
+  expiresAt: number;
+  usedAt?: number;
+  usedByUserId?: string;
+}
+
+interface PremiumUser {
+  id: string;
+  email: string;
+  createdAt: number;
+  lastLoginAt?: number;
+}
+
 type SortKey = 'filename' | 'size' | 'timestamp' | 'ip';
 type SortOrder = 'asc' | 'desc';
 
@@ -55,6 +71,10 @@ export default function AdminDashboard() {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [filterType, setFilterType] = useState<string>('all');
   const [showAnalytics, setShowAnalytics] = useState(true);
+  const [premiumInvites, setPremiumInvites] = useState<PremiumInvite[]>([]);
+  const [premiumUsers, setPremiumUsers] = useState<PremiumUser[]>([]);
+  const [inviteTtlHours, setInviteTtlHours] = useState(24);
+  const [creatingInvite, setCreatingInvite] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -78,9 +98,10 @@ export default function AdminDashboard() {
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const [historyResponse, analyticsResponse] = await Promise.all([
+      const [historyResponse, analyticsResponse, premiumResponse] = await Promise.all([
         fetch('/api/history', { cache: 'no-store' }),
-        fetch('/api/analytics', { cache: 'no-store' })
+        fetch('/api/analytics', { cache: 'no-store' }),
+        fetch('/api/admin/premium', { cache: 'no-store' })
       ]);
       
       if (historyResponse.ok) {
@@ -92,10 +113,80 @@ export default function AdminDashboard() {
         const data = await analyticsResponse.json();
         setAnalytics(data);
       }
+
+      if (premiumResponse.ok) {
+        const data = await premiumResponse.json();
+        setPremiumInvites(data.invites || []);
+        setPremiumUsers(data.users || []);
+      }
     } catch (error) {
       console.error('Failed to fetch files:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const createPremiumInvite = async () => {
+    try {
+      setCreatingInvite(true);
+      const response = await fetch('/api/admin/premium', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create_invite', ttlHours: inviteTtlHours })
+      });
+
+      if (!response.ok) {
+        alert('Failed to create premium invite');
+        return;
+      }
+
+      await fetchFiles();
+      alert('Premium invite created');
+    } catch (error) {
+      console.error('Failed to create premium invite:', error);
+      alert('Failed to create premium invite');
+    } finally {
+      setCreatingInvite(false);
+    }
+  };
+
+  const deletePremiumInvite = async (inviteId: string) => {
+    try {
+      const response = await fetch('/api/admin/premium', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'invite', id: inviteId })
+      });
+
+      if (response.ok) {
+        await fetchFiles();
+      } else {
+        alert('Failed to delete invite');
+      }
+    } catch (error) {
+      console.error('Failed to delete invite:', error);
+      alert('Failed to delete invite');
+    }
+  };
+
+  const deletePremiumUser = async (userId: string, email: string) => {
+    if (!confirm(`Delete premium user ${email}?`)) return;
+
+    try {
+      const response = await fetch('/api/admin/premium', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'user', id: userId })
+      });
+
+      if (response.ok) {
+        await fetchFiles();
+      } else {
+        alert('Failed to delete premium user');
+      }
+    } catch (error) {
+      console.error('Failed to delete premium user:', error);
+      alert('Failed to delete premium user');
     }
   };
 
@@ -378,6 +469,168 @@ export default function AdminDashboard() {
             >
               🚪 Logout
             </button>
+          </div>
+        </div>
+
+        {/* Premium Access Manager */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.04)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '16px',
+          padding: '1.5rem',
+          marginBottom: '2rem'
+        }}>
+          <h3 style={{
+            fontSize: '1rem',
+            fontWeight: 300,
+            marginBottom: '0.75rem',
+            color: '#f5f5f5'
+          }}>
+            ⭐ Premium Access Manager
+          </h3>
+
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <label style={{ fontSize: '0.85rem', color: '#666666' }}>Invite TTL (hours)</label>
+            <input
+              type="number"
+              min={1}
+              value={inviteTtlHours}
+              onChange={(e) => setInviteTtlHours(Math.max(1, Number(e.target.value) || 1))}
+              style={{
+                width: '110px',
+                padding: '0.45rem 0.6rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                borderRadius: '8px',
+                color: '#f5f5f5',
+                fontSize: '0.85rem'
+              }}
+            />
+            <button
+              onClick={createPremiumInvite}
+              disabled={creatingInvite}
+              style={{
+                padding: '0.55rem 1rem',
+                background: '#ffffff',
+                border: '1px solid #ffffff',
+                borderRadius: '999px',
+                color: '#0a0a0a',
+                fontSize: '0.85rem',
+                cursor: creatingInvite ? 'not-allowed' : 'pointer',
+                fontFamily: "'Open Sans', sans-serif"
+              }}
+            >
+              {creatingInvite ? 'Creating...' : 'Generate premium signup link'}
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              padding: '1rem'
+            }}>
+              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>Signup Links ({premiumInvites.length})</div>
+              <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
+                {premiumInvites.length === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No premium invites yet</div>
+                )}
+                {premiumInvites.map((invite) => {
+                  const inviteLink = `${window.location.origin}/premium?invite=${invite.token}`;
+                  const isExpired = invite.expiresAt <= Date.now();
+                  const isUsed = Boolean(invite.usedAt);
+
+                  return (
+                    <div key={invite.id} style={{
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '10px',
+                      padding: '0.65rem'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', color: '#8a8a8a', marginBottom: '0.45rem' }}>
+                        {isUsed ? 'Used' : isExpired ? 'Expired' : 'Active'} • Expires {new Date(invite.expiresAt).toLocaleString()}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => copyToClipboard(inviteLink)}
+                          style={{
+                            padding: '0.4rem 0.65rem',
+                            background: '#111111',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            borderRadius: '8px',
+                            color: '#f5f5f5',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Copy link
+                        </button>
+                        <button
+                          onClick={() => deletePremiumInvite(invite.id)}
+                          style={{
+                            padding: '0.4rem 0.65rem',
+                            background: 'transparent',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            borderRadius: '8px',
+                            color: '#f5f5f5',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              padding: '1rem'
+            }}>
+              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>Premium Accounts ({premiumUsers.length})</div>
+              <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
+                {premiumUsers.length === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No premium users yet</div>
+                )}
+                {premiumUsers.map((user) => (
+                  <div key={user.id} style={{
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '10px',
+                    padding: '0.65rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.6rem'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', color: '#f5f5f5' }}>{user.email}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#8a8a8a' }}>
+                        Created {new Date(user.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => deletePremiumUser(user.id, user.email)}
+                      style={{
+                        padding: '0.38rem 0.62rem',
+                        background: 'transparent',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f5f5f5',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
