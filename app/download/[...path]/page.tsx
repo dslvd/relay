@@ -16,6 +16,7 @@ interface UploadRecord {
 export default function DownloadPage() {
   const params = useParams();
   const pathArray = Array.isArray(params.path) ? params.path : [params.path];
+  const pathKey = pathArray.join('/');
   const filename = pathArray[pathArray.length - 1] ?? '';
   
   const [fileData, setFileData] = useState<UploadRecord | null>(null);
@@ -26,7 +27,7 @@ export default function DownloadPage() {
   const [isCopied, setIsCopied] = useState(false);
   const [downloadCount, setDownloadCount] = useState<number | null>(null);
 
-  const downloadUrl = `/d/${pathArray.join('/')}`;
+  const downloadUrl = `/d/${pathKey}`;
 
   const isPreviewable = (fname: string): boolean => {
     const ext = fname.split('.').pop()?.toLowerCase() || '';
@@ -50,7 +51,7 @@ export default function DownloadPage() {
         fetch('/api/analytics', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'pageview', path: `/download/${pathArray.join('/')}` })
+          body: JSON.stringify({ type: 'pageview', path: `/download/${pathKey}` })
         }).catch(() => {}); // Silently fail
         
         const [historyResponse, analyticsResponse] = await Promise.all([
@@ -66,12 +67,11 @@ export default function DownloadPage() {
         if (historyResponse.ok) {
           const data = await historyResponse.json();
           const records = data.history || [];
-          const file = records.find((r: UploadRecord) => r.url.includes(pathArray.join('/')));
+          const file = records.find((r: UploadRecord) => r.url.includes(pathKey));
           if (file) {
             setFileData(file);
 
             // Update last access time when viewing the download page
-            const filename = pathArray[pathArray.length - 1];
             fetch('/api/access', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -98,7 +98,7 @@ export default function DownloadPage() {
     };
 
     fetchFileData();
-  }, [pathArray]);
+  }, [pathKey, filename, downloadUrl]);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -148,7 +148,7 @@ export default function DownloadPage() {
     <main
       style={{
         minHeight: '100vh',
-        background: 'radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.06) 0%, transparent 45%), radial-gradient(circle at 85% 70%, rgba(255, 255, 255, 0.05) 0%, transparent 45%), #0a0a0a',
+        background: '#0a0a0a',
         color: '#f5f5f5',
         display: 'flex',
         flexDirection: 'column',
@@ -450,6 +450,11 @@ export default function DownloadPage() {
                   <a
                     href={downloadUrl}
                     download
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setDownloadCount((prev) => (typeof prev === 'number' ? prev + 1 : 1));
+                      window.location.href = `${downloadUrl}?dl=${Date.now()}`;
+                    }}
                     style={{
                       flex: 1,
                       display: 'block',

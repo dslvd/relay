@@ -45,7 +45,7 @@ export default function AdminLogin() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.05) 0%, transparent 55%), #0a0a0a',
+      background: '#0a0a0a',
       padding: '2rem'
     }}>
       <div style={{

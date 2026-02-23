@@ -3,7 +3,7 @@ export default function DmcaPage() {
     <main style={{
       minHeight: '100vh',
       padding: '6rem 6vw 4rem',
-      background: 'radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.06) 0%, transparent 45%), radial-gradient(circle at 85% 70%, rgba(255, 255, 255, 0.05) 0%, transparent 45%), #0a0a0a',
+      background: '#0a0a0a',
       color: '#f5f5f5',
       display: 'flex',
       alignItems: 'center',

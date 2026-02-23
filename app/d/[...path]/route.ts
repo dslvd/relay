@@ -168,7 +168,9 @@ export async function GET(
       headers: {
         'Content-Type': response.headers.get('Content-Type') || 'application/octet-stream',
         'Content-Length': response.headers.get('Content-Length') || '',
-        'Cache-Control': 'public, max-age=1296000, must-revalidate',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       }
     });
   } catch (error) {

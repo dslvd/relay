@@ -307,7 +307,7 @@ export default function AdminDashboard() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.05) 0%, transparent 55%), #0a0a0a',
+      background: '#0a0a0a',
       color: '#f5f5f5',
       padding: '2rem'
     }}>
