@@ -1,13 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function PremiumPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const inviteToken = searchParams.get('invite') || '';
+  const [inviteToken, setInviteToken] = useState('');
   const hasInvite = Boolean(inviteToken);
 
   const [email, setEmail] = useState('');
@@ -17,10 +15,12 @@ export default function PremiumPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const title = useMemo(
-    () => (hasInvite ? 'Create premium account' : 'Premium login'),
-    [hasInvite]
-  );
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setInviteToken(params.get('invite') || '');
+  }, []);
+
+  const title = hasInvite ? 'Create premium account' : 'Premium login';
 
   const handleRegister = async () => {
     setError('');
