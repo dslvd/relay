@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 
 export interface PremiumUserRecord {
   id: string;
@@ -27,19 +27,67 @@ interface PremiumSessionRecord {
 }
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const INVITE_SECRET = process.env.PREMIUM_INVITE_SECRET ?? process.env.ADMIN_PASSWORD ?? 'premium-invite-secret';
+
+interface InviteTokenPayload {
+  id: string;
+  exp: number;
+}
 
 function getStore() {
   const holder = global as {
     premiumUsers?: PremiumUserRecord[];
     premiumInvites?: PremiumInviteRecord[];
     premiumSessions?: PremiumSessionRecord[];
+    premiumUsedInviteHashes?: string[];
+    premiumRevokedInviteIds?: string[];
   };
 
   if (!holder.premiumUsers) holder.premiumUsers = [];
   if (!holder.premiumInvites) holder.premiumInvites = [];
   if (!holder.premiumSessions) holder.premiumSessions = [];
+  if (!holder.premiumUsedInviteHashes) holder.premiumUsedInviteHashes = [];
+  if (!holder.premiumRevokedInviteIds) holder.premiumRevokedInviteIds = [];
 
   return holder;
+}
+
+function toBase64Url(value: string): string {
+  return Buffer.from(value, 'utf8').toString('base64url');
+}
+
+function fromBase64Url(value: string): string {
+  return Buffer.from(value, 'base64url').toString('utf8');
+}
+
+function hashInviteToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function signInvitePayload(payloadEncoded: string): string {
+  return createHmac('sha256', INVITE_SECRET).update(payloadEncoded).digest('base64url');
+}
+
+function createInviteToken(payload: InviteTokenPayload): string {
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const signature = signInvitePayload(encodedPayload);
+  return `${encodedPayload}.${signature}`;
+}
+
+function parseInviteToken(token: string): InviteTokenPayload | null {
+  const [encodedPayload, signature] = token.split('.');
+  if (!encodedPayload || !signature) return null;
+
+  const expectedSignature = signInvitePayload(encodedPayload);
+  if (!safeEqual(signature, expectedSignature)) return null;
+
+  try {
+    const parsed = JSON.parse(fromBase64Url(encodedPayload)) as InviteTokenPayload;
+    if (!parsed?.id || typeof parsed.exp !== 'number') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 function hashPassword(password: string, salt: string): string {
@@ -70,11 +118,13 @@ export function listPremiumInvites(): PremiumInviteRecord[] {
 export function createPremiumInvite(ttlHours: number): PremiumInviteRecord {
   const store = getStore();
   const now = Date.now();
+  const id = randomUUID();
+  const expiresAt = now + Math.max(1, ttlHours) * 60 * 60 * 1000;
   const invite: PremiumInviteRecord = {
-    id: randomUUID(),
-    token: generateToken(),
+    id,
+    token: createInviteToken({ id, exp: expiresAt }),
     createdAt: now,
-    expiresAt: now + Math.max(1, ttlHours) * 60 * 60 * 1000,
+    expiresAt,
   };
 
   store.premiumInvites!.unshift(invite);
@@ -83,6 +133,9 @@ export function createPremiumInvite(ttlHours: number): PremiumInviteRecord {
 
 export function revokePremiumInvite(inviteId: string): boolean {
   const store = getStore();
+  if (!store.premiumRevokedInviteIds!.includes(inviteId)) {
+    store.premiumRevokedInviteIds!.push(inviteId);
+  }
   const before = store.premiumInvites!.length;
   store.premiumInvites = store.premiumInvites!.filter((invite) => invite.id !== inviteId);
   return store.premiumInvites.length !== before;
@@ -104,11 +157,24 @@ export function createPremiumUserFromInvite(input: {
   const store = getStore();
   const now = Date.now();
   const normalizedEmail = input.email.trim().toLowerCase();
+  const inviteTokenHash = hashInviteToken(input.inviteToken);
+
+  if (store.premiumUsedInviteHashes!.includes(inviteTokenHash)) {
+    return { error: 'Invite link already used' };
+  }
+
+  const parsedInvite = parseInviteToken(input.inviteToken);
+  if (!parsedInvite) return { error: 'Invalid invite link' };
+  if (parsedInvite.exp <= now) return { error: 'Invite link expired' };
+  if (store.premiumRevokedInviteIds!.includes(parsedInvite.id)) {
+    return { error: 'Invalid invite link' };
+  }
 
   const invite = store.premiumInvites!.find((candidate) => safeEqual(candidate.token, input.inviteToken));
-  if (!invite) return { error: 'Invalid invite link' };
-  if (invite.usedAt) return { error: 'Invite link already used' };
-  if (invite.expiresAt <= now) return { error: 'Invite link expired' };
+  if (invite) {
+    if (invite.usedAt) return { error: 'Invite link already used' };
+    if (invite.expiresAt <= now) return { error: 'Invite link expired' };
+  }
 
   const existing = store.premiumUsers!.find((candidate) => candidate.email === normalizedEmail);
   if (existing) return { error: 'Email already registered' };
@@ -123,8 +189,11 @@ export function createPremiumUserFromInvite(input: {
   };
 
   store.premiumUsers!.push(user);
-  invite.usedAt = now;
-  invite.usedByUserId = user.id;
+  if (invite) {
+    invite.usedAt = now;
+    invite.usedByUserId = user.id;
+  }
+  store.premiumUsedInviteHashes!.push(inviteTokenHash);
 
   return { user };
 }
