@@ -8,13 +8,15 @@ interface UploadRecord {
   url: string;
   filename: string;
   timestamp?: number;
+  lastAccessTime?: number;
+  expiresAt?: number;
   size?: number;
 }
 
 export default function DownloadPage() {
   const params = useParams();
   const pathArray = Array.isArray(params.path) ? params.path : [params.path];
-  const filename = pathArray[pathArray.length - 1];
+  const filename = pathArray[pathArray.length - 1] ?? '';
   
   const [fileData, setFileData] = useState<UploadRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,6 +24,7 @@ export default function DownloadPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [downloadCount, setDownloadCount] = useState<number | null>(null);
 
   const downloadUrl = `/d/${pathArray.join('/')}`;
 
@@ -50,9 +53,18 @@ export default function DownloadPage() {
           body: JSON.stringify({ type: 'pageview', path: `/download/${pathArray.join('/')}` })
         }).catch(() => {}); // Silently fail
         
-        const response = await fetch('/api/history', { cache: 'no-store' });
-        if (response.ok) {
-          const data = await response.json();
+        const [historyResponse, analyticsResponse] = await Promise.all([
+          fetch('/api/history', { cache: 'no-store' }),
+          fetch(`/api/analytics?filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
+        ]);
+
+        if (analyticsResponse.ok) {
+          const analyticsData = await analyticsResponse.json();
+          setDownloadCount(analyticsData.totalDownloads ?? 0);
+        }
+
+        if (historyResponse.ok) {
+          const data = await historyResponse.json();
           const records = data.history || [];
           const file = records.find((r: UploadRecord) => r.url.includes(pathArray.join('/')));
           if (file) {
@@ -108,10 +120,17 @@ export default function DownloadPage() {
   };
 
   const getExpiresIn = (): string => {
-    if (!fileData?.timestamp) return 'Unknown';
-    const uploadedTime = fileData.timestamp;
-    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-    const expiresTime = uploadedTime + thirtyDaysMs;
+    const retentionMs = 15 * 24 * 60 * 60 * 1000;
+    const expiresTime =
+      fileData?.expiresAt ??
+      (typeof fileData?.lastAccessTime === 'number'
+        ? fileData.lastAccessTime + retentionMs
+        : typeof fileData?.timestamp === 'number'
+          ? fileData.timestamp + retentionMs
+          : undefined);
+
+    if (!expiresTime) return 'Unknown';
+
     const now = Date.now();
     const diffMs = expiresTime - now;
 
@@ -375,9 +394,9 @@ export default function DownloadPage() {
                   <h1 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>
                     Download your file
                   </h1>
-                  {/* <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'rgba(245, 245, 245, 0.6)' }}>
-                    Securely delivered by Rootz, ads enabled
-                  </p> */}
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'rgba(245, 245, 245, 0.6)' }}>
+                    Secure data routing via Relay.
+                  </p>
                 </div>
 
                 {/* File Details Table */}
@@ -406,6 +425,12 @@ export default function DownloadPage() {
                         : 'Unknown'}
                     </div>
                   </div>
+                  <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
+                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Downloads:</div>
+                    <div style={{ flex: 1, color: '#f5f5f5' }}>
+                      {typeof downloadCount === 'number' ? downloadCount.toLocaleString() : 'Unknown'}
+                    </div>
+                  </div>
                   <div style={{ display: 'flex' }}>
                     <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Expires:</div>
                     <div style={{ flex: 1, color: '#f5f5f5' }}>
@@ -414,67 +439,76 @@ export default function DownloadPage() {
                   </div>
                 </div>
 
-                {/* Download Button */}
-                <a
-                  href={downloadUrl}
-                  download
+                {/* Primary Actions */}
+                <div
                   style={{
-                    display: 'block',
-                    padding: '0.6rem 1rem',
-                    borderRadius: '6px',
-                    background: '#ffffff',
-                    color: '#0a0a0a',
-                    textDecoration: 'none',
-                    fontWeight: 700,
-                    textAlign: 'center',
-                    fontSize: '0.85rem',
-                    border: 'none',
-                    cursor: 'pointer',
-                    marginBottom: '0.8rem',
-                    transition: 'transform 0.2s ease, opacity 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.opacity = '0.9';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.opacity = '1';
+                    display: 'flex',
+                    gap: '0.5rem',
+                    marginBottom: '0.8rem'
                   }}
                 >
-                  Download
-                </a>
+                  <a
+                    href={downloadUrl}
+                    download
+                    style={{
+                      flex: 1,
+                      display: 'block',
+                      padding: '0.45rem 0.8rem',
+                      borderRadius: '6px',
+                      background: '#ffffff',
+                      color: '#0a0a0a',
+                      textDecoration: 'none',
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      fontSize: '0.78rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s ease, opacity 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.opacity = '0.9';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.opacity = '1';
+                    }}
+                  >
+                    Download
+                  </a>
 
-                {isPreviewable(fileData.filename) && (
                   <button
                     onClick={() => {
+                      if (!isPreviewable(fileData.filename)) return;
                       setPreviewLoading(true);
                       setShowPreview(true);
                     }}
+                    disabled={!isPreviewable(fileData.filename)}
                     style={{
-                      display: 'block',
-                      width: '100%',
-                      padding: '0.6rem 1rem',
+                      flex: 1,
+                      padding: '0.45rem 0.8rem',
                       borderRadius: '6px',
                       background: 'transparent',
                       border: '1px solid rgba(255, 255, 255, 0.2)',
-                      color: '#f5f5f5',
+                      color: !isPreviewable(fileData.filename) ? 'rgba(245, 245, 245, 0.4)' : '#f5f5f5',
                       fontWeight: 600,
-                      fontSize: '0.8rem',
-                      cursor: 'pointer',
-                      marginBottom: '0.8rem',
+                      fontSize: '0.78rem',
+                      cursor: !isPreviewable(fileData.filename) ? 'not-allowed' : 'pointer',
+                      opacity: !isPreviewable(fileData.filename) ? 0.6 : 1,
                       transition: 'all 0.2s ease'
                     }}
                     onMouseEnter={(e) => {
+                      if (!isPreviewable(fileData.filename)) return;
                       e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                     }}
                     onMouseLeave={(e) => {
+                      if (!isPreviewable(fileData.filename)) return;
                       e.currentTarget.style.background = 'transparent';
                     }}
                   >
                     Preview
                   </button>
-                )}
+                </div>
 
                 {/* Copy Link Button */}
                 <button

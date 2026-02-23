@@ -50,10 +50,22 @@ export async function GET(request: NextRequest) {
   try {
     cleanupOldData();
     const data = getAnalyticsData();
+    const filenameFilter = request.nextUrl.searchParams.get('filename');
     
     const now = Date.now();
     const last24h = now - (24 * 60 * 60 * 1000);
     const last7days = now - (7 * 24 * 60 * 60 * 1000);
+
+    if (filenameFilter) {
+      const fileDownloads = data.downloads.filter((event) => event.filename === filenameFilter);
+      return NextResponse.json({
+        filename: filenameFilter,
+        totalDownloads: fileDownloads.length,
+        last24h: fileDownloads.filter((event) => event.timestamp > last24h).length,
+        last7days: fileDownloads.filter((event) => event.timestamp > last7days).length,
+        uniqueUsers: new Set(fileDownloads.map((event) => event.ip)).size
+      });
+    }
     
     // Calculate download statistics
     const downloadStats = data.downloads.reduce((acc, event) => {
