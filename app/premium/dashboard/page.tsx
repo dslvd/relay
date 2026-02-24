@@ -17,6 +17,7 @@ export default function PremiumDashboard() {
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -74,6 +75,29 @@ export default function PremiumDashboard() {
     await navigator.clipboard.writeText(links);
     setCopiedAll(true);
     window.setTimeout(() => setCopiedAll(false), 1200);
+  };
+
+  const deleteUpload = async (url: string, filename: string) => {
+    if (!confirm(`Delete "${filename}"?`)) return;
+
+    try {
+      setDeletingUrl(url);
+      const response = await fetch('/api/premium/uploads', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete upload');
+      }
+
+      setUploads((current) => current.filter((item) => item.url !== url));
+    } catch {
+      alert('Failed to delete upload');
+    } finally {
+      setDeletingUrl(null);
+    }
   };
 
   return (
@@ -235,6 +259,23 @@ export default function PremiumDashboard() {
                       }}
                     >
                       Copy link
+                    </button>
+                    <button
+                      onClick={() => deleteUpload(file.url, file.filename)}
+                      className="pressable"
+                      disabled={deletingUrl === file.url}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        borderRadius: '999px',
+                        border: '1px solid #3a2a2a',
+                        background: deletingUrl === file.url ? '#2a2f3a' : '#221717',
+                        color: deletingUrl === file.url ? '#8a92a1' : '#f2c6c6',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        cursor: deletingUrl === file.url ? 'default' : 'pointer'
+                      }}
+                    >
+                      {deletingUrl === file.url ? 'Deleting...' : 'Delete'}
                     </button>
                   </div>
                 </div>
