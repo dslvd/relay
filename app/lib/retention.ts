@@ -1,4 +1,5 @@
-import { del, list } from '@vercel/blob';
+import { del } from '@vercel/blob';
+import { loadUploadHistory, saveUploadHistory } from '@/app/lib/upload-history-store';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -14,18 +15,17 @@ export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: n
     return { deleted: 0, scanned: 0 };
   }
 
-  const holder = global as { uploadHistory?: Array<{ url: string; lastAccessTime: number }> };
-  
-  if (!holder.uploadHistory) {
+  const history = await loadUploadHistory();
+  if (history.length === 0) {
     return { deleted: 0, scanned: 0 };
   }
 
   let deleted = 0;
-  const scanned = holder.uploadHistory.length;
+  const scanned = history.length;
   const urlsToDelete: string[] = [];
 
   // Check each file in history for expiration based on last access time
-  for (const record of holder.uploadHistory) {
+  for (const record of history) {
     if (isExpired(record.lastAccessTime, now)) {
       // Extract the blob URL from the download URL
       const pathMatch = record.url.match(/\/download\/(.+)$/);
@@ -49,32 +49,32 @@ export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: n
   return { deleted, scanned };
 }
 
-export function pruneExpiredHistoryCache(now = Date.now()): number {
-  const holder = global as { uploadHistory?: Array<{ lastAccessTime: number }> };
-
-  if (!holder.uploadHistory) {
+export async function pruneExpiredHistoryCache(now = Date.now()): Promise<number> {
+  const history = await loadUploadHistory();
+  if (history.length === 0) {
     return 0;
   }
 
-  const before = holder.uploadHistory.length;
-  const filtered = holder.uploadHistory.filter((record) => !isExpired(record.lastAccessTime, now));
-
-  if (filtered.length !== before) {
-    holder.uploadHistory = filtered;
+  const filtered = history.filter((record) => !isExpired(record.lastAccessTime, now));
+  if (filtered.length !== history.length) {
+    await saveUploadHistory(filtered);
   }
 
-  return before - filtered.length;
+  return history.length - filtered.length;
 }
 
-export function updateLastAccessTime(url: string): void {
-  const holder = global as { uploadHistory?: Array<{ url: string; lastAccessTime: number }> };
-  
-  if (!holder.uploadHistory) {
+export async function updateLastAccessTime(url: string): Promise<void> {
+  const history = await loadUploadHistory();
+  if (history.length === 0) {
     return;
   }
 
-  const record = holder.uploadHistory.find(r => r.url === url || r.url.includes(url));
-  if (record) {
-    record.lastAccessTime = Date.now();
-  }
+  const updated = history.map((record) => {
+    if (record.url === url || record.url.includes(url)) {
+      return { ...record, lastAccessTime: Date.now() };
+    }
+    return record;
+  });
+
+  await saveUploadHistory(updated);
 }

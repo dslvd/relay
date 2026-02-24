@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pruneExpiredHistoryCache } from '@/app/lib/retention';
+import { removeUploadUrls } from '@/app/lib/upload-history-store';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-type UploadHistoryEntry = {
-  url: string;
-};
-
 export async function POST(request: NextRequest) {
   try {
-    pruneExpiredHistoryCache();
+    await pruneExpiredHistoryCache();
     const body = await request.json();
     const { urls } = body;
 
@@ -22,11 +19,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await removeDeletedFiles(urls);
+    const removed = await removeUploadUrls(urls);
 
     return NextResponse.json({ 
       success: true,
-      removed: urls.length 
+      removed
     }, {
       headers: {
         'Cache-Control': 'no-store, max-age=0, must-revalidate',
@@ -41,23 +38,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-async function removeDeletedFiles(urls: string[]): Promise<void> {
-  // For production, use Vercel KV:
-  // const kv = createClient({ ... });
-  // const history = await kv.get('upload_history') || [];
-  // const filtered = history.filter(record => !urls.includes(record.url));
-  // await kv.set('upload_history', filtered);
-  
-  // Or use Vercel Postgres:
-  // await sql`DELETE FROM uploads WHERE url = ANY(${urls})`;
-  
-  // Temporary in-memory storage
-  if (typeof global.uploadHistory === 'undefined') {
-    return;
-  }
-  
-  const history = global.uploadHistory as UploadHistoryEntry[];
-  (global as any).uploadHistory = history.filter((record) => !urls.includes(record.url));
 }

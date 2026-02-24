@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     onUploadCompleted: async ({ blob }) => {
       console.log('Upload completed:', blob.url);
       await deleteExpiredBlobs();
-      pruneExpiredHistoryCache();
+      await pruneExpiredHistoryCache();
     },
   });
 

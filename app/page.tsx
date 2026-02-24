@@ -664,6 +664,105 @@ export default function Home() {
           <br />
           effortless file sharing.
         </h1>
+          <div
+            style={{
+              marginTop: '0.2rem',
+              width: '100%',
+              maxWidth: '520px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.75rem',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.72rem',
+                color: '#b5bcc9',
+                letterSpacing: '0.02em'
+              }}
+            >
+              <span
+                style={{
+                  padding: '0.18rem 0.55rem',
+                  borderRadius: '999px',
+                  border: '1px solid #2a2f3a',
+                  background: '#0f1116',
+                  color: '#eef1f6',
+                  fontSize: '0.68rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em'
+                }}
+              >
+                Premium
+              </span>
+              {isPremium ? (
+                <span style={{ color: '#8a92a1' }}>
+                  {premiumEmail || 'Active'}
+                </span>
+              ) : (
+                <span style={{ color: '#8a92a1' }}>
+                  Higher limits + no ads
+                </span>
+              )}
+            </div>
+
+            {isPremium ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <a
+                  href="/premium/dashboard"
+                  style={{
+                    padding: '0.35rem 0.7rem',
+                    borderRadius: '999px',
+                    border: '1px solid #2f3541',
+                    background: 'transparent',
+                    color: '#c3cad6',
+                    fontSize: '0.7rem',
+                    cursor: 'pointer',
+                    textDecoration: 'none'
+                  }}
+                >
+                  Dashboard
+                </a>
+                <button
+                  onClick={logoutPremium}
+                  style={{
+                    padding: '0.35rem 0.7rem',
+                    borderRadius: '999px',
+                    border: '1px solid #2f3541',
+                    background: 'transparent',
+                    color: '#c3cad6',
+                    fontSize: '0.7rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <a
+                href="/premium"
+                style={{
+                  padding: '0.38rem 0.75rem',
+                  borderRadius: '999px',
+                  border: '1px solid #e9ecf2',
+                  background: '#e9ecf2',
+                  color: '#0b0c10',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textDecoration: 'none'
+                }}
+              >
+                Premium login
+              </a>
+            )}
+          </div>
         </div>
         )}
 
@@ -818,62 +917,7 @@ export default function Home() {
         </p>
         )}
 
-        {!uploading && (
-          <div
-            style={{
-              marginTop: '0.85rem',
-              width: '100%',
-              maxWidth: '520px',
-              padding: '0.75rem',
-              borderRadius: '12px',
-              border: '1px solid #242833',
-              background: '#111318',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.6rem',
-              flexWrap: 'wrap'
-            }}
-          >
-            <div style={{ fontSize: '0.75rem', color: '#b5bcc9' }}>
-              {isPremium ? `Premium active${premiumEmail ? ` • ${premiumEmail}` : ''}` : 'Premium account required'}
-            </div>
-
-            {isPremium ? (
-              <button
-                onClick={logoutPremium}
-                style={{
-                  padding: '0.4rem 0.7rem',
-                  borderRadius: '999px',
-                  border: '1px solid #2f3541',
-                  background: '#14161b',
-                  color: '#eef1f6',
-                  fontSize: '0.72rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Logout
-              </button>
-            ) : (
-              <a
-                href="/premium"
-                style={{
-                  padding: '0.4rem 0.75rem',
-                  borderRadius: '999px',
-                  border: '1px solid #e9ecf2',
-                  background: '#e9ecf2',
-                  color: '#0b0c10',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  textDecoration: 'none'
-                }}
-              >
-                Premium login
-              </a>
-            )}
-          </div>
-        )}
+        
 
 
         {activeView === 'upload' && uploading && (

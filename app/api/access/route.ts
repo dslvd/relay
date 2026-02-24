@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    updateLastAccessTime(filename);
+    await updateLastAccessTime(filename);
 
     return NextResponse.json({ 
       success: true,

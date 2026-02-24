@@ -144,7 +144,7 @@ export async function GET(
     
     // Update last access time to reset the deletion timer
     const filename = path[path.length - 1];
-    updateLastAccessTime(filename);
+    await updateLastAccessTime(filename);
     
     // Track download for analytics
     try {

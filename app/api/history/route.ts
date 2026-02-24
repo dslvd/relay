@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, RETENTION_MS } from '@/app/lib/retention';
+import { getPremiumUserFromSession } from '@/app/lib/premium-auth';
+import { addUploadRecord, loadUploadHistory, saveUploadHistory, type UploadRecord } from '@/app/lib/upload-history-store';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -8,15 +10,7 @@ export const fetchCache = 'force-no-store';
 const MAX_DAILY_BYTES = 1024 * 1024 * 1024; // 1GB per IP
 const MAX_DAILY_UPLOADS = 100;
 
-interface UploadRecord {
-  url: string;
-  filename: string;
-  timestamp: number;
-  lastAccessTime: number;
-  expiresAt: number;
-  size: number;
-  ip?: string;
-}
+const PREMIUM_COOKIE_NAME = 'premium_auth';
 
 interface UploadQuota {
   dayStart: number;
@@ -29,16 +23,22 @@ interface UploadQuota {
 export async function GET() {
   try {
     await deleteExpiredBlobs();
-    pruneExpiredHistoryCache();
+    await pruneExpiredHistoryCache();
     // In a real implementation, fetch from database
     // For now, using Vercel KV or similar would be ideal
     
-    const history = await getHistoryFromStorage();
+    const history = await loadUploadHistory();
+    const filtered = history.filter((record) => !isExpired(record.lastAccessTime));
+    if (filtered.length !== history.length) {
+      await saveUploadHistory(filtered);
+    }
+
+    const publicHistory = filtered.map(({ ownerId, ownerEmail, ...record }) => record);
     
     return NextResponse.json(
       {
-        history,
-        count: history.length
+        history: publicHistory,
+        count: publicHistory.length
       },
       {
         headers: {
@@ -60,7 +60,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     await deleteExpiredBlobs();
-    pruneExpiredHistoryCache();
+    await pruneExpiredHistoryCache();
     const body = await request.json();
     const { url, filename, size } = body;
 
@@ -97,6 +97,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
+    const premiumUser = token ? await getPremiumUserFromSession(token) : null;
+
     const record: UploadRecord = {
       url,
       filename,
@@ -104,14 +107,16 @@ export async function POST(request: NextRequest) {
       timestamp: now,
       lastAccessTime: now, // Initialize with upload time
       expiresAt: now + RETENTION_MS,
-      ip
+      ip,
+      ownerId: premiumUser?.id,
+      ownerEmail: premiumUser?.email
     };
 
     quota.bytes += uploadSize;
     quota.count += 1;
     global.uploadQuota[ip] = quota;
 
-    await addToHistory(record);
+    await addUploadRecord(record);
 
     return NextResponse.json({ 
       success: true,
@@ -126,61 +131,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Storage helper functions
-// Replace these with actual database calls in production
-
-async function getHistoryFromStorage(): Promise<UploadRecord[]> {
-  // For production, use Vercel KV:
-  // const kv = createClient({ ... });
-  // const history = await kv.get('upload_history') || [];
-  // return history;
-  
-  // Or use Vercel Postgres:
-  // const { rows } = await sql`SELECT * FROM uploads ORDER BY timestamp DESC LIMIT 100`;
-  // return rows;
-  
-  // Temporary in-memory storage (resets on deployment)
-  if (typeof global.uploadHistory === 'undefined') {
-    global.uploadHistory = [];
-  }
-
-  const history = global.uploadHistory as UploadRecord[];
-  const filtered = history.filter((record) => !isExpired(record.timestamp));
-
-  if (filtered.length !== history.length) {
-    global.uploadHistory = filtered;
-  }
-
-  return filtered
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 100);
-}
-
-async function addToHistory(record: UploadRecord): Promise<void> {
-  // For production, use Vercel KV:
-  // const kv = createClient({ ... });
-  // const history = await kv.get('upload_history') || [];
-  // history.unshift(record);
-  // await kv.set('upload_history', history.slice(0, 100));
-  
-  // Or use Vercel Postgres:
-  // await sql`INSERT INTO uploads (url, filename, size, timestamp) VALUES (${record.url}, ${record.filename}, ${record.size}, ${record.timestamp})`;
-  
-  // Temporary in-memory storage
-  if (typeof global.uploadHistory === 'undefined') {
-    global.uploadHistory = [];
-  }
-  
-  (global.uploadHistory as UploadRecord[]).unshift(record);
-  
-  // Keep only last 100
-  if ((global.uploadHistory as UploadRecord[]).length > 100) {
-    global.uploadHistory = (global.uploadHistory as UploadRecord[]).slice(0, 100);
-  }
-}
-
 // Type declaration for global storage
 declare global {
-  var uploadHistory: UploadRecord[] | undefined;
   var uploadQuota: Record<string, UploadQuota> | undefined;
 }
