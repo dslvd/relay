@@ -777,7 +777,6 @@ export default function Home() {
               letterSpacing: '0.03em'
             }}
           >
-            subscribe to get premium features
           </p>
         )}
 
