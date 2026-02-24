@@ -16,6 +16,7 @@ export default function PremiumDashboard() {
   const [loading, setLoading] = useState(true);
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -67,14 +68,34 @@ export default function PremiumDashboard() {
     return date.toLocaleDateString();
   };
 
+  const copyAllLinks = async () => {
+    if (uploads.length === 0) return;
+    const links = uploads.map((file) => file.url).join('\n');
+    await navigator.clipboard.writeText(links);
+    setCopiedAll(true);
+    window.setTimeout(() => setCopiedAll(false), 1200);
+  };
+
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0a',
-      color: '#eef1f6',
-      fontFamily: "'Sora', sans-serif",
-      padding: '3.5rem 6vw'
-    }}>
+    <>
+      <style jsx>{`
+        .pressable {
+          transition: transform 0.14s ease, opacity 0.14s ease;
+          will-change: transform;
+        }
+
+        .pressable:active {
+          transform: scale(0.96);
+        }
+      `}</style>
+
+      <div style={{
+        minHeight: '100vh',
+        background: '#0a0a0a',
+        color: '#eef1f6',
+        fontFamily: "'Sora', sans-serif",
+        padding: '3.5rem 6vw'
+      }}>
       <div style={{
         maxWidth: '900px',
         margin: '0 auto'
@@ -106,6 +127,7 @@ export default function PremiumDashboard() {
           <div style={{ display: 'flex', gap: '0.6rem' }}>
             <Link
               href="/"
+              className="pressable"
               style={{
                 padding: '0.5rem 1rem',
                 borderRadius: '999px',
@@ -117,21 +139,22 @@ export default function PremiumDashboard() {
             >
               Back to upload
             </Link>
-            <Link
-              href="/premium"
+            <button
+              onClick={copyAllLinks}
+              className="pressable"
+              disabled={uploads.length === 0 || loading}
               style={{
                 padding: '0.5rem 1rem',
                 borderRadius: '999px',
                 border: '1px solid #e9ecf2',
-                background: '#e9ecf2',
-                color: '#0b0c10',
-                textDecoration: 'none',
+                background: uploads.length === 0 || loading ? '#2a2f3a' : '#e9ecf2',
+                color: uploads.length === 0 || loading ? '#8a92a1' : '#0b0c10',
                 fontSize: '0.75rem',
                 fontWeight: 700
               }}
             >
-              Premium settings
-            </Link>
+              {copiedAll ? 'Copied' : 'Copy all links'}
+            </button>
           </div>
         </div>
 
@@ -185,6 +208,7 @@ export default function PremiumDashboard() {
                       href={file.url}
                       target="_blank"
                       rel="noreferrer"
+                      className="pressable"
                       style={{
                         padding: '0.4rem 0.8rem',
                         borderRadius: '999px',
@@ -198,6 +222,7 @@ export default function PremiumDashboard() {
                     </a>
                     <button
                       onClick={() => navigator.clipboard.writeText(file.url)}
+                      className="pressable"
                       style={{
                         padding: '0.4rem 0.8rem',
                         borderRadius: '999px',
@@ -218,6 +243,7 @@ export default function PremiumDashboard() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
