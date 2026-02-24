@@ -38,6 +38,8 @@ Edit `.env.local` with your credentials:
 BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
 ADMIN_PASSWORD=your_admin_password
 CRON_SECRET=generate_with_openssl_rand_base64_32
+REDIS_URL=redis://default:password@host:port
+PREMIUM_INVITE_SECRET=your_long_random_secret
 ```
 
 ### 3. Run Development Server
@@ -143,6 +145,8 @@ In Vercel Dashboard → Settings → Environment Variables:
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob storage token | Yes |
 | `ADMIN_PASSWORD` | Admin dashboard password | Yes |
 | `CRON_SECRET` | Secret for cron authentication | Yes (for auto-cleanup) |
+| `REDIS_URL` | Redis connection URL (premium auth persistence) | Yes (for reliable premium auth) |
+| `PREMIUM_INVITE_SECRET` | HMAC secret for premium invite tokens | Yes (premium invites) |
 | `NEXT_PUBLIC_ADSENSE_CLIENT_ID` | Google AdSense Publisher ID | No (for monetization) |
 
 ## 💰 Monetization (Optional)

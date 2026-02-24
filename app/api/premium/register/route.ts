@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
     }
 
-    const { user, error } = createPremiumUserFromInvite({
+    const { user, error } = await createPremiumUserFromInvite({
       inviteToken: String(token),
       email: String(email),
       password: String(password),

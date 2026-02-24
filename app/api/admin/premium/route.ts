@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  PremiumInviteRecord,
   createPremiumInvite,
   deletePremiumUser,
   listPremiumInvites,
@@ -20,7 +21,7 @@ function requireAdmin(request: NextRequest): NextResponse | null {
   return null;
 }
 
-function sanitizeInviteForAdmin(invite: ReturnType<typeof listPremiumInvites>[number]) {
+function sanitizeInviteForAdmin(invite: PremiumInviteRecord) {
   return {
     id: invite.id,
     token: invite.token,
@@ -35,14 +36,16 @@ export async function GET(request: NextRequest) {
   const authError = requireAdmin(request);
   if (authError) return authError;
 
-  const users = listPremiumUsers().map((user) => ({
+  const usersList = await listPremiumUsers();
+  const users = usersList.map((user) => ({
     id: user.id,
     email: user.email,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
   }));
 
-  const invites = listPremiumInvites().map(sanitizeInviteForAdmin);
+  const invitesList = await listPremiumInvites();
+  const invites = invitesList.map(sanitizeInviteForAdmin);
 
   return NextResponse.json({ users, invites });
 }
@@ -59,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ttl = Number.isFinite(Number(ttlHours)) ? Number(ttlHours) : 24;
-    const invite = createPremiumInvite(ttl);
+    const invite = await createPremiumInvite(ttl);
 
     return NextResponse.json({
       success: true,
@@ -83,12 +86,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (type === 'invite') {
-      const removed = revokePremiumInvite(String(id));
+      const removed = await revokePremiumInvite(String(id));
       return NextResponse.json({ success: removed });
     }
 
     if (type === 'user') {
-      const removed = deletePremiumUser(String(id));
+      const removed = await deletePremiumUser(String(id));
       return NextResponse.json({ success: removed });
     }
 

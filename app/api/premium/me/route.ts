@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ premium: false });
   }
 
-  const user = getPremiumUserFromSession(token);
+  const user = await getPremiumUserFromSession(token);
   if (!user) {
     return NextResponse.json({ premium: false });
   }

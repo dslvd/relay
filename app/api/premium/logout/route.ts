@@ -6,7 +6,7 @@ const PREMIUM_COOKIE_NAME = 'premium_auth';
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
   if (token) {
-    destroyPremiumSession(token);
+    await destroyPremiumSession(token);
   }
 
   const response = NextResponse.json({ success: true });

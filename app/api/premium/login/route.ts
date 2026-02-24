@@ -11,12 +11,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    const user = authenticatePremiumUser(email, password);
+    const user = await authenticatePremiumUser(email, password);
     if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const sessionToken = createPremiumSession(user.id);
+    const sessionToken = await createPremiumSession(user.id);
     const response = NextResponse.json({
       success: true,
       user: {

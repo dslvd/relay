@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
+import { createClient } from 'redis';
 
 export interface PremiumUserRecord {
   id: string;
@@ -26,6 +27,14 @@ interface PremiumSessionRecord {
   expiresAt: number;
 }
 
+interface FallbackStore {
+  premiumUsers?: PremiumUserRecord[];
+  premiumInvites?: PremiumInviteRecord[];
+  premiumSessions?: PremiumSessionRecord[];
+  premiumUsedInviteHashes?: string[];
+  premiumRevokedInviteIds?: string[];
+}
+
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const INVITE_SECRET = process.env.PREMIUM_INVITE_SECRET ?? process.env.ADMIN_PASSWORD ?? 'premium-invite-secret';
 
@@ -34,14 +43,76 @@ interface InviteTokenPayload {
   exp: number;
 }
 
+const REDIS_KEYS = {
+  users: 'premium:users',
+  invites: 'premium:invites',
+  sessions: 'premium:sessions',
+  usedInviteHashes: 'premium:used-invite-hashes',
+  revokedInviteIds: 'premium:revoked-invite-ids',
+};
+
+let redisClient: ReturnType<typeof createClient> | null = null;
+let redisConnecting: Promise<ReturnType<typeof createClient>> | null = null;
+
+async function connectRedis(url: string, forceTls: boolean) {
+  const client = createClient({
+    url,
+    socket: forceTls
+      ? {
+          tls: true,
+          rejectUnauthorized: false,
+        }
+      : undefined,
+  });
+
+  client.on('error', (err) => {
+    console.error('Redis client error:', err);
+    redisClient = null;
+  });
+
+  await client.connect();
+  return client;
+}
+
+function getRedisClient(): Promise<ReturnType<typeof createClient>> {
+  if (redisClient && redisClient.isOpen) {
+    return Promise.resolve(redisClient);
+  }
+
+  if (redisConnecting) {
+    return redisConnecting;
+  }
+
+  redisConnecting = (async () => {
+    const url = process.env.REDIS_URL;
+    if (!url) {
+      throw new Error('REDIS_URL environment variable is not set');
+    }
+
+    try {
+      const client = await connectRedis(url, false);
+      redisClient = client;
+      redisConnecting = null;
+      return client;
+    } catch (error) {
+      const shouldRetryWithTls = url.startsWith('redis://');
+      if (!shouldRetryWithTls) {
+        redisConnecting = null;
+        throw error;
+      }
+
+      const client = await connectRedis(url, true);
+      redisClient = client;
+      redisConnecting = null;
+      return client;
+    }
+  })();
+
+  return redisConnecting;
+}
+
 function getStore() {
-  const holder = global as {
-    premiumUsers?: PremiumUserRecord[];
-    premiumInvites?: PremiumInviteRecord[];
-    premiumSessions?: PremiumSessionRecord[];
-    premiumUsedInviteHashes?: string[];
-    premiumRevokedInviteIds?: string[];
-  };
+  const holder = global as FallbackStore;
 
   if (!holder.premiumUsers) holder.premiumUsers = [];
   if (!holder.premiumInvites) holder.premiumInvites = [];
@@ -50,6 +121,141 @@ function getStore() {
   if (!holder.premiumRevokedInviteIds) holder.premiumRevokedInviteIds = [];
 
   return holder;
+}
+
+function hasRedisConfigured(): boolean {
+  return Boolean(process.env.REDIS_URL);
+}
+
+export async function checkPremiumStorageHealth(): Promise<{
+  configured: boolean;
+  ok: boolean;
+  pong?: string;
+  error?: string;
+}> {
+  if (!hasRedisConfigured()) {
+    return {
+      configured: false,
+      ok: false,
+      error: 'REDIS_URL is not set',
+    };
+  }
+
+  try {
+    const client = await getRedisClient();
+    const pong = await client.ping();
+    return {
+      configured: true,
+      ok: pong === 'PONG',
+      pong,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      ok: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+async function readUsers(): Promise<PremiumUserRecord[]> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    const data = await client.get(REDIS_KEYS.users);
+    return data ? JSON.parse(data) : [];
+  }
+  const store = getStore();
+  return [...(store.premiumUsers || [])];
+}
+
+async function writeUsers(users: PremiumUserRecord[]): Promise<void> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    await client.set(REDIS_KEYS.users, JSON.stringify(users));
+    return;
+  }
+  const store = getStore();
+  store.premiumUsers = users;
+}
+
+async function readInvites(): Promise<PremiumInviteRecord[]> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    const data = await client.get(REDIS_KEYS.invites);
+    return data ? JSON.parse(data) : [];
+  }
+  const store = getStore();
+  return [...(store.premiumInvites || [])];
+}
+
+async function writeInvites(invites: PremiumInviteRecord[]): Promise<void> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    await client.set(REDIS_KEYS.invites, JSON.stringify(invites));
+    return;
+  }
+  const store = getStore();
+  store.premiumInvites = invites;
+}
+
+async function readSessions(): Promise<PremiumSessionRecord[]> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    const data = await client.get(REDIS_KEYS.sessions);
+    return data ? JSON.parse(data) : [];
+  }
+  const store = getStore();
+  return [...(store.premiumSessions || [])];
+}
+
+async function writeSessions(sessions: PremiumSessionRecord[]): Promise<void> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    await client.set(REDIS_KEYS.sessions, JSON.stringify(sessions));
+    return;
+  }
+  const store = getStore();
+  store.premiumSessions = sessions;
+}
+
+async function readUsedInviteHashes(): Promise<string[]> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    const data = await client.get(REDIS_KEYS.usedInviteHashes);
+    return data ? JSON.parse(data) : [];
+  }
+  const store = getStore();
+  return [...(store.premiumUsedInviteHashes || [])];
+}
+
+async function writeUsedInviteHashes(hashes: string[]): Promise<void> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    await client.set(REDIS_KEYS.usedInviteHashes, JSON.stringify(hashes));
+    return;
+  }
+  const store = getStore();
+  store.premiumUsedInviteHashes = hashes;
+}
+
+async function readRevokedInviteIds(): Promise<string[]> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    const data = await client.get(REDIS_KEYS.revokedInviteIds);
+    return data ? JSON.parse(data) : [];
+  }
+  const store = getStore();
+  return [...(store.premiumRevokedInviteIds || [])];
+}
+
+async function writeRevokedInviteIds(ids: string[]): Promise<void> {
+  if (hasRedisConfigured()) {
+    const client = await getRedisClient();
+    await client.set(REDIS_KEYS.revokedInviteIds, JSON.stringify(ids));
+    return;
+  }
+  const store = getStore();
+  store.premiumRevokedInviteIds = ids;
 }
 
 function toBase64Url(value: string): string {
@@ -105,18 +311,18 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf);
 }
 
-export function listPremiumUsers(): PremiumUserRecord[] {
-  const store = getStore();
-  return [...store.premiumUsers!].sort((a, b) => b.createdAt - a.createdAt);
+export async function listPremiumUsers(): Promise<PremiumUserRecord[]> {
+  const users = await readUsers();
+  return [...users].sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export function listPremiumInvites(): PremiumInviteRecord[] {
-  const store = getStore();
-  return [...store.premiumInvites!].sort((a, b) => b.createdAt - a.createdAt);
+export async function listPremiumInvites(): Promise<PremiumInviteRecord[]> {
+  const invites = await readInvites();
+  return [...invites].sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export function createPremiumInvite(ttlHours: number): PremiumInviteRecord {
-  const store = getStore();
+export async function createPremiumInvite(ttlHours: number): Promise<PremiumInviteRecord> {
+  const invites = await readInvites();
   const now = Date.now();
   const id = randomUUID();
   const expiresAt = now + Math.max(1, ttlHours) * 60 * 60 * 1000;
@@ -127,56 +333,80 @@ export function createPremiumInvite(ttlHours: number): PremiumInviteRecord {
     expiresAt,
   };
 
-  store.premiumInvites!.unshift(invite);
+  invites.unshift(invite);
+  await writeInvites(invites);
   return invite;
 }
 
-export function revokePremiumInvite(inviteId: string): boolean {
-  const store = getStore();
-  if (!store.premiumRevokedInviteIds!.includes(inviteId)) {
-    store.premiumRevokedInviteIds!.push(inviteId);
+export async function revokePremiumInvite(inviteId: string): Promise<boolean> {
+  const [revokedIds, invites] = await Promise.all([
+    readRevokedInviteIds(),
+    readInvites(),
+  ]);
+
+  if (!revokedIds.includes(inviteId)) {
+    revokedIds.push(inviteId);
   }
-  const before = store.premiumInvites!.length;
-  store.premiumInvites = store.premiumInvites!.filter((invite) => invite.id !== inviteId);
-  return store.premiumInvites.length !== before;
+
+  const before = invites.length;
+  const filteredInvites = invites.filter((invite) => invite.id !== inviteId);
+
+  await Promise.all([
+    writeRevokedInviteIds(revokedIds),
+    writeInvites(filteredInvites),
+  ]);
+
+  return filteredInvites.length !== before;
 }
 
-export function deletePremiumUser(userId: string): boolean {
-  const store = getStore();
-  const before = store.premiumUsers!.length;
-  store.premiumUsers = store.premiumUsers!.filter((user) => user.id !== userId);
-  store.premiumSessions = store.premiumSessions!.filter((session) => session.userId !== userId);
-  return store.premiumUsers.length !== before;
+export async function deletePremiumUser(userId: string): Promise<boolean> {
+  const [users, sessions] = await Promise.all([readUsers(), readSessions()]);
+  const before = users.length;
+  const filteredUsers = users.filter((user) => user.id !== userId);
+  const filteredSessions = sessions.filter((session) => session.userId !== userId);
+
+  await Promise.all([
+    writeUsers(filteredUsers),
+    writeSessions(filteredSessions),
+  ]);
+
+  return filteredUsers.length !== before;
 }
 
-export function createPremiumUserFromInvite(input: {
+export async function createPremiumUserFromInvite(input: {
   inviteToken: string;
   email: string;
   password: string;
-}): { user?: PremiumUserRecord; error?: string } {
-  const store = getStore();
+}): Promise<{ user?: PremiumUserRecord; error?: string }> {
+  const [usedInviteHashes, revokedInviteIds, invites, users] = await Promise.all([
+    readUsedInviteHashes(),
+    readRevokedInviteIds(),
+    readInvites(),
+    readUsers(),
+  ]);
+
   const now = Date.now();
   const normalizedEmail = input.email.trim().toLowerCase();
   const inviteTokenHash = hashInviteToken(input.inviteToken);
 
-  if (store.premiumUsedInviteHashes!.includes(inviteTokenHash)) {
+  if (usedInviteHashes.includes(inviteTokenHash)) {
     return { error: 'Invite link already used' };
   }
 
   const parsedInvite = parseInviteToken(input.inviteToken);
   if (!parsedInvite) return { error: 'Invalid invite link' };
   if (parsedInvite.exp <= now) return { error: 'Invite link expired' };
-  if (store.premiumRevokedInviteIds!.includes(parsedInvite.id)) {
+  if (revokedInviteIds.includes(parsedInvite.id)) {
     return { error: 'Invalid invite link' };
   }
 
-  const invite = store.premiumInvites!.find((candidate) => safeEqual(candidate.token, input.inviteToken));
+  const invite = invites.find((candidate) => safeEqual(candidate.token, input.inviteToken));
   if (invite) {
     if (invite.usedAt) return { error: 'Invite link already used' };
     if (invite.expiresAt <= now) return { error: 'Invite link expired' };
   }
 
-  const existing = store.premiumUsers!.find((candidate) => candidate.email === normalizedEmail);
+  const existing = users.find((candidate) => candidate.email === normalizedEmail);
   if (existing) return { error: 'Email already registered' };
 
   const salt = randomBytes(16).toString('hex');
@@ -188,35 +418,56 @@ export function createPremiumUserFromInvite(input: {
     createdAt: now,
   };
 
-  store.premiumUsers!.push(user);
+  const updatedUsers = [...users, user];
+  const updatedInvites = [...invites];
+
   if (invite) {
-    invite.usedAt = now;
-    invite.usedByUserId = user.id;
+    const inviteIndex = updatedInvites.findIndex((candidate) => candidate.id === invite.id);
+    if (inviteIndex >= 0) {
+      updatedInvites[inviteIndex] = {
+        ...updatedInvites[inviteIndex],
+        usedAt: now,
+        usedByUserId: user.id,
+      };
+    }
   }
-  store.premiumUsedInviteHashes!.push(inviteTokenHash);
+
+  const updatedUsedHashes = [...usedInviteHashes, inviteTokenHash];
+
+  await Promise.all([
+    writeUsers(updatedUsers),
+    writeInvites(updatedInvites),
+    writeUsedInviteHashes(updatedUsedHashes),
+  ]);
 
   return { user };
 }
 
-export function authenticatePremiumUser(email: string, password: string): PremiumUserRecord | null {
-  const store = getStore();
+export async function authenticatePremiumUser(email: string, password: string): Promise<PremiumUserRecord | null> {
+  const users = await readUsers();
   const normalizedEmail = email.trim().toLowerCase();
-  const user = store.premiumUsers!.find((candidate) => candidate.email === normalizedEmail);
+  const user = users.find((candidate) => candidate.email === normalizedEmail);
   if (!user) return null;
 
   const expected = hashPassword(password, user.salt);
   if (!safeEqual(expected, user.passwordHash)) return null;
 
-  user.lastLoginAt = Date.now();
-  return user;
+  const updatedUsers = users.map((candidate) =>
+    candidate.id === user.id
+      ? { ...candidate, lastLoginAt: Date.now() }
+      : candidate
+  );
+
+  await writeUsers(updatedUsers);
+  return updatedUsers.find((candidate) => candidate.id === user.id) || null;
 }
 
-export function createPremiumSession(userId: string): string {
-  const store = getStore();
+export async function createPremiumSession(userId: string): Promise<string> {
+  const sessions = await readSessions();
   const now = Date.now();
   const token = generateToken();
 
-  store.premiumSessions = store.premiumSessions!
+  const updatedSessions = sessions
     .filter((session) => session.expiresAt > now)
     .concat({
       id: randomUUID(),
@@ -226,21 +477,28 @@ export function createPremiumSession(userId: string): string {
       expiresAt: now + SESSION_TTL_MS,
     });
 
+  await writeSessions(updatedSessions);
+
   return token;
 }
 
-export function getPremiumUserFromSession(token: string): PremiumUserRecord | null {
-  const store = getStore();
+export async function getPremiumUserFromSession(token: string): Promise<PremiumUserRecord | null> {
+  const [sessions, users] = await Promise.all([readSessions(), readUsers()]);
   const now = Date.now();
-  store.premiumSessions = store.premiumSessions!.filter((session) => session.expiresAt > now);
+  const activeSessions = sessions.filter((session) => session.expiresAt > now);
 
-  const session = store.premiumSessions!.find((candidate) => safeEqual(candidate.token, token));
+  if (activeSessions.length !== sessions.length) {
+    await writeSessions(activeSessions);
+  }
+
+  const session = activeSessions.find((candidate) => safeEqual(candidate.token, token));
   if (!session) return null;
 
-  return store.premiumUsers!.find((user) => user.id === session.userId) ?? null;
+  return users.find((user) => user.id === session.userId) ?? null;
 }
 
-export function destroyPremiumSession(token: string): void {
-  const store = getStore();
-  store.premiumSessions = store.premiumSessions!.filter((session) => !safeEqual(session.token, token));
+export async function destroyPremiumSession(token: string): Promise<void> {
+  const sessions = await readSessions();
+  const filteredSessions = sessions.filter((session) => !safeEqual(session.token, token));
+  await writeSessions(filteredSessions);
 }
