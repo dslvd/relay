@@ -686,21 +686,6 @@ export default function Home() {
                 letterSpacing: '0.02em'
               }}
             >
-              <span
-                style={{
-                  padding: '0.18rem 0.55rem',
-                  borderRadius: '999px',
-                  border: '1px solid #2a2f3a',
-                  background: '#0f1116',
-                  color: '#eef1f6',
-                  fontSize: '0.68rem',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em'
-                }}
-              >
-                Premium
-              </span>
               {isPremium ? (
                 <span style={{ color: '#8a92a1' }}>
                   {premiumEmail || 'Active'}
