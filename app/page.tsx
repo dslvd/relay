@@ -692,7 +692,7 @@ export default function Home() {
                 </span>
               ) : (
                 <span style={{ color: '#8a92a1' }}>
-                  Higher limits + no ads
+                  Premium = Higher limits + no ads
                 </span>
               )}
             </div>
