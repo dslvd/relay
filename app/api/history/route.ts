@@ -47,19 +47,34 @@ function isAdminRequest(request: NextRequest): boolean {
   return Boolean(cookieValue && cookieValue === adminPassword);
 }
 
+async function runBestEffortHistoryMaintenance(options?: { includePremium?: boolean }) {
+  const includePremium = options?.includePremium ?? false;
+
+  const tasks: Promise<unknown>[] = [
+    deleteExpiredBlobs(),
+    pruneExpiredHistoryCache(),
+    pruneMissingHistoryEntries({ scope: 'public' }),
+  ];
+
+  if (includePremium) {
+    tasks.push(pruneMissingHistoryEntries({ scope: 'premium' }));
+  }
+
+  const results = await Promise.allSettled(tasks);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.warn('History maintenance task failed:', result.reason);
+    }
+  }
+}
+
 // This would ideally be stored in a database, but for simplicity we'll use persistent storage
 // For production, use a database like Vercel KV, PostgreSQL, or similar
 export async function GET(request: NextRequest) {
   try {
-    await deleteExpiredBlobs();
-    await pruneExpiredHistoryCache();
-
     const includePremiumRequested = request.nextUrl.searchParams.get('includePremium') === '1';
     const includePremium = includePremiumRequested && isAdminRequest(request);
-    await pruneMissingHistoryEntries({ scope: 'public' });
-    if (includePremium) {
-      await pruneMissingHistoryEntries({ scope: 'premium' });
-    }
+    await runBestEffortHistoryMaintenance({ includePremium });
 
     const publicHistory = await loadUploadHistory('public');
     const publicFiltered = publicHistory.filter((record) => !isExpired(record.lastAccessTime));
@@ -106,8 +121,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await deleteExpiredBlobs();
-    await pruneExpiredHistoryCache();
+    await runBestEffortHistoryMaintenance();
     const body = await request.json();
     const { url, filename, size } = body;
 
