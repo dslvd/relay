@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateLastAccessTime } from '@/app/lib/retention';
-import { buildPublicObjectUrl } from '@/app/lib/r2-storage';
+import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/r2-storage';
 
 function fileNotFoundResponse(): NextResponse {
   const html = `<!doctype html>
@@ -127,11 +127,14 @@ export async function GET(
   try {
     const { path } = await params;
     const pathname = `d/${path.join('/')}`;
-    
-    const blobUrl = buildPublicObjectUrl(pathname);
-    
+
+    const signedUrl = await createPresignedDownloadUrl({
+      objectKey: pathname,
+      expiresInSeconds: 60,
+    });
+
     // Fetch and proxy the file content
-    const response = await fetch(blobUrl);
+    const response = await fetch(signedUrl, { cache: 'no-store' });
     
     if (!response.ok) {
       return fileNotFoundResponse();
@@ -186,17 +189,14 @@ export async function HEAD(
   try {
     const { path } = await params;
     const pathname = `d/${path.join('/')}`;
-    const blobUrl = buildPublicObjectUrl(pathname);
-    
-    // Check if file exists
-    const response = await fetch(blobUrl, { method: 'HEAD' });
-    
-    if (response.ok) {
+    const metadata = await getObjectMetadata(pathname);
+
+    if (metadata) {
       return new NextResponse(null, {
         status: 200,
         headers: {
-          'Content-Type': response.headers.get('Content-Type') || 'application/octet-stream',
-          'Content-Length': response.headers.get('Content-Length') || '0',
+          'Content-Type': metadata.contentType || 'application/octet-stream',
+          'Content-Length': String(metadata.contentLength ?? 0),
         }
       });
     }

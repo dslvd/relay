@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -103,6 +104,20 @@ export async function createPresignedUploadUrl(input: {
   });
 }
 
+export async function createPresignedDownloadUrl(input: {
+  objectKey: string;
+  expiresInSeconds?: number;
+}): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: getR2BucketName(),
+    Key: normalizeObjectKey(input.objectKey),
+  });
+
+  return getSignedUrl(getR2Client(), command, {
+    expiresIn: input.expiresInSeconds ?? 60,
+  });
+}
+
 export async function deleteObject(objectKey: string): Promise<void> {
   const command = new DeleteObjectCommand({
     Bucket: getR2BucketName(),
@@ -122,6 +137,26 @@ export async function objectExists(objectKey: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function getObjectMetadata(objectKey: string): Promise<{
+  contentType?: string;
+  contentLength?: number;
+} | null> {
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: getR2BucketName(),
+      Key: normalizeObjectKey(objectKey),
+    });
+    const response = await getR2Client().send(command);
+
+    return {
+      contentType: response.ContentType,
+      contentLength: typeof response.ContentLength === 'number' ? response.ContentLength : undefined,
+    };
+  } catch {
+    return null;
   }
 }
 
