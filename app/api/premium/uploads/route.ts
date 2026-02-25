@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  await pruneMissingHistoryEntries({ scope: 'premium' });
+  await pruneMissingHistoryEntries({ scope: 'premium', force: true });
   const history = await loadUploadHistory('premium');
   const filtered = history.filter((record) => !isExpired(record.lastAccessTime));
   if (filtered.length !== history.length) {
