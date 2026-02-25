@@ -151,17 +151,18 @@ export async function GET(
     
     // Track download for analytics
     try {
-      const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-                 request.headers.get('x-real-ip') ||
-                 'Unknown';
-      
       // Don't await - fire and forget to not slow down downloads
       fetch(`${new URL(request.url).origin}/api/analytics`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': request.headers.get('x-forwarded-for') || '',
+          'x-real-ip': request.headers.get('x-real-ip') || '',
+          'user-agent': request.headers.get('user-agent') || '',
+        },
         body: JSON.stringify({ type: 'download', filename })
       }).catch(() => {}); // Silently fail if analytics fails
-    } catch (error) {
+    } catch {
       // Ignore analytics errors
     }
     
@@ -202,7 +203,7 @@ export async function HEAD(
     }
     
     return new NextResponse(null, { status: 404 });
-  } catch (error) {
+  } catch {
     return new NextResponse(null, { status: 404 });
   }
 }

@@ -11,6 +11,7 @@ const MAX_DAILY_BYTES = 1024 * 1024 * 1024; // 1GB per IP
 const MAX_DAILY_UPLOADS = 100;
 
 const PREMIUM_COOKIE_NAME = 'premium_auth';
+const ADMIN_COOKIE_NAME = 'admin_auth';
 
 interface UploadQuota {
   dayStart: number;
@@ -18,43 +19,87 @@ interface UploadQuota {
   count: number;
 }
 
+function stripOwnershipFields(record: UploadRecord) {
+  const {
+    url,
+    filename,
+    timestamp,
+    lastAccessTime,
+    expiresAt,
+    size,
+    ip,
+  } = record;
+
+  return {
+    url,
+    filename,
+    timestamp,
+    lastAccessTime,
+    expiresAt,
+    size,
+    ip,
+  };
+}
+
+function isAdminRequest(request: NextRequest): boolean {
+  const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
+  const cookieValue = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
+  return Boolean(cookieValue && cookieValue === adminPassword);
+}
+
 // This would ideally be stored in a database, but for simplicity we'll use persistent storage
 // For production, use a database like Vercel KV, PostgreSQL, or similar
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await deleteExpiredBlobs();
     await pruneExpiredHistoryCache();
+
+    const includePremium = isAdminRequest(request);
     await pruneMissingHistoryEntries({ scope: 'public' });
-    // In a real implementation, fetch from database
-    // For now, using Vercel KV or similar would be ideal
-    
-    const history = await loadUploadHistory('public');
-    const filtered = history.filter((record) => !isExpired(record.lastAccessTime));
-    if (filtered.length !== history.length) {
-      await saveUploadHistory(filtered, 'public');
+    if (includePremium) {
+      await pruneMissingHistoryEntries({ scope: 'premium' });
     }
 
-    const publicHistory = filtered.map(({ ownerId, ownerEmail, ...record }) => record);
-    
+    const publicHistory = await loadUploadHistory('public');
+    const publicFiltered = publicHistory.filter((record) => !isExpired(record.lastAccessTime));
+
+    const premiumHistory = includePremium ? await loadUploadHistory('premium') : [];
+    const premiumFiltered = premiumHistory.filter((record) => !isExpired(record.lastAccessTime));
+
+    if (publicFiltered.length !== publicHistory.length) {
+      await saveUploadHistory(publicFiltered, 'public');
+    }
+
+    if (includePremium && premiumFiltered.length !== premiumHistory.length) {
+      await saveUploadHistory(premiumFiltered, 'premium');
+    }
+
+    const combined = [...publicFiltered, ...premiumFiltered]
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map(stripOwnershipFields);
+
     return NextResponse.json(
       {
-        history: publicHistory,
-        count: publicHistory.length
+        history: combined,
+        count: combined.length,
       },
       {
         headers: {
           'Cache-Control': 'no-store, max-age=0, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
       }
     );
   } catch (error) {
     console.error('Error fetching history:', error);
-    return NextResponse.json({ 
-      history: [],
-      error: 'Failed to fetch history' 
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        history: [],
+        error: 'Failed to fetch history',
+      },
+      { status: 500 }
+    );
   }
 }
 
