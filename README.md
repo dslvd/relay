@@ -1,6 +1,6 @@
 # Relay - File Sharing Platform
 
-A modern, secure file sharing platform built with Next.js 15 and Vercel Blob storage.
+A modern, secure file sharing platform built with Next.js 15 on Vercel and Cloudflare R2 storage.
 
 ## ✨ Features
 
@@ -35,7 +35,12 @@ cp .env.example .env.local
 Edit `.env.local` with your credentials:
 
 ```env
-BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
+R2_ACCOUNT_ID=your_cloudflare_account_id
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+R2_BUCKET=your_r2_bucket_name
+R2_PUBLIC_BASE_URL=https://files.your-domain.com
+MAX_UPLOAD_FILE_MB=200
 ADMIN_PASSWORD=your_admin_password
 CRON_SECRET=generate_with_openssl_rand_base64_32
 REDIS_URL=redis://default:password@host:port
@@ -129,7 +134,11 @@ Files are automatically deleted 15 days after their **last access** via:
 1. Push to GitHub
 2. Import project in Vercel
 3. Add environment variables:
-   - `BLOB_READ_WRITE_TOKEN` (from Vercel Blob store)
+   - `R2_ACCOUNT_ID`
+   - `R2_ACCESS_KEY_ID`
+   - `R2_SECRET_ACCESS_KEY`
+   - `R2_BUCKET`
+   - `R2_PUBLIC_BASE_URL`
    - `ADMIN_PASSWORD` (your admin password)
    - `CRON_SECRET` (generate with `openssl rand -base64 32`)
 4. Deploy!
@@ -142,7 +151,12 @@ In Vercel Dashboard → Settings → Environment Variables:
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob storage token | Yes |
+| `R2_ACCOUNT_ID` | Cloudflare account ID for R2 endpoint | Yes |
+| `R2_ACCESS_KEY_ID` | R2 API access key ID | Yes |
+| `R2_SECRET_ACCESS_KEY` | R2 API secret key | Yes |
+| `R2_BUCKET` | R2 bucket name for uploads | Yes |
+| `R2_PUBLIC_BASE_URL` | Public R2/custom-domain base URL | Yes |
+| `MAX_UPLOAD_FILE_MB` | Per-file upload size limit in MB | No (default 100) |
 | `ADMIN_PASSWORD` | Admin dashboard password | Yes |
 | `CRON_SECRET` | Secret for cron authentication | Yes (for auto-cleanup) |
 | `REDIS_URL` | Redis connection URL (premium auth persistence) | Yes (for reliable premium auth) |
@@ -187,7 +201,7 @@ To enable ads and earn revenue:
 ## 🔧 Tech Stack
 
 - **Framework**: Next.js 15 (App Router, Turbopack)
-- **Storage**: Vercel Blob
+- **Storage**: Cloudflare R2 (S3-compatible)
 - **Styling**: Inline CSS with Open Sans font
 - **Deployment**: Vercel
 - **Automation**: Vercel Cron Jobs

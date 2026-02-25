@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { del } from '@vercel/blob';
 import { getPremiumUserFromSession } from '@/app/lib/premium-auth';
 import { isExpired, pruneMissingHistoryEntries } from '@/app/lib/retention';
 import { loadUploadHistory, saveUploadHistory } from '@/app/lib/upload-history-store';
+import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/r2-storage';
 
 const PREMIUM_COOKIE_NAME = 'premium_auth';
 
@@ -39,17 +39,6 @@ export async function GET(request: NextRequest) {
   });
 }
 
-function toBlobStorageUrl(fileUrl: string): string {
-  const parsed = new URL(fileUrl, 'http://localhost');
-  const path = parsed.pathname;
-
-  if (path.startsWith('/download/')) {
-    return `https://rcltxppgseuupozb.public.blob.vercel-storage.com/d/${path.slice('/download/'.length)}`;
-  }
-
-  return `https://rcltxppgseuupozb.public.blob.vercel-storage.com${path}`;
-}
-
 export async function DELETE(request: NextRequest) {
   const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
   if (!token) {
@@ -78,8 +67,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const blobUrl = toBlobStorageUrl(url);
-    await del(blobUrl);
+    const objectKey = toObjectKeyFromAppUrl(url);
+    if (!objectKey) {
+      return NextResponse.json({ error: 'Invalid upload URL' }, { status: 400 });
+    }
+
+    await deleteObject(objectKey);
 
     const updated = history.filter((record) => record.url !== url);
     await saveUploadHistory(updated, 'premium');

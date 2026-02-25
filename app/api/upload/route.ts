@@ -1,10 +1,10 @@
-import { handleUpload } from '@vercel/blob/client';
 import { NextResponse } from 'next/server';
 import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/retention';
+import { createPresignedUploadUrl, getMaxUploadFileBytes, normalizeObjectKey } from '@/app/lib/r2-storage';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
-const MAX_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_FILE_BYTES = getMaxUploadFileBytes();
 
 type RateEntry = {
   windowStart: number;
@@ -38,31 +38,44 @@ export async function POST(request: Request) {
   entry.count += 1;
   global.uploadRateLimit[ip] = entry;
 
-  const body = await request.json();
+  try {
+    const body = await request.json();
+    const pathname = typeof body?.pathname === 'string' ? body.pathname : '';
+    const contentType = typeof body?.contentType === 'string' ? body.contentType : undefined;
+    const size = Number(body?.size);
 
-  const jsonResponse = await handleUpload({
-    body,
-    request,
-    onBeforeGenerateToken: async (pathname) => {
-      return {
-        // optional but recommended
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        // set limits (adjust if you want)
-        maximumSizeInBytes: MAX_FILE_BYTES,
-        // allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp'], // uncomment if you want to restrict
+    if (!pathname || !pathname.startsWith('d/')) {
+      return NextResponse.json({ error: 'Invalid pathname' }, { status: 400 });
+    }
 
-        tokenPayload: JSON.stringify({ pathname }),
-      };
-    },
-    onUploadCompleted: async ({ blob }) => {
-      console.log('Upload completed:', blob.url);
-      await deleteExpiredBlobs();
-      await pruneExpiredHistoryCache();
-    },
-  });
+    if (!Number.isFinite(size) || size <= 0) {
+      return NextResponse.json({ error: 'Invalid file size' }, { status: 400 });
+    }
 
-  return NextResponse.json(jsonResponse);
+    if (size > MAX_FILE_BYTES) {
+      return NextResponse.json({ error: 'File too large' }, { status: 413 });
+    }
+
+    const objectKey = normalizeObjectKey(pathname);
+    const uploadUrl = await createPresignedUploadUrl({
+      objectKey,
+      contentType,
+      expiresInSeconds: 60,
+    });
+
+    await deleteExpiredBlobs();
+    await pruneExpiredHistoryCache();
+
+    return NextResponse.json({
+      uploadUrl,
+      pathname: objectKey,
+      method: 'PUT',
+      maxFileBytes: MAX_FILE_BYTES,
+    });
+  } catch (error) {
+    console.error('Failed to create upload URL:', error);
+    return NextResponse.json({ error: 'Failed to initialize upload' }, { status: 500 });
+  }
 }
 
 declare global {

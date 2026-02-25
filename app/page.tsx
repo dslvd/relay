@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { upload } from '@vercel/blob/client';
 import AdBanner from './components/AdBanner';
 import logo from './logo.png';
 
@@ -42,6 +41,7 @@ export default function Home() {
   const [premiumEmail, setPremiumEmail] = useState('');
   const toastTimeoutRef = useRef<number | null>(null);
   const cancelUploadRef = useRef(false);
+  const activeUploadRequestRef = useRef<XMLHttpRequest | null>(null);
   const emptyMessages = [
     'No uploads yet 🚀',
     'Empty for now 👀',
@@ -209,6 +209,48 @@ export default function Home() {
     return verifiedRecords;
   };
 
+  const uploadToPresignedUrl = (
+    uploadUrl: string,
+    file: File,
+    onProgress: (loaded: number, total: number) => void
+  ): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      activeUploadRequestRef.current = xhr;
+
+      xhr.open('PUT', uploadUrl, true);
+      if (file.type) {
+        xhr.setRequestHeader('Content-Type', file.type);
+      }
+
+      xhr.upload.onprogress = (event) => {
+        const total = event.total || file.size;
+        onProgress(event.loaded, total);
+      };
+
+      xhr.onload = () => {
+        activeUploadRequestRef.current = null;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+          return;
+        }
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      };
+
+      xhr.onerror = () => {
+        activeUploadRequestRef.current = null;
+        reject(new Error('Upload request failed'));
+      };
+
+      xhr.onabort = () => {
+        activeUploadRequestRef.current = null;
+        reject(new Error('Upload cancelled'));
+      };
+
+      xhr.send(file);
+    });
+  };
+
   const uploadFile = async (file: File, notify: boolean = true) => {
     cancelUploadRef.current = false;
     setCurrentUploadName(file.name);
@@ -253,28 +295,39 @@ export default function Home() {
 
     try {
       const randomFilename = generateRandomFilename(file.name);
-      const blob = await upload(`d/${randomFilename}`, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-        onUploadProgress: (progress) => {
-          if (cancelUploadRef.current) {
-            return;
-          }
-          const total = progress.total ?? file.size;
-          const percent = total > 0 ? Math.round((progress.loaded / total) * 100) : 0;
-          setUploadProgress(Math.min(100, percent));
-          setUploadStatus(`Uploading ${percent}%`);
-          setUploadLoadedBytes(progress.loaded);
-          setUploadTotalBytes(total);
+      const pathname = `d/${randomFilename}`;
+
+      const initResponse = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pathname,
+          contentType: file.type || 'application/octet-stream',
+          size: file.size,
+        }),
+      });
+
+      const initPayload = await initResponse.json();
+      if (!initResponse.ok || !initPayload?.uploadUrl) {
+        throw new Error(initPayload?.error || 'Failed to initialize upload');
+      }
+
+      await uploadToPresignedUrl(initPayload.uploadUrl, file, (loaded, total) => {
+        if (cancelUploadRef.current) {
+          return;
         }
+        const percent = total > 0 ? Math.round((loaded / total) * 100) : 0;
+        setUploadProgress(Math.min(100, percent));
+        setUploadStatus(`Uploading ${percent}%`);
+        setUploadLoadedBytes(loaded);
+        setUploadTotalBytes(total);
       });
 
       if (cancelUploadRef.current) {
         return;
       }
 
-      // Extract filename from blob.pathname (e.g., 'd/randomname.ext') and create download page URL
-      const filename = blob.pathname.split('/').pop() || '';
+      const filename = pathname.split('/').pop() || '';
       const newUrl = `${window.location.origin}/download/${filename}`;
       const uploadedAt = Date.now();
 
@@ -311,6 +364,7 @@ export default function Home() {
       }
       throw error;
     } finally {
+      activeUploadRequestRef.current = null;
       setUploading(false);
       setUploadProgress(0);
       setUploadStatus('');
@@ -359,6 +413,7 @@ export default function Home() {
     }
 
     cancelUploadRef.current = true;
+    activeUploadRequestRef.current?.abort();
     setCurrentUploadName('');
     setUploadStatus('');
     setUploadProgress(0);

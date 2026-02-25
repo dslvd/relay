@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateLastAccessTime } from '@/app/lib/retention';
+import { buildPublicObjectUrl } from '@/app/lib/r2-storage';
 
 function fileNotFoundResponse(): NextResponse {
   const html = `<!doctype html>
@@ -127,8 +128,7 @@ export async function GET(
     const { path } = await params;
     const pathname = `d/${path.join('/')}`;
     
-    // Construct the Vercel Blob storage URL
-    const blobUrl = `https://rcltxppgseuupozb.public.blob.vercel-storage.com/${pathname}`;
+    const blobUrl = buildPublicObjectUrl(pathname);
     
     // Fetch and proxy the file content
     const response = await fetch(blobUrl);
@@ -186,7 +186,7 @@ export async function HEAD(
   try {
     const { path } = await params;
     const pathname = `d/${path.join('/')}`;
-    const blobUrl = `https://rcltxppgseuupozb.public.blob.vercel-storage.com/${pathname}`;
+    const blobUrl = buildPublicObjectUrl(pathname);
     
     // Check if file exists
     const response = await fetch(blobUrl, { method: 'HEAD' });

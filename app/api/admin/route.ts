@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { del, list } from '@vercel/blob';
+import { deleteObject, listAllObjects, toObjectKeyFromAppUrl } from '@/app/lib/r2-storage';
+import { loadUploadHistory, saveUploadHistory } from '@/app/lib/upload-history-store';
 
 const ADMIN_COOKIE_NAME = 'admin_auth';
 
@@ -18,23 +19,20 @@ function requireAdmin(request: NextRequest): NextResponse | null {
 }
 
 async function deleteAllBlobs(): Promise<number> {
-  let cursor: string | undefined;
   let deleted = 0;
-  let hasMore = true;
 
-  while (hasMore) {
-    const response = await list({
-      limit: 1000,
-      cursor
-    });
-
-    for (const blob of response.blobs) {
-      await del(blob.url);
-      deleted += 1;
+  const objects = await listAllObjects('d/');
+  for (const object of objects) {
+    if (!object.Key) {
+      continue;
     }
 
-    cursor = response.cursor;
-    hasMore = response.hasMore;
+    try {
+      await deleteObject(object.Key);
+      deleted += 1;
+    } catch (error) {
+      console.error('Failed to delete object:', object.Key, error);
+    }
   }
 
   return deleted;
@@ -57,21 +55,20 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Convert the proxied URL to the actual blob storage URL
-    // url format: http://localhost:3000/d/filename.ext or https://relaycdn.vercel.app/d/filename.ext
-    // We need: https://rcltxppgseuupozb.public.blob.vercel-storage.com/d/filename.ext
-    const urlObj = new URL(url);
-    const blobUrl = `https://rcltxppgseuupozb.public.blob.vercel-storage.com${urlObj.pathname}`;
-
-    // Delete from Vercel Blob storage
-    await del(blobUrl);
-
-    // Remove from history
-    if (typeof global.uploadHistory !== 'undefined') {
-      global.uploadHistory = (global.uploadHistory as any[]).filter(
-        (record: any) => record.url !== url
+    const objectKey = toObjectKeyFromAppUrl(url);
+    if (!objectKey) {
+      return NextResponse.json(
+        { error: 'Invalid URL' },
+        { status: 400 }
       );
     }
+
+    await deleteObject(objectKey);
+
+    const publicHistory = await loadUploadHistory('public');
+    const premiumHistory = await loadUploadHistory('premium');
+    await saveUploadHistory(publicHistory.filter((record) => record.url !== url), 'public');
+    await saveUploadHistory(premiumHistory.filter((record) => record.url !== url), 'premium');
 
     return NextResponse.json({ 
       success: true,
@@ -98,7 +95,8 @@ export async function POST(request: NextRequest) {
 
     if (action === 'clear_all') {
       const deleted = await deleteAllBlobs();
-      global.uploadHistory = [];
+      await saveUploadHistory([], 'public');
+      await saveUploadHistory([], 'premium');
 
       return NextResponse.json({ 
         success: true,

@@ -1,5 +1,5 @@
-import { del } from '@vercel/blob';
 import { loadUploadHistory, saveUploadHistory, type UploadHistoryScope } from '@/app/lib/upload-history-store';
+import { deleteObject, objectExists, toObjectKeyFromAppUrl } from '@/app/lib/r2-storage';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -7,38 +7,6 @@ export const RETENTION_DAYS = 15;
 export const RETENTION_MS = RETENTION_DAYS * DAY_MS;
 const HISTORY_SCOPES: UploadHistoryScope[] = ['public', 'premium'];
 const EXISTENCE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
-
-function toBlobStorageUrl(fileUrl: string): string | null {
-  try {
-    const parsed = new URL(fileUrl, 'http://localhost');
-    const path = parsed.pathname;
-
-    if (path.startsWith('/download/')) {
-      return `https://rcltxppgseuupozb.public.blob.vercel-storage.com/d/${path.slice('/download/'.length)}`;
-    }
-
-    if (path.startsWith('/d/')) {
-      return `https://rcltxppgseuupozb.public.blob.vercel-storage.com${path}`;
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-async function blobExists(blobUrl: string): Promise<boolean> {
-  try {
-    const response = await fetch(blobUrl, {
-      method: 'HEAD',
-      cache: 'no-store',
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
 
 export async function pruneMissingHistoryEntries(input?: {
   now?: number;
@@ -71,11 +39,11 @@ export async function pruneMissingHistoryEntries(input?: {
 
     const keepFlags = await Promise.all(
       history.map(async (record) => {
-        const blobUrl = toBlobStorageUrl(record.url);
-        if (!blobUrl) {
+        const objectKey = toObjectKeyFromAppUrl(record.url);
+        if (!objectKey) {
           return false;
         }
-        return blobExists(blobUrl);
+        return objectExists(objectKey);
       })
     );
 
@@ -96,13 +64,13 @@ export function isExpired(lastAccessTime: number, now = Date.now()): boolean {
 }
 
 export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: number; scanned: number }> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!process.env.R2_BUCKET) {
     return { deleted: 0, scanned: 0 };
   }
 
   let deleted = 0;
   let scanned = 0;
-  const urlsToDelete: string[] = [];
+  const keysToDelete: string[] = [];
 
   for (const scope of HISTORY_SCOPES) {
     const history = await loadUploadHistory(scope);
@@ -115,23 +83,20 @@ export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: n
     // Check each file in history for expiration based on last access time
     for (const record of history) {
       if (isExpired(record.lastAccessTime, now)) {
-        // Extract the blob URL from the download URL
-        const pathMatch = record.url.match(/\/download\/(.+)$/);
-        if (pathMatch) {
-          const blobUrl = `https://rcltxppgseuupozb.public.blob.vercel-storage.com/d/${pathMatch[1]}`;
-          urlsToDelete.push(blobUrl);
+        const objectKey = toObjectKeyFromAppUrl(record.url);
+        if (objectKey) {
+          keysToDelete.push(objectKey);
         }
       }
     }
   }
 
-  // Delete expired blobs
-  for (const url of urlsToDelete) {
+  for (const objectKey of keysToDelete) {
     try {
-      await del(url);
+      await deleteObject(objectKey);
       deleted += 1;
     } catch (error) {
-      console.error('Failed to delete blob:', url, error);
+      console.error('Failed to delete object:', objectKey, error);
     }
   }
 
