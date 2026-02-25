@@ -1,17 +1,20 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/retention';
-import { createPresignedUploadUrl, getMaxUploadFileBytes, normalizeObjectKey } from '@/app/lib/r2-storage';
+import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/r2-storage';
+import { getPremiumUserFromSession } from '@/app/lib/premium-auth';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
-const MAX_FILE_BYTES = getMaxUploadFileBytes();
+const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024;
+const PREMIUM_MAX_FILE_BYTES = 500 * 1024 * 1024;
+const PREMIUM_COOKIE_NAME = 'premium_auth';
 
 type RateEntry = {
   windowStart: number;
   count: number;
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
     'Unknown';
@@ -52,7 +55,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid file size' }, { status: 400 });
     }
 
-    if (size > MAX_FILE_BYTES) {
+    const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
+    const premiumUser = token ? await getPremiumUserFromSession(token) : null;
+    const maxFileBytes = premiumUser ? PREMIUM_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES;
+
+    if (size > maxFileBytes) {
       return NextResponse.json({ error: 'File too large' }, { status: 413 });
     }
 
@@ -70,7 +77,7 @@ export async function POST(request: Request) {
       uploadUrl,
       pathname: objectKey,
       method: 'PUT',
-      maxFileBytes: MAX_FILE_BYTES,
+      maxFileBytes,
     });
   } catch (error) {
     console.error('Failed to create upload URL:', error);

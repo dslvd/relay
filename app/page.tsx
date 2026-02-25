@@ -21,8 +21,8 @@ interface UploadedItem {
 }
 
 export default function Home() {
-  const FREE_MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
-  const PREMIUM_MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
+  const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+  const PREMIUM_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
