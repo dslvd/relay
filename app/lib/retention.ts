@@ -6,6 +6,90 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const RETENTION_DAYS = 15;
 export const RETENTION_MS = RETENTION_DAYS * DAY_MS;
 const HISTORY_SCOPES: UploadHistoryScope[] = ['public', 'premium'];
+const EXISTENCE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+
+function toBlobStorageUrl(fileUrl: string): string | null {
+  try {
+    const parsed = new URL(fileUrl, 'http://localhost');
+    const path = parsed.pathname;
+
+    if (path.startsWith('/download/')) {
+      return `https://rcltxppgseuupozb.public.blob.vercel-storage.com/d/${path.slice('/download/'.length)}`;
+    }
+
+    if (path.startsWith('/d/')) {
+      return `https://rcltxppgseuupozb.public.blob.vercel-storage.com${path}`;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function blobExists(blobUrl: string): Promise<boolean> {
+  try {
+    const response = await fetch(blobUrl, {
+      method: 'HEAD',
+      cache: 'no-store',
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function pruneMissingHistoryEntries(input?: {
+  now?: number;
+  scope?: UploadHistoryScope;
+  force?: boolean;
+}): Promise<number> {
+  const now = input?.now ?? Date.now();
+  const scopes = input?.scope ? [input.scope] : HISTORY_SCOPES;
+  const force = input?.force ?? false;
+  let totalRemoved = 0;
+
+  if (typeof global.lastHistoryExistenceCheckByScope === 'undefined') {
+    global.lastHistoryExistenceCheckByScope = {
+      public: 0,
+      premium: 0,
+    };
+  }
+
+  for (const currentScope of scopes) {
+    const lastCheck = global.lastHistoryExistenceCheckByScope[currentScope] || 0;
+    if (!force && now - lastCheck < EXISTENCE_CHECK_INTERVAL_MS) {
+      continue;
+    }
+
+    const history = await loadUploadHistory(currentScope);
+    if (history.length === 0) {
+      global.lastHistoryExistenceCheckByScope[currentScope] = now;
+      continue;
+    }
+
+    const keepFlags = await Promise.all(
+      history.map(async (record) => {
+        const blobUrl = toBlobStorageUrl(record.url);
+        if (!blobUrl) {
+          return false;
+        }
+        return blobExists(blobUrl);
+      })
+    );
+
+    const filtered = history.filter((_, index) => keepFlags[index]);
+    if (filtered.length !== history.length) {
+      await saveUploadHistory(filtered, currentScope);
+      totalRemoved += history.length - filtered.length;
+    }
+
+    global.lastHistoryExistenceCheckByScope[currentScope] = now;
+  }
+
+  return totalRemoved;
+}
 
 export function isExpired(lastAccessTime: number, now = Date.now()): boolean {
   return now - lastAccessTime >= RETENTION_MS;
@@ -93,4 +177,10 @@ export async function updateLastAccessTime(url: string): Promise<void> {
 
     await saveUploadHistory(updated, scope);
   }
+}
+
+declare global {
+  var lastHistoryExistenceCheckByScope:
+    | Record<UploadHistoryScope, number>
+    | undefined;
 }

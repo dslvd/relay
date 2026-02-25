@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/retention';
+import { deleteExpiredBlobs, pruneExpiredHistoryCache, pruneMissingHistoryEntries } from '@/app/lib/retention';
 
 // This route is called by Vercel Cron Jobs
 // Schedule: Daily at midnight UTC (00:00)
@@ -20,12 +20,16 @@ export async function GET(request: NextRequest) {
     const { deleted, scanned } = await deleteExpiredBlobs();
     
     // Prune expired entries from in-memory history cache
-    const prunedFromCache = pruneExpiredHistoryCache();
+    const prunedFromCache = await pruneExpiredHistoryCache();
+
+    // Remove history records for files that no longer exist in blob storage
+    const prunedMissingFiles = await pruneMissingHistoryEntries({ force: true });
     
     console.log('[CRON] Cleanup complete:', {
       blobsDeleted: deleted,
       blobsScanned: scanned,
       cacheEntriesRemoved: prunedFromCache,
+      missingFilesRemoved: prunedMissingFiles,
       timestamp: new Date().toISOString()
     });
 
@@ -34,6 +38,7 @@ export async function GET(request: NextRequest) {
       blobsDeleted: deleted,
       blobsScanned: scanned,
       cacheEntriesRemoved: prunedFromCache,
+      missingFilesRemoved: prunedMissingFiles,
       timestamp: new Date().toISOString()
     });
   } catch (error) {

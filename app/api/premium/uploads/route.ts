@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { del } from '@vercel/blob';
 import { getPremiumUserFromSession } from '@/app/lib/premium-auth';
-import { isExpired } from '@/app/lib/retention';
+import { isExpired, pruneMissingHistoryEntries } from '@/app/lib/retention';
 import { loadUploadHistory, saveUploadHistory } from '@/app/lib/upload-history-store';
 
 const PREMIUM_COOKIE_NAME = 'premium_auth';
@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  await pruneMissingHistoryEntries({ scope: 'premium' });
   const history = await loadUploadHistory('premium');
   const filtered = history.filter((record) => !isExpired(record.lastAccessTime));
   if (filtered.length !== history.length) {

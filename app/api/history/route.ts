@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, RETENTION_MS } from '@/app/lib/retention';
+import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, pruneMissingHistoryEntries, RETENTION_MS } from '@/app/lib/retention';
 import { getPremiumUserFromSession } from '@/app/lib/premium-auth';
 import { addUploadRecord, loadUploadHistory, saveUploadHistory, type UploadRecord } from '@/app/lib/upload-history-store';
 
@@ -24,6 +24,7 @@ export async function GET() {
   try {
     await deleteExpiredBlobs();
     await pruneExpiredHistoryCache();
+    await pruneMissingHistoryEntries({ scope: 'public' });
     // In a real implementation, fetch from database
     // For now, using Vercel KV or similar would be ideal
     

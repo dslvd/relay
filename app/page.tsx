@@ -495,11 +495,6 @@ export default function Home() {
           50% { transform: translateY(-8px); }
         }
 
-        @keyframes softGlow {
-          0%, 100% { box-shadow: 0 0 0 rgba(233, 236, 242, 0.08); }
-          50% { box-shadow: 0 0 20px rgba(233, 236, 242, 0.14); }
-        }
-
         /* Custom scrollbar */
         ::-webkit-scrollbar {
           width: 8px;
@@ -829,7 +824,7 @@ export default function Home() {
           gap: '1rem',
           flexWrap: 'wrap',
           marginTop: '0.20rem',
-          animation: 'fadeSlideIn 1s ease-out 0.2s backwards, softGlow 3.8s ease-in-out infinite'
+          animation: 'fadeSlideIn 1s ease-out 0.2s backwards'
         }}>
           <button
             onClick={() => setActiveView(activeView === 'history' ? 'upload' : 'history')}
