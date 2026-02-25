@@ -40,7 +40,7 @@ export function getR2PublicBaseUrl(): string {
 }
 
 function getR2Endpoint(): string {
-  const accountId = getRequiredEnv('R2_ACCOUNT_ID');
+  const accountId = getRequiredEnv('CLOUDFLARE_API_TOKEN');
   return `https://${accountId}.r2.cloudflarestorage.com`;
 }
 
