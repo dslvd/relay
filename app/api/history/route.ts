@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
     await deleteExpiredBlobs();
     await pruneExpiredHistoryCache();
 
-    const includePremium = isAdminRequest(request);
+    const includePremiumRequested = request.nextUrl.searchParams.get('includePremium') === '1';
+    const includePremium = includePremiumRequested && isAdminRequest(request);
     await pruneMissingHistoryEntries({ scope: 'public' });
     if (includePremium) {
       await pruneMissingHistoryEntries({ scope: 'premium' });

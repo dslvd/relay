@@ -99,7 +99,7 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
       const [historyResponse, analyticsResponse, premiumResponse] = await Promise.all([
-        fetch('/api/history', { cache: 'no-store' }),
+        fetch('/api/history?includePremium=1', { cache: 'no-store' }),
         fetch('/api/analytics', { cache: 'no-store' }),
         fetch('/api/admin/premium', { cache: 'no-store' })
       ]);
