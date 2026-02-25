@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pruneExpiredHistoryCache } from '@/app/lib/retention';
-import { removeUploadUrls } from '@/app/lib/upload-history-store';
+import { pruneExpiredHistoryCache } from '@/app/lib/storage/retention';
+import { removeUploadUrls } from '@/app/lib/data/upload-history-store';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

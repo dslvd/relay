@@ -6,7 +6,7 @@ import {
   listPremiumInvites,
   listPremiumUsers,
   revokePremiumInvite,
-} from '@/app/lib/premium-auth';
+} from '@/app/lib/auth/premium-auth';
 
 const ADMIN_COOKIE_NAME = 'admin_auth';
 

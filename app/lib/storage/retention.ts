@@ -1,5 +1,5 @@
-import { loadUploadHistory, saveUploadHistory, type UploadHistoryScope } from '@/app/lib/upload-history-store';
-import { deleteObject, objectExists, toObjectKeyFromAppUrl } from '@/app/lib/r2-storage';
+import { loadUploadHistory, saveUploadHistory, type UploadHistoryScope } from '@/app/lib/data/upload-history-store';
+import { deleteObject, objectExists, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { checkPremiumStorageHealth } from '@/app/lib/premium-auth';
+import { checkPremiumStorageHealth } from '@/app/lib/auth/premium-auth';
 
 export async function GET() {
   const status = await checkPremiumStorageHealth();

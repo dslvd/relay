@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, pruneMissingHistoryEntries, RETENTION_MS } from '@/app/lib/retention';
-import { getPremiumUserFromSession } from '@/app/lib/premium-auth';
-import { addUploadRecord, loadUploadHistory, saveUploadHistory, type UploadRecord } from '@/app/lib/upload-history-store';
+import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, pruneMissingHistoryEntries, RETENTION_MS } from '@/app/lib/storage/retention';
+import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
+import { addUploadRecord, loadUploadHistory, saveUploadHistory, type UploadRecord } from '@/app/lib/data/upload-history-store';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

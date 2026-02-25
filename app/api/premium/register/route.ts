@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPremiumUserFromInvite } from '@/app/lib/premium-auth';
+import { createPremiumUserFromInvite } from '@/app/lib/auth/premium-auth';
 
 export async function POST(request: NextRequest) {
   try {

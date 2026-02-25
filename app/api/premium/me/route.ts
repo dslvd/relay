@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPremiumUserFromSession } from '@/app/lib/premium-auth';
+import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
 
 const PREMIUM_COOKIE_NAME = 'premium_auth';
 

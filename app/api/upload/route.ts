@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/retention';
-import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/r2-storage';
-import { getPremiumUserFromSession } from '@/app/lib/premium-auth';
+import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/retention';
+import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
+import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;

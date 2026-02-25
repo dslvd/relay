@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/retention';
+import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/retention';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

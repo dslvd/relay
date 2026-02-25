@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateLastAccessTime } from '@/app/lib/retention';
-import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/r2-storage';
+import { updateLastAccessTime } from '@/app/lib/storage/retention';
+import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage/r2-storage';
 
 function fileNotFoundResponse(): NextResponse {
   const html = `<!doctype html>

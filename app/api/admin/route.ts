@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteObject, listAllObjects, toObjectKeyFromAppUrl } from '@/app/lib/r2-storage';
-import { loadUploadHistory, saveUploadHistory } from '@/app/lib/upload-history-store';
+import { deleteObject, listAllObjects, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { loadUploadHistory, saveUploadHistory } from '@/app/lib/data/upload-history-store';
 
 const ADMIN_COOKIE_NAME = 'admin_auth';
 

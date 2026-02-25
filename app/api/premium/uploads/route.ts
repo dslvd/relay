@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPremiumUserFromSession } from '@/app/lib/premium-auth';
-import { isExpired, pruneMissingHistoryEntries } from '@/app/lib/retention';
-import { loadUploadHistory, saveUploadHistory } from '@/app/lib/upload-history-store';
-import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/r2-storage';
+import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
+import { isExpired, pruneMissingHistoryEntries } from '@/app/lib/storage/retention';
+import { loadUploadHistory, saveUploadHistory } from '@/app/lib/data/upload-history-store';
+import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
 const PREMIUM_COOKIE_NAME = 'premium_auth';
 

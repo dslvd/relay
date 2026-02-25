@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateLastAccessTime } from '@/app/lib/retention';
+import { updateLastAccessTime } from '@/app/lib/storage/retention';
 
 export async function POST(request: NextRequest) {
   try {

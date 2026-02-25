@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteExpiredBlobs, pruneExpiredHistoryCache, pruneMissingHistoryEntries } from '@/app/lib/retention';
+import { deleteExpiredBlobs, pruneExpiredHistoryCache, pruneMissingHistoryEntries } from '@/app/lib/storage/retention';
 
 // This route is called by Vercel Cron Jobs
 // Schedule: Daily at midnight UTC (00:00)

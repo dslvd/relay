@@ -1,4 +1,4 @@
-import { getRedisClient, hasRedisConfigured } from '@/app/lib/redis-client';
+import { getRedisClient, hasRedisConfigured } from '@/app/lib/data/redis-client';
 
 export interface UploadRecord {
   url: string;
