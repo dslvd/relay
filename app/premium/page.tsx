@@ -53,6 +53,8 @@ export default function PremiumPage() {
       setSuccess('Account created. You can log in now.');
       setConfirmPassword('');
       setPassword('');
+      setInviteToken('');
+      window.history.replaceState({}, '', '/premium');
     } catch (registerError) {
       setError('Failed to create account');
     } finally {

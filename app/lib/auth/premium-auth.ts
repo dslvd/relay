@@ -378,10 +378,9 @@ export async function createPremiumInvite(ttlHours: number): Promise<PremiumInvi
 }
 
 export async function revokePremiumInvite(inviteId: string): Promise<boolean> {
-  const [revokedIds, invites] = await Promise.all([
-    readRevokedInviteIds(),
-    readInvites(),
-  ]);
+  const state = await readAuthState();
+  const revokedIds = [...state.revokedInviteIds];
+  const invites = [...state.invites];
 
   if (!revokedIds.includes(inviteId)) {
     revokedIds.push(inviteId);
@@ -390,24 +389,24 @@ export async function revokePremiumInvite(inviteId: string): Promise<boolean> {
   const before = invites.length;
   const filteredInvites = invites.filter((invite) => invite.id !== inviteId);
 
-  await Promise.all([
-    writeRevokedInviteIds(revokedIds),
-    writeInvites(filteredInvites),
-  ]);
+  state.revokedInviteIds = revokedIds;
+  state.invites = filteredInvites;
+  await writeAuthState(state);
 
   return filteredInvites.length !== before;
 }
 
 export async function deletePremiumUser(userId: string): Promise<boolean> {
-  const [users, sessions] = await Promise.all([readUsers(), readSessions()]);
+  const state = await readAuthState();
+  const users = [...state.users];
+  const sessions = [...state.sessions];
   const before = users.length;
   const filteredUsers = users.filter((user) => user.id !== userId);
   const filteredSessions = sessions.filter((session) => session.userId !== userId);
 
-  await Promise.all([
-    writeUsers(filteredUsers),
-    writeSessions(filteredSessions),
-  ]);
+  state.users = filteredUsers;
+  state.sessions = filteredSessions;
+  await writeAuthState(state);
 
   return filteredUsers.length !== before;
 }
@@ -417,12 +416,11 @@ export async function createPremiumUserFromInvite(input: {
   email: string;
   password: string;
 }): Promise<{ user?: PremiumUserRecord; error?: string }> {
-  const [usedInviteHashes, revokedInviteIds, invites, users] = await Promise.all([
-    readUsedInviteHashes(),
-    readRevokedInviteIds(),
-    readInvites(),
-    readUsers(),
-  ]);
+  const state = await readAuthState();
+  const usedInviteHashes = [...state.usedInviteHashes];
+  const revokedInviteIds = [...state.revokedInviteIds];
+  const invites = [...state.invites];
+  const users = [...state.users];
 
   const now = Date.now();
   const normalizedEmail = input.email.trim().toLowerCase();
@@ -464,12 +462,11 @@ export async function createPremiumUserFromInvite(input: {
     ? revokedInviteIds
     : [...revokedInviteIds, invite.id];
 
-  await Promise.all([
-    writeUsers(updatedUsers),
-    writeInvites(updatedInvites),
-    writeUsedInviteHashes(updatedUsedHashes),
-    writeRevokedInviteIds(updatedRevokedInviteIds),
-  ]);
+  state.users = updatedUsers;
+  state.invites = updatedInvites;
+  state.usedInviteHashes = updatedUsedHashes;
+  state.revokedInviteIds = updatedRevokedInviteIds;
+  await writeAuthState(state);
 
   return { user };
 }
