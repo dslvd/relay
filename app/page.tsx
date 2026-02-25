@@ -490,6 +490,16 @@ export default function Home() {
           50% { opacity: 1; }
         }
 
+        @keyframes floatGentle {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+
+        @keyframes softGlow {
+          0%, 100% { box-shadow: 0 0 0 rgba(233, 236, 242, 0.08); }
+          50% { box-shadow: 0 0 20px rgba(233, 236, 242, 0.14); }
+        }
+
         /* Custom scrollbar */
         ::-webkit-scrollbar {
           width: 8px;
@@ -649,7 +659,9 @@ export default function Home() {
             alt="Logo"
             width={200}
             height={200}
-            style={{}}
+            style={{
+              animation: 'floatGentle 5.5s ease-in-out infinite'
+            }}
           />
           <h1 style={{
           fontFamily: "'Sora', sans-serif",
@@ -816,15 +828,15 @@ export default function Home() {
           justifyContent: 'center',
           gap: '1rem',
           flexWrap: 'wrap',
-          marginTop: '1.25rem',
-          animation: 'fadeSlideIn 1s ease-out 0.2s backwards'
+          marginTop: '0.20rem',
+          animation: 'fadeSlideIn 1s ease-out 0.2s backwards, softGlow 3.8s ease-in-out infinite'
         }}>
           <button
             onClick={() => setActiveView(activeView === 'history' ? 'upload' : 'history')}
             style={{
               fontFamily: "'Sora', sans-serif",
-              padding: '0.75rem 1.75rem',
-              fontSize: '0.95rem',
+              padding: '0.42rem 1.55rem',
+              fontSize: '0.82rem',
               fontWeight: 400,
               letterSpacing: '0.02em',
               color: '#eef1f6',
@@ -854,8 +866,8 @@ export default function Home() {
             disabled={uploading}
             style={{
               fontFamily: "'Sora', sans-serif",
-              padding: '0.75rem 1.75rem',
-              fontSize: '0.95rem',
+              padding: '0.42rem 1.55rem',
+              fontSize: '0.82rem',
               fontWeight: 400,
               letterSpacing: '0.02em',
               color: uploading ? '#8a92a1' : '#0b0c10',

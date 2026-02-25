@@ -8,7 +8,7 @@ export const fetchCache = 'force-no-store';
 
 export async function POST(request: NextRequest) {
   try {
-    await pruneExpiredHistoryCache();
+    await pruneExpiredHistoryCache(Date.now(), 'public');
     const body = await request.json();
     const { urls } = body;
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const removed = await removeUploadUrls(urls);
+    const removed = await removeUploadUrls(urls, 'public');
 
     return NextResponse.json({ 
       success: true,

@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const history = await loadUploadHistory();
+  const history = await loadUploadHistory('premium');
   const filtered = history.filter((record) => !isExpired(record.lastAccessTime));
   if (filtered.length !== history.length) {
-    await saveUploadHistory(filtered);
+    await saveUploadHistory(filtered, 'premium');
   }
 
   const userUploads = filtered
@@ -66,7 +66,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    const history = await loadUploadHistory();
+    const history = await loadUploadHistory('premium');
     const target = history.find((record) => record.url === url);
 
     if (!target) {
@@ -81,7 +81,7 @@ export async function DELETE(request: NextRequest) {
     await del(blobUrl);
 
     const updated = history.filter((record) => record.url !== url);
-    await saveUploadHistory(updated);
+    await saveUploadHistory(updated, 'premium');
 
     return NextResponse.json({ success: true });
   } catch (error) {

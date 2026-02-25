@@ -9,6 +9,7 @@ export const fetchCache = 'force-no-store';
 
 const MAX_DAILY_BYTES = 1024 * 1024 * 1024; // 1GB per IP
 const MAX_DAILY_UPLOADS = 100;
+const MAX_FILENAME_LENGTH = 200;
 
 const PREMIUM_COOKIE_NAME = 'premium_auth';
 
@@ -16,6 +17,47 @@ interface UploadQuota {
   dayStart: number;
   bytes: number;
   count: number;
+}
+
+function isValidFilename(input: unknown): input is string {
+  if (typeof input !== 'string') {
+    return false;
+  }
+
+  const trimmed = input.trim();
+  if (!trimmed || trimmed.length > MAX_FILENAME_LENGTH) {
+    return false;
+  }
+
+  return !/[\r\n\t\0]/.test(trimmed);
+}
+
+function extractDownloadPath(urlValue: unknown): string | null {
+  if (typeof urlValue !== 'string' || !urlValue.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(urlValue, 'http://localhost');
+    const pathname = parsed.pathname;
+    if (!pathname.startsWith('/download/')) {
+      return null;
+    }
+
+    const fileSegment = pathname.slice('/download/'.length);
+    if (!fileSegment || fileSegment.includes('..') || !/^[a-zA-Z0-9._-]+$/.test(fileSegment)) {
+      return null;
+    }
+
+    return pathname;
+  } catch {
+    return null;
+  }
+}
+
+function isValidUploadSize(input: unknown): input is number {
+  const size = Number(input);
+  return Number.isFinite(size) && size > 0 && size <= MAX_DAILY_BYTES;
 }
 
 // This would ideally be stored in a database, but for simplicity we'll use persistent storage
@@ -27,10 +69,10 @@ export async function GET() {
     // In a real implementation, fetch from database
     // For now, using Vercel KV or similar would be ideal
     
-    const history = await loadUploadHistory();
+    const history = await loadUploadHistory('public');
     const filtered = history.filter((record) => !isExpired(record.lastAccessTime));
     if (filtered.length !== history.length) {
-      await saveUploadHistory(filtered);
+      await saveUploadHistory(filtered, 'public');
     }
 
     const publicHistory = filtered.map(({ ownerId, ownerEmail, ...record }) => record);
@@ -62,11 +104,12 @@ export async function POST(request: NextRequest) {
     await deleteExpiredBlobs();
     await pruneExpiredHistoryCache();
     const body = await request.json();
-    const { url, filename, size } = body;
+    const { url, filename, size } = body || {};
+    const downloadPath = extractDownloadPath(url);
 
-    if (!url || !filename) {
+    if (!downloadPath || !isValidFilename(filename) || !isValidUploadSize(size)) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Invalid upload metadata' },
         { status: 400 }
       );
     }
@@ -77,7 +120,7 @@ export async function POST(request: NextRequest) {
                'Unknown';
 
     const now = Date.now();
-    const uploadSize = Number(size) || 0;
+    const uploadSize = Number(size);
 
     if (typeof global.uploadQuota === 'undefined') {
       global.uploadQuota = {};
@@ -101,8 +144,8 @@ export async function POST(request: NextRequest) {
     const premiumUser = token ? await getPremiumUserFromSession(token) : null;
 
     const record: UploadRecord = {
-      url,
-      filename,
+      url: downloadPath,
+      filename: filename.trim(),
       size: uploadSize,
       timestamp: now,
       lastAccessTime: now, // Initialize with upload time
@@ -116,7 +159,7 @@ export async function POST(request: NextRequest) {
     quota.count += 1;
     global.uploadQuota[ip] = quota;
 
-    await addUploadRecord(record);
+    await addUploadRecord(record, premiumUser ? 'premium' : 'public');
 
     return NextResponse.json({ 
       success: true,

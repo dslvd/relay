@@ -11,6 +11,10 @@ type RateEntry = {
   count: number;
 };
 
+function isValidUploadPathname(pathname: string): boolean {
+  return /^d\/[a-zA-Z0-9._-]{1,180}$/.test(pathname);
+}
+
 export async function POST(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
@@ -39,11 +43,21 @@ export async function POST(request: Request) {
   global.uploadRateLimit[ip] = entry;
 
   const body = await request.json();
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json(
+      { error: 'Invalid upload request body' },
+      { status: 400 }
+    );
+  }
 
   const jsonResponse = await handleUpload({
     body,
     request,
     onBeforeGenerateToken: async (pathname) => {
+      if (!isValidUploadPathname(pathname)) {
+        throw new Error('Invalid upload pathname');
+      }
+
       return {
         // optional but recommended
         addRandomSuffix: false,
