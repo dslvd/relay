@@ -182,18 +182,25 @@ export default function Home() {
     const verifiedRecords: UploadRecord[] = [];
     const deletedUrls: string[] = [];
 
-    // Check each file in batches to avoid overwhelming the server
+    // Check each file and only remove records on confirmed 404 responses.
     for (const record of records) {
       try {
-        const response = await fetch(record.url, { method: 'HEAD' });
+        const parsed = new URL(record.url);
+        const filename = parsed.pathname.split('/').pop();
+        const probeUrl = filename ? `/d/${filename}` : parsed.pathname;
+        const response = await fetch(probeUrl, { method: 'HEAD', cache: 'no-store' });
+
         if (response.ok) {
           verifiedRecords.push(record);
-        } else {
+        } else if (response.status === 404) {
           deletedUrls.push(record.url);
+        } else {
+          // Keep record on transient errors (403/429/5xx/etc).
+          verifiedRecords.push(record);
         }
-      } catch (error) {
-        // If fetch fails, assume file is deleted
-        deletedUrls.push(record.url);
+      } catch {
+        // Keep record when network checks fail; don't wipe history on transient issues.
+        verifiedRecords.push(record);
       }
     }
 
@@ -341,8 +348,8 @@ export default function Home() {
         ...prev
       ]);
 
-      // Add to public history via API
-      await fetch('/api/history', {
+      // Persist upload in history.
+      const historyResponse = await fetch('/api/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -351,6 +358,11 @@ export default function Home() {
           size: file.size
         })
       });
+
+      if (!historyResponse.ok) {
+        const errorPayload = await historyResponse.json().catch(() => ({}));
+        throw new Error(errorPayload?.error || 'Failed to save upload history');
+      }
 
       // Refresh history
       await fetchPublicHistory();
