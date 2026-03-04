@@ -11,11 +11,12 @@ import { updateApiKeyUsage } from '@/app/lib/data/api-key-store';
 // GET /api/v1/files/[fileId] - Get file information and download URL
 export async function GET(
   request: NextRequest,
-  { params }: { params: { fileId: string } }
+  { params }: { params: Promise<{ fileId: string }> }
 ) {
   return withApiAuth(request, 'download', async (apiKey) => {
     try {
-      const fileId = decodeURIComponent(params.fileId);
+      const { fileId: rawFileId } = await params;
+      const fileId = decodeURIComponent(rawFileId);
       const objectKey = normalizeObjectKey(fileId);
 
       const metadata = await getObjectMetadata(objectKey);
@@ -71,11 +72,12 @@ export async function GET(
 // DELETE /api/v1/files/[fileId] - Delete a file
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { fileId: string } }
+  { params }: { params: Promise<{ fileId: string }> }
 ) {
   return withApiAuth(request, 'delete', async (apiKey) => {
     try {
-      const fileId = decodeURIComponent(params.fileId);
+      const { fileId: rawFileId } = await params;
+      const fileId = decodeURIComponent(rawFileId);
       const objectKey = normalizeObjectKey(fileId);
 
       // Check if file exists

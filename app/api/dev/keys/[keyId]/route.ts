@@ -15,11 +15,11 @@ async function getAuthenticatedUser(request: NextRequest) {
 // GET /api/dev/keys/[keyId] - Get a specific API key
 export async function GET(
   request: NextRequest,
-  { params }: { params: { keyId: string } }
+  { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
     const user = await getAuthenticatedUser(request);
-    const keyId = params.keyId;
+    const { keyId } = await params;
 
     const apiKey = await getApiKey(keyId);
 
@@ -74,11 +74,11 @@ export async function GET(
 // PATCH /api/dev/keys/[keyId] - Update an API key (revoke, rename, etc.)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { keyId: string } }
+  { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
     const user = await getAuthenticatedUser(request);
-    const keyId = params.keyId;
+    const { keyId } = await params;
     const body = await request.json();
 
     const apiKey = await getApiKey(keyId);
@@ -182,11 +182,11 @@ export async function PATCH(
 // DELETE /api/dev/keys/[keyId] - Delete an API key
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { keyId: string } }
+  { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
     const user = await getAuthenticatedUser(request);
-    const keyId = params.keyId;
+    const { keyId } = await params;
 
     const apiKey = await getApiKey(keyId);
 
