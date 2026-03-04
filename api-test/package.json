@@ -1,0 +1,17 @@
+{
+  "name": "cdn-api-test",
+  "version": "1.0.0",
+  "description": "Test scripts for Vercel Blob CDN API",
+  "main": "test-api.js",
+  "scripts": {
+    "test": "node test-api.js"
+  },
+  "keywords": [
+    "cdn",
+    "api",
+    "test"
+  ],
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  }
+}
