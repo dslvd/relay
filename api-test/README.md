@@ -10,7 +10,7 @@ Choose the method that works best for you:
 
 ```bash
 # Just run it!
-./test-api.sh YOUR_API_KEY http://localhost:3000
+./test-api.sh vbc_d21b75615fa1a2f20aa6fbff8e6e5378158ec1b2f79804926f862ebbc9154eed http://localhost:3000
 ```
 
 ### Method 2: Python Script (Great for Python developers)
