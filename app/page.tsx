@@ -258,7 +258,7 @@ export default function Home() {
     cancelUploadRef.current = false;
     setCurrentUploadName(file.name);
     if (file.size > maxUploadBytes) {
-      showToast(`File too large (max ${formatFileSize(maxUploadBytes)})`, 'error');
+      showToast(`File is too large (max ${formatFileSize(maxUploadBytes)})`, 'error');
       throw new Error('File too large');
     }
 
@@ -399,6 +399,7 @@ export default function Home() {
       } catch (error) {
         errorCount += 1;
         if (error instanceof Error && error.message === 'File too large') {
+          showToast('File is too large', 'error');
           continue;
         }
         showToast(`Failed ${current} of ${files.length}`, 'error');
@@ -624,13 +625,16 @@ export default function Home() {
               style={{
                 padding: '0.5rem 0.9rem',
                 borderRadius: '999px',
-                border: '1px solid #262a33',
-                background: '#14161b',
+                border: '1px solid rgba(255,255,255,0.13)',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
                 color: '#eef1f6',
                 fontSize: '0.8rem',
                 fontWeight: 500,
                 letterSpacing: '0.02em',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
               }}
             >
               ← Back
@@ -678,13 +682,16 @@ export default function Home() {
                 style={{
                   padding: '0.5rem 0.9rem',
                   borderRadius: '999px',
-                  border: '1px solid #262a33',
-                  background: '#14161b',
+                  border: '1px solid rgba(255,255,255,0.13)',
+                  background: 'rgba(255,255,255,0.07)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
                   color: '#eef1f6',
                   fontSize: '0.8rem',
                   fontWeight: 500,
                   letterSpacing: '0.02em',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
                 }}
               >
                 Cancel
@@ -695,13 +702,16 @@ export default function Home() {
                 style={{
                   padding: '0.5rem 0.95rem',
                   borderRadius: '999px',
-                  border: '1px solid #e9ecf2',
-                  background: uploadedFiles.length === 0 ? '#2a2f3a' : '#e9ecf2',
-                  color: uploadedFiles.length === 0 ? '#8a92a1' : '#0b0c10',
+                  border: uploadedFiles.length === 0 ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(233,236,242,0.5)',
+                  background: uploadedFiles.length === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(233,236,242,0.18)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  color: uploadedFiles.length === 0 ? '#8a92a1' : '#eef1f6',
                   fontSize: '0.8rem',
                   fontWeight: 700,
                   letterSpacing: '0.02em',
-                  cursor: uploadedFiles.length === 0 ? 'not-allowed' : 'pointer'
+                  cursor: uploadedFiles.length === 0 ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
                 }}
               >
                 Copy all links
@@ -780,12 +790,15 @@ export default function Home() {
                   style={{
                     padding: '0.35rem 0.7rem',
                     borderRadius: '999px',
-                    border: '1px solid #2f3541',
-                    background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.13)',
+                    background: 'rgba(255,255,255,0.07)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
                     color: '#c3cad6',
                     fontSize: '0.7rem',
                     cursor: 'pointer',
-                    textDecoration: 'none'
+                    textDecoration: 'none',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
                   }}
                 >
                   Dashboard
@@ -795,11 +808,14 @@ export default function Home() {
                   style={{
                     padding: '0.35rem 0.7rem',
                     borderRadius: '999px',
-                    border: '1px solid #2f3541',
-                    background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.13)',
+                    background: 'rgba(255,255,255,0.07)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
                     color: '#c3cad6',
                     fontSize: '0.7rem',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
                   }}
                 >
                   Logout
@@ -811,13 +827,16 @@ export default function Home() {
                 style={{
                   padding: '0.38rem 0.75rem',
                   borderRadius: '999px',
-                  border: '1px solid #e9ecf2',
-                  background: '#e9ecf2',
-                  color: '#0b0c10',
+                  border: '1px solid rgba(233,236,242,0.35)',
+                  background: 'rgba(233,236,242,0.15)',
+                  backdropFilter: 'blur(14px)',
+                  WebkitBackdropFilter: 'blur(14px)',
+                  color: '#eef1f6',
                   fontSize: '0.72rem',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  textDecoration: 'none'
+                  textDecoration: 'none',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.1)'
                 }}
               >
                 Premium login
@@ -859,11 +878,14 @@ export default function Home() {
               maxWidth: '520px',
               padding: '1.6rem 1.5rem',
               borderRadius: '18px',
-              border: '1px dashed #2a2f3a',
-              background: '#14161b',
+              border: '1px dashed rgba(255,255,255,0.2)',
+              background: 'rgba(255,255,255,0.06)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
               color: '#eef1f6',
               cursor: 'default',
-              transition: 'border-color 0.2s ease'
+              transition: 'border-color 0.2s ease',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)'
             }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
@@ -904,19 +926,22 @@ export default function Home() {
               fontWeight: 400,
               letterSpacing: '0.02em',
               color: '#eef1f6',
-              background: activeView === 'history' ? '#181c22' : '#14161b',
-              border: '1px solid #242833',
+              background: activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+              border: '1px solid rgba(255,255,255,0.13)',
               borderRadius: '50px',
               cursor: 'pointer',
-              transition: 'all 0.3s'
+              transition: 'all 0.3s',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#2f3541';
-              e.currentTarget.style.background = '#181c22';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#242833';
-              e.currentTarget.style.background = activeView === 'history' ? '#181c22' : '#14161b';
+              e.currentTarget.style.background = activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
             }}
           >
             Uploads
@@ -932,31 +957,31 @@ export default function Home() {
               fontFamily: "'Sora', sans-serif",
               padding: '0.42rem 1.55rem',
               fontSize: '0.82rem',
-              fontWeight: 400,
+              fontWeight: 600,
               letterSpacing: '0.02em',
-              color: uploading ? '#8a92a1' : '#0b0c10',
-              background: uploading ? '#2a2f3a' : '#e9ecf2',
-              border: '1px solid',
-              borderColor: uploading ? '#2a2f3a' : '#e9ecf2',
+              color: uploading ? 'rgba(255,255,255,0.35)' : '#eef1f6',
+              background: uploading ? 'rgba(255,255,255,0.04)' : 'rgba(233,236,242,0.18)',
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+              border: uploading ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(233,236,242,0.35)',
               borderRadius: '50px',
               cursor: uploading ? 'not-allowed' : 'pointer',
               transition: 'all 0.3s',
               position: 'relative',
               overflow: 'hidden',
-              zIndex: 1
+              zIndex: 1,
+              boxShadow: uploading ? 'none' : '0 2px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)'
             }}
             onMouseEnter={(e) => {
               if (!uploading) {
-                e.currentTarget.style.borderColor = '#d6dbe4';
-                e.currentTarget.style.color = '#0b0c10';
-                e.currentTarget.style.background = '#dfe4ee';
+                e.currentTarget.style.background = 'rgba(233,236,242,0.26)';
+                e.currentTarget.style.borderColor = 'rgba(233,236,242,0.5)';
               }
             }}
             onMouseLeave={(e) => {
               if (!uploading) {
-                e.currentTarget.style.borderColor = '#e9ecf2';
-                e.currentTarget.style.color = '#0b0c10';
-                e.currentTarget.style.background = '#e9ecf2';
+                e.currentTarget.style.background = 'rgba(233,236,242,0.18)';
+                e.currentTarget.style.borderColor = 'rgba(233,236,242,0.35)';
               }
             }}
           >
@@ -1124,11 +1149,14 @@ export default function Home() {
                         <div style={{
                           fontSize: '0.7rem',
                           color: '#eef1f6',
-                          background: '#1a1e26',
-                          border: '1px solid #262a33',
+                          background: 'rgba(255,255,255,0.08)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(255,255,255,0.13)',
                           padding: '0.25rem 0.6rem',
                           borderRadius: '999px',
-                          letterSpacing: '0.08em'
+                          letterSpacing: '0.08em',
+                          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)'
                         }}>
                           {extension}
                         </div>
@@ -1143,15 +1171,18 @@ export default function Home() {
                             width: '28px',
                             height: '28px',
                             borderRadius: '999px',
-                            border: '1px solid #262a33',
-                            background: '#14161b',
+                            border: '1px solid rgba(255,255,255,0.13)',
+                            background: 'rgba(255,255,255,0.07)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
                             color: '#e9ecf2',
                             fontSize: '0.9rem',
                             lineHeight: '1',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                           }}
                         >
                           ⤴
@@ -1230,24 +1261,27 @@ export default function Home() {
                 width: '32px',
                 height: '32px',
                 borderRadius: '999px',
-                border: '1px solid #262a33',
-                background: '#14161b',
+                border: '1px solid rgba(255,255,255,0.13)',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: verifyingFiles ? 'not-allowed' : 'pointer',
-                transition: 'all 0.25s ease'
+                transition: 'all 0.25s ease',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
               onMouseEnter={(e) => {
                 if (!verifyingFiles) {
-                  e.currentTarget.style.borderColor = '#2f3541';
-                  e.currentTarget.style.background = '#181c22';
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.13)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!verifyingFiles) {
-                  e.currentTarget.style.borderColor = '#262a33';
-                  e.currentTarget.style.background = '#14161b';
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
                 }
               }}
             >
@@ -1325,14 +1359,14 @@ export default function Home() {
                     style={{
                       marginBottom: index < publicHistory.length - 1 ? '0.85rem' : '0',
                       padding: '0.95rem 1.1rem',
-                      background: 'rgba(255,255,255,0.04)',
-                      backdropFilter: 'blur(12px)',
-                      WebkitBackdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(255,255,255,0.09)',
+                      background: 'rgba(255,255,255,0.05)',
+                      backdropFilter: 'blur(16px)',
+                      WebkitBackdropFilter: 'blur(16px)',
+                      border: '1px solid rgba(255,255,255,0.11)',
                       borderRadius: '16px',
-                      transition: 'border-color 0.2s ease',
+                      transition: 'border-color 0.2s ease, background 0.2s ease',
                       cursor: 'default',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)'
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.07)'
                     }}
                   >
                     <div style={{
@@ -1380,11 +1414,14 @@ export default function Home() {
                         <div style={{
                           fontSize: '0.7rem',
                           color: '#eef1f6',
-                          background: '#1a1e26',
-                          border: '1px solid #262a33',
+                          background: 'rgba(255,255,255,0.08)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(255,255,255,0.13)',
                           padding: '0.25rem 0.6rem',
                           borderRadius: '999px',
-                          letterSpacing: '0.08em'
+                          letterSpacing: '0.08em',
+                          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)'
                         }}>
                           {extension}
                         </div>
@@ -1399,15 +1436,18 @@ export default function Home() {
                             width: '28px',
                             height: '28px',
                             borderRadius: '999px',
-                            border: '1px solid #262a33',
-                            background: '#14161b',
+                            border: '1px solid rgba(255,255,255,0.13)',
+                            background: 'rgba(255,255,255,0.07)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
                             color: '#e9ecf2',
                             fontSize: '0.9rem',
                             lineHeight: '1',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                           }}
                         >
                           ⤴

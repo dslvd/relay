@@ -164,11 +164,14 @@ export default function PremiumPage() {
               width: '100%',
               padding: '0.65rem 0.75rem',
               borderRadius: '10px',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
-              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.07)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
               color: '#f5f5f5',
               fontSize: '0.8rem',
-              outline: 'none'
+              outline: 'none',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
             }}
           />
 
@@ -181,11 +184,14 @@ export default function PremiumPage() {
               width: '100%',
               padding: '0.65rem 0.75rem',
               borderRadius: '10px',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
-              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.07)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
               color: '#f5f5f5',
               fontSize: '0.8rem',
-              outline: 'none'
+              outline: 'none',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
             }}
           />
 
@@ -199,11 +205,14 @@ export default function PremiumPage() {
                 width: '100%',
                 padding: '0.65rem 0.75rem',
                 borderRadius: '10px',
-                border: '1px solid rgba(255, 255, 255, 0.16)',
-                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
                 color: '#f5f5f5',
                 fontSize: '0.8rem',
-                outline: 'none'
+                outline: 'none',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
               }}
             />
           )}
@@ -224,12 +233,15 @@ export default function PremiumPage() {
               width: '100%',
               padding: '0.65rem 0.8rem',
               borderRadius: '999px',
-              border: '1px solid #ffffff',
-              background: '#ffffff',
-              color: '#0a0a0a',
+              border: '1px solid rgba(233,236,242,0.4)',
+              background: 'rgba(233,236,242,0.18)',
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+              color: '#eef1f6',
               fontWeight: 700,
               fontSize: '0.8rem',
-              cursor: loading ? 'not-allowed' : 'pointer'
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)'
             }}
           >
             {loading ? 'Please wait...' : hasInvite ? 'Create account' : 'Login'}
