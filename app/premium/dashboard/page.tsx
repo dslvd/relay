@@ -115,11 +115,12 @@ export default function PremiumDashboard() {
 
       <div style={{
         minHeight: '100vh',
-        background: '#0a0a0a',
+        background: 'radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%)',
+        backgroundAttachment: 'fixed',
         color: '#eef1f6',
         fontFamily: "'Sora', sans-serif",
         padding: '3.5rem 6vw'
-      }}>
+      }}
       <div style={{
         maxWidth: '900px',
         margin: '0 auto'
@@ -155,10 +156,14 @@ export default function PremiumDashboard() {
               style={{
                 padding: '0.5rem 1rem',
                 borderRadius: '999px',
-                border: '1px solid #2f3541',
+                border: '1px solid rgba(255,255,255,0.13)',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
                 color: '#c3cad6',
                 textDecoration: 'none',
-                fontSize: '0.75rem'
+                fontSize: '0.75rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
               Back to upload
@@ -170,11 +175,15 @@ export default function PremiumDashboard() {
               style={{
                 padding: '0.5rem 1rem',
                 borderRadius: '999px',
-                border: '1px solid #e9ecf2',
-                background: uploads.length === 0 || loading ? '#2a2f3a' : '#e9ecf2',
-                color: uploads.length === 0 || loading ? '#8a92a1' : '#0b0c10',
+                border: uploads.length === 0 || loading ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(233,236,242,0.4)',
+                background: uploads.length === 0 || loading ? 'rgba(255,255,255,0.05)' : 'rgba(233,236,242,0.18)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                color: uploads.length === 0 || loading ? '#8a92a1' : '#eef1f6',
                 fontSize: '0.75rem',
-                fontWeight: 700
+                fontWeight: 700,
+                cursor: uploads.length === 0 || loading ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
               {copiedAll ? 'Copied' : 'Copy all links'}
@@ -183,11 +192,14 @@ export default function PremiumDashboard() {
         </div>
 
         <div style={{
-          background: '#111318',
-          border: '1px solid #1f232b',
+          background: 'rgba(255,255,255,0.05)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          border: '1px solid rgba(255,255,255,0.1)',
           borderRadius: '18px',
-          padding: '1.5rem'
-        }}>
+          padding: '1.5rem',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)'
+        }}
           {loading ? (
             <div style={{ color: '#8a92a1' }}>Loading uploads...</div>
           ) : error ? (
@@ -202,13 +214,16 @@ export default function PremiumDashboard() {
                   style={{
                     padding: '0.9rem 1rem',
                     borderRadius: '14px',
-                    border: '1px solid #22262f',
-                    background: '#14161b',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(255,255,255,0.05)',
+                    backdropFilter: 'blur(14px)',
+                    WebkitBackdropFilter: 'blur(14px)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '1rem',
-                    flexWrap: 'wrap'
+                    flexWrap: 'wrap',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)'
                   }}
                 >
                   <div style={{ minWidth: 0 }}>
@@ -236,10 +251,14 @@ export default function PremiumDashboard() {
                       style={{
                         padding: '0.4rem 0.8rem',
                         borderRadius: '999px',
-                        border: '1px solid #2f3541',
-                        color: '#c3cad6',
-                        textDecoration: 'none',
-                        fontSize: '0.7rem'
+                      border: '1px solid rgba(255,255,255,0.13)',
+                      background: 'rgba(255,255,255,0.07)',
+                      backdropFilter: 'blur(10px)',
+                      WebkitBackdropFilter: 'blur(10px)',
+                      color: '#c3cad6',
+                      textDecoration: 'none',
+                      fontSize: '0.7rem',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
                       }}
                     >
                       Open
@@ -250,12 +269,15 @@ export default function PremiumDashboard() {
                       style={{
                         padding: '0.4rem 0.8rem',
                         borderRadius: '999px',
-                        border: '1px solid #e9ecf2',
-                        background: '#e9ecf2',
-                        color: '#0b0c10',
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        cursor: 'pointer'
+                      border: '1px solid rgba(233,236,242,0.4)',
+                      background: 'rgba(233,236,242,0.18)',
+                      backdropFilter: 'blur(10px)',
+                      WebkitBackdropFilter: 'blur(10px)',
+                      color: '#eef1f6',
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
                       }}
                     >
                       Copy link
@@ -267,12 +289,15 @@ export default function PremiumDashboard() {
                       style={{
                         padding: '0.4rem 0.8rem',
                         borderRadius: '999px',
-                        border: '1px solid #3a2a2a',
-                        background: deletingUrl === file.url ? '#2a2f3a' : '#221717',
-                        color: deletingUrl === file.url ? '#8a92a1' : '#f2c6c6',
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        cursor: deletingUrl === file.url ? 'default' : 'pointer'
+                      border: deletingUrl === file.url ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(220,80,80,0.35)',
+                      background: deletingUrl === file.url ? 'rgba(255,255,255,0.05)' : 'rgba(180,50,50,0.18)',
+                      backdropFilter: 'blur(10px)',
+                      WebkitBackdropFilter: 'blur(10px)',
+                      color: deletingUrl === file.url ? '#8a92a1' : '#f2c6c6',
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      cursor: deletingUrl === file.url ? 'default' : 'pointer',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
                       }}
                     >
                       {deletingUrl === file.url ? 'Deleting...' : 'Delete'}

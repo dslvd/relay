@@ -3,7 +3,8 @@ export default function DmcaPage() {
     <main style={{
       minHeight: '100vh',
       padding: '6rem 6vw 4rem',
-      background: '#0a0a0a',
+      background: 'radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%)',
+      backgroundAttachment: 'fixed',
       color: '#f5f5f5',
       display: 'flex',
       alignItems: 'center',
@@ -252,10 +253,14 @@ export default function DmcaPage() {
             style={{
               padding: '0.7rem 1.2rem',
               borderRadius: '999px',
-              background: '#ffffff',
-              color: '#0a0a0a',
+              background: 'rgba(233,236,242,0.18)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(233,236,242,0.35)',
+              color: '#eef1f6',
               textDecoration: 'none',
-              fontWeight: 700
+              fontWeight: 700,
+              boxShadow: '0 2px 12px rgba(0,0,0,0.25)'
             }}
           >
             Back to home

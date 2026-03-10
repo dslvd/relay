@@ -160,7 +160,8 @@ export default function DownloadPage() {
     <main
       style={{
         minHeight: '100vh',
-        background: '#0a0a0a',
+        background: 'radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%)',
+        backgroundAttachment: 'fixed',
         color: '#f5f5f5',
         display: 'flex',
         flexDirection: 'column',
@@ -269,17 +270,21 @@ export default function DownloadPage() {
             >
               The file you're looking for doesn't exist or has expired.
             </p>
-            <a
+              <a
               href="/"
               style={{
                 display: 'inline-block',
                 padding: '0.5rem 1rem',
                 borderRadius: '999px',
-                background: '#ffffff',
-                color: '#0a0a0a',
+                background: 'rgba(233,236,242,0.18)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(233,236,242,0.35)',
+                color: '#eef1f6',
                 textDecoration: 'none',
                 fontWeight: 700,
-                fontSize: '0.85rem'
+                fontSize: '0.85rem',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.25)'
               }}
             >
               Upload a new file
@@ -472,15 +477,18 @@ export default function DownloadPage() {
                       display: 'block',
                       padding: '0.45rem 0.8rem',
                       borderRadius: '6px',
-                      background: '#ffffff',
-                      color: '#0a0a0a',
+                      background: 'rgba(233,236,242,0.18)',
+                      backdropFilter: 'blur(10px)',
+                      WebkitBackdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(233,236,242,0.35)',
+                      color: '#eef1f6',
                       textDecoration: 'none',
                       fontWeight: 700,
                       textAlign: 'center',
                       fontSize: '0.78rem',
-                      border: 'none',
                       cursor: 'pointer',
-                      transition: 'transform 0.2s ease, opacity 0.2s ease'
+                      transition: 'transform 0.2s ease, opacity 0.2s ease',
+                      boxShadow: '0 2px 10px rgba(0,0,0,0.25)'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'translateY(-1px)';

@@ -75,6 +75,8 @@ export default function AdminDashboard() {
   const [premiumUsers, setPremiumUsers] = useState<PremiumUser[]>([]);
   const [inviteTtlHours, setInviteTtlHours] = useState(24);
   const [creatingInvite, setCreatingInvite] = useState(false);
+  const [deletingSilent, setDeletingSilent] = useState<Set<string>>(new Set());
+  const [deleteFeedback, setDeleteFeedback] = useState<Record<string, 'ok' | 'err'>>({});
   const router = useRouter();
 
   useEffect(() => {
@@ -188,6 +190,54 @@ export default function AdminDashboard() {
       console.error('Failed to delete premium user:', error);
       alert('Failed to delete premium user');
     }
+  };
+
+  // Direct delete used by File Manager — no confirm dialog, instant local state update
+  const deleteFileDirect = async (url: string) => {
+    setDeletingSilent(prev => { const n = new Set(prev); n.add(url); return n; });
+    try {
+      const response = await fetch('/api/admin', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (response.ok) {
+        setFiles(current => current.filter(f => f.url !== url));
+        setSelectedFiles(current => { const n = new Set(current); n.delete(url); return n; });
+        setDeleteFeedback(prev => ({ ...prev, [url]: 'ok' }));
+        window.setTimeout(() => setDeleteFeedback(prev => { const n = { ...prev }; delete n[url]; return n; }), 1500);
+      } else {
+        setDeleteFeedback(prev => ({ ...prev, [url]: 'err' }));
+        window.setTimeout(() => setDeleteFeedback(prev => { const n = { ...prev }; delete n[url]; return n; }), 3000);
+      }
+    } catch {
+      setDeleteFeedback(prev => ({ ...prev, [url]: 'err' }));
+      window.setTimeout(() => setDeleteFeedback(prev => { const n = { ...prev }; delete n[url]; return n; }), 3000);
+    } finally {
+      setDeletingSilent(prev => { const n = new Set(prev); n.delete(url); return n; });
+    }
+  };
+
+  const deleteSelectedDirect = async () => {
+    if (selectedFiles.size === 0) return;
+    if (!confirm(`Permanently delete ${selectedFiles.size} file(s) from Cloudflare R2? This cannot be undone.`)) return;
+    const urls = Array.from(selectedFiles);
+    urls.forEach(url => setDeletingSilent(prev => { const n = new Set(prev); n.add(url); return n; }));
+    await Promise.all(urls.map(async url => {
+      try {
+        const res = await fetch('/api/admin', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        if (res.ok) {
+          setFiles(current => current.filter(f => f.url !== url));
+        }
+      } catch { /* continue */ } finally {
+        setDeletingSilent(prev => { const n = new Set(prev); n.delete(url); return n; });
+      }
+    }));
+    setSelectedFiles(new Set());
   };
 
   const deleteFile = async (url: string, filename: string) => {
@@ -398,7 +448,8 @@ export default function AdminDashboard() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0a0a0a',
+      background: 'radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%)',
+      backgroundAttachment: 'fixed',
       color: '#f5f5f5',
       padding: '2rem'
     }}>
@@ -438,15 +489,18 @@ export default function AdminDashboard() {
               disabled={loading}
               style={{
                 padding: '0.625rem 1.25rem',
-                background: '#111111',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '999px',
                 color: '#f5f5f5',
                 fontSize: '0.875rem',
                 fontWeight: 400,
                 letterSpacing: '0.02em',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: "'Open Sans', sans-serif",
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
               {loading ? '🔄 Loading...' : '🔄 Refresh'}
@@ -456,15 +510,18 @@ export default function AdminDashboard() {
               onClick={logout}
               style={{
                 padding: '0.625rem 1.25rem',
-                background: '#ffffff',
-                border: '1px solid #ffffff',
+                background: 'rgba(233,236,242,0.15)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(233,236,242,0.35)',
                 borderRadius: '999px',
-                color: '#0a0a0a',
+                color: '#eef1f6',
                 fontSize: '0.875rem',
                 fontWeight: 400,
                 letterSpacing: '0.02em',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: "'Open Sans', sans-serif",
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
               🚪 Logout
@@ -511,13 +568,16 @@ export default function AdminDashboard() {
               disabled={creatingInvite}
               style={{
                 padding: '0.55rem 1rem',
-                background: '#ffffff',
-                border: '1px solid #ffffff',
+                background: 'rgba(233,236,242,0.15)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(233,236,242,0.35)',
                 borderRadius: '999px',
-                color: '#0a0a0a',
+                color: '#eef1f6',
                 fontSize: '0.85rem',
                 cursor: creatingInvite ? 'not-allowed' : 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: "'Open Sans', sans-serif",
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
               {creatingInvite ? 'Creating...' : 'Generate premium signup link'}
@@ -555,12 +615,15 @@ export default function AdminDashboard() {
                           onClick={() => copyToClipboard(inviteLink)}
                           style={{
                             padding: '0.4rem 0.65rem',
-                            background: '#111111',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: 'rgba(255,255,255,0.07)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255,255,255,0.15)',
                             borderRadius: '8px',
                             color: '#f5f5f5',
                             fontSize: '0.75rem',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
                           }}
                         >
                           Copy link
@@ -984,13 +1047,16 @@ export default function AdminDashboard() {
               onClick={() => exportData('json')}
               style={{
                 padding: '0.75rem 1rem',
-                background: '#111111',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px',
                 color: '#f5f5f5',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: "'Open Sans', sans-serif",
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
               📥 Export JSON
@@ -1000,13 +1066,16 @@ export default function AdminDashboard() {
               onClick={() => exportData('csv')}
               style={{
                 padding: '0.75rem 1rem',
-                background: '#111111',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '10px',
                 color: '#f5f5f5',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: "'Open Sans', sans-serif",
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
               📥 Export CSV
@@ -1022,13 +1091,16 @@ export default function AdminDashboard() {
                 onClick={deleteSelected}
                 style={{
                   padding: '0.5rem 1rem',
-                  background: '#111111',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: 'rgba(180,50,50,0.2)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(220,80,80,0.35)',
                   borderRadius: '10px',
-                  color: '#f5f5f5',
+                  color: '#f5a5a5',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  fontFamily: "'Open Sans', sans-serif"
+                  fontFamily: "'Open Sans', sans-serif",
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                 }}
               >
                 🗑️ Delete Selected
@@ -1072,21 +1144,191 @@ export default function AdminDashboard() {
             onClick={clearAllFiles}
             disabled={loading || files.length === 0}
             style={{
-              padding: '0.625rem 1.25rem',
-            background: '#111111',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
+            padding: '0.625rem 1.25rem',
+            background: 'rgba(180,50,50,0.2)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid rgba(220,80,80,0.35)',
             borderRadius: '999px',
-            color: '#f5f5f5',
+            color: '#f5a5a5',
               fontSize: '0.875rem',
             fontWeight: 400,
             letterSpacing: '0.02em',
               cursor: loading || files.length === 0 ? 'not-allowed' : 'pointer',
               opacity: loading || files.length === 0 ? 0.5 : 1,
-              fontFamily: "'Open Sans', sans-serif"
+              fontFamily: "'Open Sans', sans-serif",
+              boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
             }}
           >
             🗑️ Delete All Files
           </button>
+        </div>
+
+        {/* File Manager — dedicated delete panel */}
+        <div style={{
+          background: 'rgba(255,255,255,0.04)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '16px',
+          padding: '1.5rem',
+          marginBottom: '2rem',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.35)'
+        }}>
+          {/* Header row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 400, color: '#f5f5f5', marginBottom: '0.35rem', fontFamily: "'Open Sans', sans-serif" }}>
+                🗂️ File Manager
+              </h3>
+              <p style={{ fontSize: '0.78rem', color: '#666666', margin: 0, lineHeight: 1.5 }}>
+                Select files below and delete them — this <strong style={{ color: '#a0a0a0' }}>permanently removes them from Cloudflare R2</strong> and invalidates their public URL immediately.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              {files.length > 0 && (
+                <button
+                  onClick={() =>
+                    selectedFiles.size === filteredFiles.length
+                      ? setSelectedFiles(new Set())
+                      : setSelectedFiles(new Set(filteredFiles.map(f => f.url)))
+                  }
+                  style={{
+                    padding: '0.45rem 0.9rem',
+                    background: 'rgba(255,255,255,0.07)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: '999px',
+                    color: '#c3cad6',
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                    fontFamily: "'Open Sans', sans-serif"
+                  }}
+                >
+                  {selectedFiles.size === filteredFiles.length && filteredFiles.length > 0 ? 'Deselect All' : `Select All (${filteredFiles.length})`}
+                </button>
+              )}
+              {selectedFiles.size > 0 && (
+                <>
+                  <span style={{ color: '#8a92a1', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                    {selectedFiles.size} selected
+                  </span>
+                  <button
+                    onClick={deleteSelectedDirect}
+                    disabled={deletingSilent.size > 0}
+                    style={{
+                      padding: '0.45rem 1rem',
+                      background: 'rgba(180,50,50,0.25)',
+                      backdropFilter: 'blur(12px)',
+                      WebkitBackdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(220,80,80,0.4)',
+                      borderRadius: '999px',
+                      color: '#f5a5a5',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: deletingSilent.size > 0 ? 'not-allowed' : 'pointer',
+                      opacity: deletingSilent.size > 0 ? 0.6 : 1,
+                      fontFamily: "'Open Sans', sans-serif",
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    🗑️ Delete {selectedFiles.size} from R2
+                  </button>
+                  <button
+                    onClick={() => setSelectedFiles(new Set())}
+                    style={{
+                      padding: '0.45rem 0.8rem',
+                      background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '999px',
+                      color: '#8a92a1',
+                      fontSize: '0.78rem',
+                      cursor: 'pointer',
+                      fontFamily: "'Open Sans', sans-serif"
+                    }}
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* File list */}
+          {loading ? (
+            <div style={{ color: '#666666', fontSize: '0.875rem', padding: '1rem 0' }}>Loading files...</div>
+          ) : filteredFiles.length === 0 ? (
+            <div style={{ color: '#666666', fontSize: '0.875rem', padding: '1rem 0' }}>No files found. {searchQuery && 'Try clearing the search filter.'}</div>
+          ) : (
+            <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '440px', overflowY: 'auto', paddingRight: '4px' }}>
+              {filteredFiles.map(file => {
+                const isDeleting = deletingSilent.has(file.url);
+                const feedback = deleteFeedback[file.url];
+                const isSelected = selectedFiles.has(file.url);
+                return (
+                  <div
+                    key={file.url}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.85rem',
+                      padding: '0.7rem 0.9rem',
+                      borderRadius: '12px',
+                      background: isSelected ? 'rgba(233,236,242,0.07)' : 'rgba(255,255,255,0.03)',
+                      border: isSelected ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.07)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectFile(file.url)}
+                      style={{ accentColor: '#e9ecf2', width: '15px', height: '15px', cursor: 'pointer', flexShrink: 0 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#f5f5f5', wordBreak: 'break-all', lineHeight: 1.35 }}>
+                        {file.filename}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#666666', marginTop: '0.2rem' }}>
+                        {formatFileSize(file.size)} &bull; {formatTimestamp(file.timestamp)}{file.ip ? ` · ${file.ip}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {feedback === 'ok' && (
+                        <span style={{ fontSize: '0.75rem', color: '#4ff8c0' }}>✓ Deleted</span>
+                      )}
+                      {feedback === 'err' && (
+                        <span style={{ fontSize: '0.75rem', color: '#f5a5a5' }}>✗ Failed</span>
+                      )}
+                      <button
+                        onClick={() => deleteFileDirect(file.url)}
+                        disabled={isDeleting}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '8px',
+                          background: isDeleting ? 'rgba(255,255,255,0.04)' : 'rgba(180,50,50,0.2)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          border: isDeleting ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(220,80,80,0.35)',
+                          color: isDeleting ? '#8a92a1' : '#f5a5a5',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: isDeleting ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s ease',
+                          fontFamily: "'Open Sans', sans-serif",
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {isDeleting ? 'Deleting...' : '🗑️ Delete'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Files List */}
@@ -1275,13 +1517,16 @@ export default function AdminDashboard() {
                           title="Copy URL"
                           style={{
                             padding: '0.45rem 0.7rem',
-                            background: '#111111',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: 'rgba(255,255,255,0.07)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255,255,255,0.15)',
                             borderRadius: '8px',
                             color: '#f5f5f5',
                             fontSize: '0.8rem',
                             cursor: 'pointer',
-                            fontFamily: "'Open Sans', sans-serif"
+                            fontFamily: "'Open Sans', sans-serif",
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
                           }}
                         >
                           📋
@@ -1291,14 +1536,17 @@ export default function AdminDashboard() {
                           disabled={deleting === file.url}
                           style={{
                             padding: '0.45rem 0.7rem',
-                            background: '#111111',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: deleting === file.url ? 'rgba(255,255,255,0.05)' : 'rgba(180,50,50,0.18)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            border: deleting === file.url ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(220,80,80,0.3)',
                             borderRadius: '8px',
-                            color: '#f5f5f5',
+                            color: deleting === file.url ? '#8a92a1' : '#f5a5a5',
                             fontSize: '0.8rem',
                             cursor: deleting === file.url ? 'not-allowed' : 'pointer',
                             opacity: deleting === file.url ? 0.5 : 1,
-                            fontFamily: "'Open Sans', sans-serif"
+                            fontFamily: "'Open Sans', sans-serif",
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
                           }}
                         >
                           {deleting === file.url ? '⏳' : '🗑️'}

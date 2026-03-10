@@ -734,7 +734,7 @@ export default function Home() {
             width={200}
             height={200}
                style={{
-                 animation: 'slideSide 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite'
+                 animation: 'slideSide 5.5s cubic-bezier(0.4, 0, 0.2, 1) infinite'
                }}
           />
           <h1 style={{
