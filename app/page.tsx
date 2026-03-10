@@ -525,7 +525,8 @@ export default function Home() {
         }
 
         body {
-          background: #0a0a0a;
+          background: radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%);
+          background-attachment: fixed;
           color: #eef1f6;
           font-family: 'Sora', sans-serif;
           min-height: 100vh;
@@ -554,8 +555,12 @@ export default function Home() {
         }
 
         @keyframes slideSide {
-          0%, 100% { transform: translateX(0px); }
-          50% { transform: translateX(18px); }
+          0%   { transform: translateX(0) scaleX(1); opacity: 1; }
+          35%  { transform: translateX(0) scaleX(1); opacity: 1; }
+          48%  { transform: translateX(600px) scaleX(1.3); opacity: 0; }
+          49%  { transform: translateX(-600px) scaleX(1.3); opacity: 0; }
+          62%  { transform: translateX(0) scaleX(1); opacity: 1; }
+          100% { transform: translateX(0) scaleX(1); opacity: 1; }
         }
 
         ::-webkit-scrollbar {
@@ -595,10 +600,12 @@ export default function Home() {
             marginBottom: '1.5rem',
             padding: '0.75rem 1.2rem',
             borderRadius: '0 0 18px 18px',
-            border: '1px solid #1f232b',
+            border: '1px solid rgba(255,255,255,0.1)',
             borderTop: 'none',
-            background: '#111318',
-            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.25)',
+            background: 'rgba(17,19,24,0.65)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07)',
             position: 'fixed',
             top: 0,
             left: 0,
@@ -717,7 +724,7 @@ export default function Home() {
             width={200}
             height={200}
                style={{
-                 animation: 'slideSide 5.5s ease-in-out infinite'
+                 animation: 'slideSide 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite'
                }}
           />
           <h1 style={{
@@ -992,10 +999,12 @@ export default function Home() {
             )}
             <div style={{
               height: '8px',
-              background: '#1a1e26',
+              background: 'rgba(255,255,255,0.06)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
               borderRadius: '999px',
               overflow: 'hidden',
-              border: '1px solid #242833'
+              border: '1px solid rgba(255,255,255,0.1)'
             }}>
               <div style={{
                 height: '100%',
@@ -1039,10 +1048,13 @@ export default function Home() {
             <div style={{
               maxHeight: '320px',
               overflowY: 'auto',
-              background: '#111318',
-              border: '1px solid #1f232b',
+              background: 'rgba(255,255,255,0.05)',
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+              border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: '16px',
-              padding: '0.85rem'
+              padding: '0.85rem',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)'
             }}>
               {uploadedFiles.map((fileItem, index) => {
                 const filename = fileItem.filename;
@@ -1057,11 +1069,14 @@ export default function Home() {
                     style={{
                       marginBottom: index < uploadedFiles.length - 1 ? '0.85rem' : '0',
                       padding: '0.95rem 1.1rem',
-                      background: '#14161b',
-                      border: '1px solid #22262f',
+                      background: 'rgba(255,255,255,0.04)',
+                      backdropFilter: 'blur(12px)',
+                      WebkitBackdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(255,255,255,0.09)',
                       borderRadius: '16px',
                       transition: 'border-color 0.2s ease',
-                      cursor: 'default'
+                      cursor: 'default',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)'
                     }}
                   >
                     <div style={{
@@ -1277,21 +1292,27 @@ export default function Home() {
             <div style={{
               textAlign: 'center',
               padding: '2rem',
-              background: '#111318',
-              border: '1px solid #1f232b',
+              background: 'rgba(255,255,255,0.04)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1px solid rgba(255,255,255,0.09)',
               borderRadius: '12px',
-              color: '#8a92a1'
+              color: '#8a92a1',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.35)'
             }}>
               {emptyMessages[emptyMessageIndex]}
             </div>
           ) : (
             <div style={{
-              background: '#111318',
-              border: '1px solid #1f232b',
+              background: 'rgba(255,255,255,0.05)',
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+              border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: '16px',
               padding: '0.85rem',
               maxHeight: '320px',
-              overflowY: 'auto'
+              overflowY: 'auto',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)'
             }}>
               {publicHistory.map((record, index) => {
                 const extension = record.filename.includes('.')
@@ -1304,11 +1325,14 @@ export default function Home() {
                     style={{
                       marginBottom: index < publicHistory.length - 1 ? '0.85rem' : '0',
                       padding: '0.95rem 1.1rem',
-                      background: '#14161b',
-                      border: '1px solid #22262f',
+                      background: 'rgba(255,255,255,0.04)',
+                      backdropFilter: 'blur(12px)',
+                      WebkitBackdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(255,255,255,0.09)',
                       borderRadius: '16px',
                       transition: 'border-color 0.2s ease',
-                      cursor: 'default'
+                      cursor: 'default',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)'
                     }}
                   >
                     <div style={{
@@ -1471,12 +1495,14 @@ export default function Home() {
             position: 'fixed',
             bottom: '1.25rem',
             right: '1.25rem',
-            background: '#14161b',
+            background: 'rgba(20,22,27,0.7)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
             color: '#eef1f6',
             padding: '0.65rem 0.95rem',
             borderRadius: '10px',
-            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.25)',
-            border: '1px solid #242833',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)',
+            border: '1px solid rgba(255,255,255,0.12)',
             animation: 'fadeSlideIn 0.25s ease-out',
             zIndex: 1000,
             fontSize: '0.75rem',

@@ -101,7 +101,8 @@ export default function PremiumPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#0a0a0a',
+        background: 'radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%)',
+        backgroundAttachment: 'fixed',
         color: '#f5f5f5',
         padding: '1.5rem'
       }}
@@ -110,9 +111,11 @@ export default function PremiumPage() {
         style={{
           width: 'min(420px, 92vw)',
           borderRadius: '16px',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          background: 'rgba(255, 255, 255, 0.04)',
-          boxShadow: '0 18px 42px rgba(0, 0, 0, 0.42)',
+          border: '1px solid rgba(255,255,255,0.13)',
+          background: 'rgba(255,255,255,0.07)',
+          backdropFilter: 'blur(28px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.1)',
           padding: '1.2rem'
         }}
       >
