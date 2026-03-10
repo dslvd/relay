@@ -88,5 +88,13 @@ export default function DragDropZone({
           <div className="w-16 h-16 bg-slate-800 border border-slate-700 rounded-2xl flex items-center justify-center text-3xl transition-transform duration-300"
             style={{
               transform: displayIsDragging ? 'scale(1.08) rotate(-3deg)' : 'scale(1) rotate(0deg)'
-            }}
-          // ...existing code...
+            }}>
+            {/* You can add an icon or text here if needed */}
+          </div>
+        </div>
+        {/* ...existing code... */}
+      </div>
+    </div>);
+}
+
+
