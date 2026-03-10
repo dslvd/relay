@@ -199,7 +199,7 @@ export default function PremiumDashboard() {
           borderRadius: '18px',
           padding: '1.5rem',
           boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)'
-        }}
+        }}>
           {loading ? (
             <div style={{ color: '#8a92a1' }}>Loading uploads...</div>
           ) : error ? (
