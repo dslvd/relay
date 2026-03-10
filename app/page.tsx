@@ -516,34 +516,77 @@ export default function Home() {
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
+
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+
         body {
-          background: #fafbfc;
-          color: #222;
-          font-family: 'Inter', sans-serif;
+          background: #0a0a0a;
+          color: #eef1f6;
+          font-family: 'Sora', sans-serif;
           min-height: 100vh;
           overflow-x: hidden;
         }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f2f2f2; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #cccccc; }
+
+        @keyframes fadeSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
+        }
+
+        @keyframes slideSide {
+          0%, 100% { transform: translateX(0px); }
+          50% { transform: translateX(18px); }
+        }
+
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.04);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.35);
+        }
       `}} />
 
       <main style={{
-        padding: uploading ? '5rem 2vw 3rem' : '3rem 2vw',
+        padding: uploading ? '6.5rem 6vw 4rem' : '4rem 6vw',
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         textAlign: 'center',
-        maxWidth: '700px',
-        margin: '0 auto',
-        background: '#fff',
-        borderRadius: '18px',
-        boxShadow: '0 2px 24px #eaeaea',
+        maxWidth: '1200px',
+        margin: '0 auto'
       }}>
         {uploading && (
           <div style={{

@@ -116,6 +116,24 @@ export default function PremiumPage() {
           padding: '1.2rem'
         }}
       >
+        <a
+          href="/"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            marginBottom: '1rem',
+            fontSize: '0.78rem',
+            color: 'rgba(245,245,245,0.55)',
+            textDecoration: 'none',
+            transition: 'color 0.15s'
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#f5f5f5')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(245,245,245,0.55)')}
+        >
+          ← Back to home
+        </a>
+
         <h1
           style={{
             margin: '0 0 0.7rem',
