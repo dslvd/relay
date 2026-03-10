@@ -26,33 +26,62 @@ export default function UploadResult({
   if (!isVisible) return null;
 
   return (
-    <div className="w-full max-w-2xl mx-auto mt-5 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden animate-slideUp">
+    <div style={{
+      width: '100%',
+      maxWidth: '420px',
+      margin: '2rem auto 0',
+      background: '#fff',
+      borderRadius: '14px',
+      boxShadow: '0 2px 16px #eaeaea',
+      padding: '1.5rem',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '1.2rem',
+    }}>
       {/* Progress Bar */}
-      <div className="w-full h-1 bg-slate-800 relative overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 transition-all duration-100"
-          style={{ width: `${uploadProgress}%` }}
-        />
+      <div style={{ width: '100%', height: '4px', background: '#f2f2f2', borderRadius: '2px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', background: '#222', width: `${uploadProgress}%`, transition: 'width 0.2s' }} />
       </div>
-
       {/* Status Header */}
-      <div className="px-5 py-4 bg-cyan-500/10 border-b border-slate-700 flex items-center gap-2.5 text-cyan-400 text-sm font-medium">
-        <span>✔</span>
+      <div style={{
+        padding: '0.7rem 0',
+        color: '#222',
+        fontWeight: 500,
+        fontSize: '1rem',
+        textAlign: 'center',
+        borderBottom: '1px solid #f2f2f2',
+      }}>
+        <span style={{ marginRight: '0.5rem' }}>✔</span>
         <span>{uploadStatus}</span>
       </div>
-
       {/* Share Link Row */}
-      <div className="px-5 py-4 flex items-center gap-3">
-        <div className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2.5 font-mono text-xs text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">
-          {shareLink}
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+        <div style={{
+          flex: 1,
+          background: '#f7f7f7',
+          borderRadius: '8px',
+          padding: '0.7rem 1rem',
+          fontFamily: 'monospace',
+          fontSize: '0.92rem',
+          color: '#888',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>{shareLink}</div>
         <button
           onClick={copyToClipboard}
-          className={`px-4 py-2.5 rounded-lg border-none font-mono text-xs cursor-pointer transition-all whitespace-nowrap ${
-            isCopied
-              ? 'bg-cyan-400 text-slate-900'
-              : 'bg-purple-600 text-white hover:bg-purple-700'
-          }`}
+          style={{
+            padding: '0.7rem 1.2rem',
+            borderRadius: '8px',
+            border: 'none',
+            fontFamily: 'monospace',
+            fontSize: '0.92rem',
+            background: isCopied ? '#222' : '#f2f2f2',
+            color: isCopied ? '#fff' : '#222',
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+            fontWeight: 500,
+          }}
         >
           {isCopied ? 'Copied!' : 'Copy link'}
         </button>

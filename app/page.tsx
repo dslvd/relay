@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import AdBanner from './components/AdBanner';
+// import AdBanner from './components/AdBanner';
 import logo from './logo.png';
 
 interface UploadRecord {
@@ -181,7 +181,6 @@ export default function Home() {
   const verifyFileExistence = async (records: UploadRecord[]): Promise<UploadRecord[]> => {
     const verifiedRecords: UploadRecord[] = [];
     const deletedUrls: string[] = [];
-
     // Check each file and only remove records on confirmed 404 responses.
     for (const record of records) {
       try {
@@ -189,7 +188,6 @@ export default function Home() {
         const filename = parsed.pathname.split('/').pop();
         const probeUrl = filename ? `/d/${filename}` : parsed.pathname;
         const response = await fetch(probeUrl, { method: 'HEAD', cache: 'no-store' });
-
         if (response.ok) {
           verifiedRecords.push(record);
         } else if (response.status === 404) {
@@ -203,7 +201,6 @@ export default function Home() {
         verifiedRecords.push(record);
       }
     }
-
     // Remove deleted files from history
     if (deletedUrls.length > 0) {
       await fetch('/api/history/cleanup', {
@@ -212,7 +209,6 @@ export default function Home() {
         body: JSON.stringify({ urls: deletedUrls })
       });
     }
-
     return verifiedRecords;
   };
 
@@ -520,78 +516,34 @@ export default function Home() {
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
-
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-          background: #0a0a0a;
-          color: #eef1f6;
-          font-family: 'Sora', sans-serif;
+          background: #fafbfc;
+          color: #222;
+          font-family: 'Inter', sans-serif;
           min-height: 100vh;
           overflow-x: hidden;
         }
-
-        @keyframes fadeSlideIn {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 1; }
-        }
-
-        @keyframes floatGentle {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-8px); }
-        }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-          width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.04);
-          border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.35);
-        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f2f2f2; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #cccccc; }
       `}} />
 
-      <main style={{ 
-        padding: uploading ? '6.5rem 6vw 4rem' : '4rem 6vw',
+      <main style={{
+        padding: uploading ? '5rem 2vw 3rem' : '3rem 2vw',
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         textAlign: 'center',
-        maxWidth: '1200px',
-        margin: '0 auto'
+        maxWidth: '700px',
+        margin: '0 auto',
+        background: '#fff',
+        borderRadius: '18px',
+        boxShadow: '0 2px 24px #eaeaea',
       }}>
         {uploading && (
           <div style={{
@@ -721,9 +673,9 @@ export default function Home() {
             alt="Logo"
             width={200}
             height={200}
-            style={{
-              animation: 'floatGentle 5.5s ease-in-out infinite'
-            }}
+               style={{
+                 animation: 'slideSide 5.5s ease-in-out infinite'
+               }}
           />
           <h1 style={{
           fontFamily: "'Sora', sans-serif",
@@ -1188,13 +1140,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Ad Banner */}
-        {activeView === 'upload' && uploadedFiles.length > 0 && !isPremium && (
-          <AdBanner 
-            dataAdSlot="1234567890" 
-            style={{ marginTop: '2rem', marginBottom: '1rem' }}
-          />
-        )}
+        {/* Minimal: AdBanner removed for cleaner look */}
 
         {/* Public Upload History */}
         {activeView === 'history' && (
