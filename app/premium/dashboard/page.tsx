@@ -120,7 +120,7 @@ export default function PremiumDashboard() {
         color: '#eef1f6',
         fontFamily: "'Sora', sans-serif",
         padding: '3.5rem 6vw'
-      }}
+      }}>
       <div style={{
         maxWidth: '900px',
         margin: '0 auto'
