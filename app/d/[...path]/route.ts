@@ -1,6 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateLastAccessTime } from '@/app/lib/storage/retention';
 import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage/r2-storage';
+import { loadUploadHistory } from '@/app/lib/data/upload-history-store';
+
+function buildContentDispositionAttachment(filename: string): string {
+  // RFC 5987 filename* for UTF-8, plus a conservative fallback.
+  const fallback = filename.replace(/[/\\]/g, '-').replace(/[\u0000-\u001f\u007f]/g, '').trim() || 'download';
+  const encoded = encodeURIComponent(fallback);
+  return `attachment; filename="${fallback.replace(/"/g, '')}"; filename*=UTF-8''${encoded}`;
+}
+
+async function findOriginalFilenameByKey(key: string): Promise<string | null> {
+  const histories = await Promise.all([loadUploadHistory('public'), loadUploadHistory('premium')]);
+
+  for (const history of histories) {
+    for (const record of history) {
+      try {
+        const parsed = new URL(record.url, 'http://localhost');
+        if (parsed.pathname === `/download/${key}` || parsed.pathname.endsWith(`/download/${key}`)) {
+          return record.filename || null;
+        }
+        // Many links are just `/download/<lastSegment>`.
+        const last = key.split('/').pop() || key;
+        if (parsed.pathname === `/download/${last}` || parsed.pathname.endsWith(`/download/${last}`)) {
+          return record.filename || null;
+        }
+      } catch {
+        if (record.url.includes(key)) return record.filename || null;
+      }
+    }
+  }
+
+  return null;
+}
 
 function fileNotFoundResponse(): NextResponse {
   const html = `<!doctype html>
@@ -167,11 +199,18 @@ export async function GET(
     }
     
     // Return the file with proper headers
+    const shouldDownload = request.nextUrl.searchParams.has('dl');
+    const key = path.join('/');
+    const originalFilename = shouldDownload ? await findOriginalFilenameByKey(key) : null;
+
     return new NextResponse(response.body, {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('Content-Type') || 'application/octet-stream',
         'Content-Length': response.headers.get('Content-Length') || '',
+        ...(shouldDownload
+          ? { 'Content-Disposition': buildContentDispositionAttachment(originalFilename || path[path.length - 1] || 'download') }
+          : {}),
         'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
         'Pragma': 'no-cache',
         'Expires': '0',

@@ -66,8 +66,8 @@ export default function DownloadPage() {
           body: JSON.stringify({ type: 'pageview', path: `/download/${pathKey}` })
         }).catch(() => {}); // Silently fail
         
-        const [historyResponse, analyticsResponse] = await Promise.all([
-          fetch('/api/history', { cache: 'no-store' }),
+        const [fileInfoResponse, analyticsResponse] = await Promise.all([
+          fetch(`/api/file-info?key=${encodeURIComponent(pathKey)}`, { cache: 'no-store' }),
           fetch(`/api/analytics?filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
         ]);
 
@@ -76,12 +76,12 @@ export default function DownloadPage() {
           setDownloadCount(analyticsData.totalDownloads ?? 0);
         }
 
-        if (historyResponse.ok) {
-          const data = await historyResponse.json();
-          const records = data.history || [];
-          const file = records.find((r: UploadRecord) => r.url.includes(pathKey));
-          if (file) {
-            setFileData(file);
+        if (fileInfoResponse.ok) {
+          const data = await fileInfoResponse.json();
+          const record = data?.data?.record as UploadRecord | undefined;
+          if (record) {
+            setFileData(record);
+            setNotFound(false);
 
             // Update last access time when viewing the download page
             fetch('/api/access', {
@@ -89,17 +89,18 @@ export default function DownloadPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ filename })
             }).catch(err => console.error('Failed to update access time:', err));
-          } else {
-            const headResponse = await fetch(downloadUrl, { method: 'HEAD' });
-            if (headResponse.ok) {
-              const sizeHeader = headResponse.headers.get('Content-Length');
-              const size = sizeHeader ? Number(sizeHeader) : undefined;
-              setFileData({ url: downloadUrl, filename, size, timestamp: undefined });
-              setNotFound(false);
-            } else {
-              setNotFound(true);
-            }
+            return;
           }
+        }
+
+        const headResponse = await fetch(downloadUrl, { method: 'HEAD' });
+        if (headResponse.ok) {
+          const sizeHeader = headResponse.headers.get('Content-Length');
+          const size = sizeHeader ? Number(sizeHeader) : undefined;
+          setFileData({ url: downloadUrl, filename, size, timestamp: undefined });
+          setNotFound(false);
+        } else {
+          setNotFound(true);
         }
       } catch (error) {
         console.error('Failed to fetch file data:', error);
