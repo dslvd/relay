@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Open_Sans } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import ClickRipple from "./click-ripple";
+import type { Viewport } from "next";
 
 const openSans = Open_Sans({
   variable: "--font-open-sans",
@@ -14,6 +16,11 @@ const openSans = Open_Sans({
 export const metadata: Metadata = {
   title: "Relay",
   description: "CDN Uploader built with Next.js 14 and Vercel Edge Functions",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -31,13 +38,14 @@ export default function RootLayout({
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7504951431311068"
           crossOrigin="anonymous"
-          strategy="beforeInteractive"
+          // Keep first paint snappy; ads can load after hydration.
+          strategy="afterInteractive"
         />
         {children}
         <ClickRipple />
-        <a className="dmca-link" href="/dmca">
+        <Link className="dmca-link" href="/dmca" prefetch>
           DMCA
-        </a>
+        </Link>
       </body>
     </html>
   );
