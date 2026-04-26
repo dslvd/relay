@@ -24,8 +24,6 @@ export default function Home() {
   // Feature flag: keep the public history UI code around, but hide it from the UI for now.
   // Flip this to `true` anytime to bring the "Uploads" button + history view back.
   const ENABLE_PUBLIC_UPLOAD_HISTORY_UI = false;
-  const BIG_ACTION_BUTTON_CLASS =
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap px-3 transition-all duration-300 disabled:pointer-events-none disabled:opacity-50 cursor-pointer focus:outline-none focus:ring-0 bg-neutral-800 dark:bg-neutral-200 hover:bg-neutral-900 dark:hover:bg-neutral-300 text-white dark:text-black font-medium text-sm focus:shadow-none active:scale-95 rounded-full py-3';
 
   const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
   const PREMIUM_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
@@ -1004,56 +1002,135 @@ export default function Home() {
         )}
         
         {!uploading && (
-        <div
-          className="w-full max-w-[520px] mx-auto mt-1 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3"
-          style={{
-            animation: 'fadeSlideIn 1s ease-out 0.2s backwards'
-          }}
-        >
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '1rem',
+          flexWrap: 'wrap',
+          marginTop: '0.20rem',
+          animation: 'fadeSlideIn 1s ease-out 0.2s backwards'
+        }}>
           {ENABLE_PUBLIC_UPLOAD_HISTORY_UI && (
             <button
-              type="button"
               onClick={() => setActiveView(activeView === 'history' ? 'upload' : 'history')}
-              className={`${BIG_ACTION_BUTTON_CLASS} w-full sm:flex-1`}
+              style={{
+                fontFamily: "'Sora', sans-serif",
+                padding: '0.42rem 1.55rem',
+                fontSize: '0.82rem',
+                fontWeight: 400,
+                letterSpacing: '0.02em',
+                color: '#eef1f6',
+                background: activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(14px)',
+                WebkitBackdropFilter: 'blur(14px)',
+                border: '1px solid rgba(255,255,255,0.13)',
+                borderRadius: '50px',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
+              }}
             >
               Uploads
             </button>
           )}
 
           <button
-            type="button"
             onClick={() => {
               setShowRemoteUpload((v) => !v);
               setActiveView('upload');
             }}
-            aria-label="Remote Upload"
-            className={`${BIG_ACTION_BUTTON_CLASS} w-full sm:flex-1 ${
-              showRemoteUpload ? 'ring-1 ring-white/15' : ''
-            }`}
+            style={{
+              fontFamily: "'Sora', sans-serif",
+              padding: '0.42rem 1.55rem',
+              fontSize: '0.82rem',
+              fontWeight: 400,
+              letterSpacing: '0.02em',
+              color: '#eef1f6',
+              background: showRemoteUpload ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+              border: '1px solid rgba(255,255,255,0.13)',
+              borderRadius: '50px',
+              cursor: 'pointer',
+              transition: 'all 0.3s',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = showRemoteUpload ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
+            }}
           >
             {remoteUploading ? 'Remote Uploading…' : 'Remote Upload'}
           </button>
 
           <button
-            type="button"
             onClick={() => {
               setActiveView('upload');
               fileInputRef.current?.click();
             }}
-            aria-label="Upload File"
-            disabled={uploading || remoteUploading}
-            className={`${BIG_ACTION_BUTTON_CLASS} w-full sm:flex-1`}
+            disabled={uploading}
+            style={{
+              fontFamily: "'Sora', sans-serif",
+              padding: '0.42rem 1.55rem',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              letterSpacing: '0.02em',
+              color: uploading ? 'rgba(255,255,255,0.35)' : '#eef1f6',
+              background: uploading ? 'rgba(255,255,255,0.04)' : 'rgba(233,236,242,0.18)',
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+              border: uploading ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(233,236,242,0.35)',
+              borderRadius: '50px',
+              cursor: uploading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.3s',
+              position: 'relative',
+              overflow: 'hidden',
+              zIndex: 1,
+              boxShadow: uploading ? 'none' : '0 2px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)'
+            }}
+            onMouseEnter={(e) => {
+              if (!uploading) {
+                e.currentTarget.style.background = 'rgba(233,236,242,0.26)';
+                e.currentTarget.style.borderColor = 'rgba(233,236,242,0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!uploading) {
+                e.currentTarget.style.background = 'rgba(233,236,242,0.18)';
+                e.currentTarget.style.borderColor = 'rgba(233,236,242,0.35)';
+              }
+            }}
           >
-            {uploading ? 'Uploading...' : 'Upload File'}
+            {uploading ? 'Uploading...' : 'Choose File'}
           </button>
         </div>
         )}
 
         {!uploading && showRemoteUpload && (
-          <div
-            className="w-full max-w-[520px] mx-auto mt-3 flex flex-col sm:flex-row gap-3 items-stretch"
-            style={{ animation: 'fadeSlideIn 0.45s ease-out' }}
-          >
+          <div style={{
+            marginTop: '0.85rem',
+            width: '100%',
+            maxWidth: '520px',
+            display: 'flex',
+            gap: '0.6rem',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            animation: 'fadeSlideIn 0.45s ease-out'
+          }}>
             <input
               value={remoteUrl}
               onChange={(e) => setRemoteUrl(e.target.value)}
@@ -1063,7 +1140,19 @@ export default function Home() {
               autoCorrect="off"
               spellCheck={false}
               disabled={remoteUploading}
-              className="w-full flex-1 rounded-full py-3 px-4 text-sm bg-neutral-900/50 border border-white/10 text-white placeholder:text-white/40 outline-none focus:outline-none focus:ring-0"
+              style={{
+                flex: '1 1 320px',
+                minWidth: '240px',
+                padding: '0.55rem 0.9rem',
+                fontSize: '0.82rem',
+                fontFamily: "'Sora', sans-serif",
+                color: '#eef1f6',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '12px',
+                outline: 'none',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -1072,11 +1161,21 @@ export default function Home() {
               }}
             />
             <button
-              type="button"
               onClick={submitRemoteUpload}
               disabled={remoteUploading || remoteUrl.trim().length === 0}
-              aria-label="Upload URL"
-              className={`${BIG_ACTION_BUTTON_CLASS} w-full sm:w-auto`}
+              style={{
+                fontFamily: "'Sora', sans-serif",
+                padding: '0.55rem 1rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                color: remoteUploading || remoteUrl.trim().length === 0 ? 'rgba(255,255,255,0.35)' : '#0a0a0a',
+                background: remoteUploading || remoteUrl.trim().length === 0 ? 'rgba(255,255,255,0.05)' : '#e9ecf2',
+                border: '1px solid rgba(233,236,242,0.35)',
+                borderRadius: '12px',
+                cursor: remoteUploading || remoteUrl.trim().length === 0 ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+              }}
             >
               Upload URL
             </button>
