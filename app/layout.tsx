@@ -22,8 +22,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${openSans.variable} antialiased`}>
+    <html lang="en" style={{ backgroundColor: "#0a0a0a" }}>
+      <body
+        className={`${openSans.variable} antialiased`}
+        style={{ backgroundColor: "#0a0a0a", margin: 0 }}
+      >
         <Script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7504951431311068"

@@ -5,6 +5,11 @@
   --foreground: #eef1f6;
 }
 
+html {
+  background-color: var(--background);
+  color-scheme: dark;
+}
+
 body {
   background: radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%);
   background-attachment: fixed;
