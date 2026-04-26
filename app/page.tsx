@@ -21,6 +21,10 @@ interface UploadedItem {
 }
 
 export default function Home() {
+  // Feature flag: keep the public history UI code around, but hide it from the UI for now.
+  // Flip this to `true` anytime to bring the "Uploads" button + history view back.
+  const ENABLE_PUBLIC_UPLOAD_HISTORY_UI = false;
+
   const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
   const PREMIUM_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
@@ -52,6 +56,9 @@ export default function Home() {
   const [emptyMessageIndex] = useState(() => Math.floor(Math.random() * emptyMessages.length));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const maxUploadBytes = isPremium ? PREMIUM_MAX_UPLOAD_BYTES : FREE_MAX_UPLOAD_BYTES;
+  const [showRemoteUpload, setShowRemoteUpload] = useState(false);
+  const [remoteUrl, setRemoteUrl] = useState('');
+  const [remoteUploading, setRemoteUploading] = useState(false);
 
   useEffect(() => {
     fetch('/api/premium/me', { cache: 'no-store' })
@@ -72,7 +79,11 @@ export default function Home() {
       body: JSON.stringify({ type: 'pageview', path: '/' })
     }).catch(() => {}); // Silently fail
     
-    fetchPublicHistory();
+    if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
+      fetchPublicHistory();
+    } else {
+      setLoadingHistory(false);
+    }
   }, []);
 
   const logoutPremium = async () => {
@@ -468,6 +479,89 @@ export default function Home() {
     await uploadFiles(files);
   };
 
+  const submitRemoteUpload = async () => {
+    if (uploading || remoteUploading) {
+      return;
+    }
+
+    const trimmed = remoteUrl.trim();
+    if (!trimmed) {
+      showToast('Paste a URL first', 'info');
+      return;
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      showToast('Invalid URL', 'error');
+      return;
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      showToast('URL must start with http:// or https://', 'error');
+      return;
+    }
+
+    setRemoteUploading(true);
+    setUploadStatus('Fetching remote file...');
+    setActiveView('upload');
+    showToast('Fetching remote file…', 'info');
+
+    try {
+      const res = await fetch('/api/remote-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: trimmed }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload?.data?.url) {
+        throw new Error(payload?.error || 'Remote upload failed');
+      }
+
+      const downloadUrl = payload.data.url as string;
+      const filename = (payload.data.filename as string) || parsed.pathname.split('/').pop() || 'remote-file';
+      const size = Number(payload.data.size) || 0;
+      const uploadedAt = Date.now();
+
+      setUploadedFiles((prev) => [
+        {
+          url: downloadUrl,
+          filename,
+          size,
+          timestamp: uploadedAt,
+        },
+        ...prev,
+      ]);
+
+      // Persist in history (re-uses the same quota logic as regular uploads).
+      const historyRes = await fetch('/api/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: downloadUrl, filename, size }),
+      });
+      if (!historyRes.ok) {
+        const errPayload = await historyRes.json().catch(() => ({}));
+        throw new Error(errPayload?.error || 'Failed to save upload history');
+      }
+
+      if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
+        await fetchPublicHistory();
+      }
+
+      setRemoteUrl('');
+      setShowRemoteUpload(false);
+      showToast('Remote upload complete', 'success');
+    } catch (error) {
+      console.error('Remote upload failed:', error);
+      showToast(error instanceof Error ? error.message : 'Remote upload failed', 'error');
+    } finally {
+      setRemoteUploading(false);
+      setUploadStatus('');
+    }
+  };
+
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
@@ -748,7 +842,7 @@ export default function Home() {
         }}>
           Quick, secure, and
           <br />
-          effortless file sharing.
+          seamless file sharing.
         </h1>
           <div
             style={{
@@ -917,8 +1011,43 @@ export default function Home() {
           marginTop: '0.20rem',
           animation: 'fadeSlideIn 1s ease-out 0.2s backwards'
         }}>
+          {ENABLE_PUBLIC_UPLOAD_HISTORY_UI && (
+            <button
+              onClick={() => setActiveView(activeView === 'history' ? 'upload' : 'history')}
+              style={{
+                fontFamily: "'Sora', sans-serif",
+                padding: '0.42rem 1.55rem',
+                fontSize: '0.82rem',
+                fontWeight: 400,
+                letterSpacing: '0.02em',
+                color: '#eef1f6',
+                background: activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(14px)',
+                WebkitBackdropFilter: 'blur(14px)',
+                border: '1px solid rgba(255,255,255,0.13)',
+                borderRadius: '50px',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
+              }}
+            >
+              Uploads
+            </button>
+          )}
+
           <button
-            onClick={() => setActiveView(activeView === 'history' ? 'upload' : 'history')}
+            onClick={() => {
+              setShowRemoteUpload((v) => !v);
+              setActiveView('upload');
+            }}
             style={{
               fontFamily: "'Sora', sans-serif",
               padding: '0.42rem 1.55rem',
@@ -926,7 +1055,7 @@ export default function Home() {
               fontWeight: 400,
               letterSpacing: '0.02em',
               color: '#eef1f6',
-              background: activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
+              background: showRemoteUpload ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
               backdropFilter: 'blur(14px)',
               WebkitBackdropFilter: 'blur(14px)',
               border: '1px solid rgba(255,255,255,0.13)',
@@ -940,11 +1069,11 @@ export default function Home() {
               e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
+              e.currentTarget.style.background = showRemoteUpload ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
               e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
             }}
           >
-            Uploads
+            {remoteUploading ? 'Remote Uploading…' : 'Remote Upload'}
           </button>
 
           <button
@@ -988,6 +1117,69 @@ export default function Home() {
             {uploading ? 'Uploading...' : 'Choose File'}
           </button>
         </div>
+        )}
+
+        {!uploading && showRemoteUpload && (
+          <div style={{
+            marginTop: '0.85rem',
+            width: '100%',
+            maxWidth: '520px',
+            display: 'flex',
+            gap: '0.6rem',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            animation: 'fadeSlideIn 0.45s ease-out'
+          }}>
+            <input
+              value={remoteUrl}
+              onChange={(e) => setRemoteUrl(e.target.value)}
+              placeholder="Paste a file URL (https://...)"
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              disabled={remoteUploading}
+              style={{
+                flex: '1 1 320px',
+                minWidth: '240px',
+                padding: '0.55rem 0.9rem',
+                fontSize: '0.82rem',
+                fontFamily: "'Sora', sans-serif",
+                color: '#eef1f6',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '12px',
+                outline: 'none',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  submitRemoteUpload();
+                }
+              }}
+            />
+            <button
+              onClick={submitRemoteUpload}
+              disabled={remoteUploading || remoteUrl.trim().length === 0}
+              style={{
+                fontFamily: "'Sora', sans-serif",
+                padding: '0.55rem 1rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                color: remoteUploading || remoteUrl.trim().length === 0 ? 'rgba(255,255,255,0.35)' : '#0a0a0a',
+                background: remoteUploading || remoteUrl.trim().length === 0 ? 'rgba(255,255,255,0.05)' : '#e9ecf2',
+                border: '1px solid rgba(233,236,242,0.35)',
+                borderRadius: '12px',
+                cursor: remoteUploading || remoteUrl.trim().length === 0 ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              Upload URL
+            </button>
+          </div>
         )}
 
         {!uploading && (
@@ -1232,7 +1424,7 @@ export default function Home() {
         {/* Minimal: AdBanner removed for cleaner look */}
 
         {/* Public Upload History */}
-        {activeView === 'history' && (
+        {ENABLE_PUBLIC_UPLOAD_HISTORY_UI && activeView === 'history' && (
         <div style={{
           marginTop: '3rem',
           width: '100%',
