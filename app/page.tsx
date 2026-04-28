@@ -27,6 +27,13 @@ type UploadQueueItem = {
   error?: string;
   loadedBytes?: number;
   totalBytes?: number;
+  // Multipart state for true resume across refresh.
+  multipart?: {
+    objectKey: string;
+    uploadId: string;
+    partSize: number;
+    parts: Array<{ partNumber: number; etag: string }>;
+  };
   addedAt: number;
 };
 
@@ -100,6 +107,149 @@ export default function Home() {
       // Ignore storage errors.
     }
   }, [uploadedFiles]);
+
+  const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
+  const IDB_NAME = 'relay_uploads_v1';
+  const IDB_STORE = 'files';
+
+  const openUploadsDb = () => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) {
+          db.createObjectStore(IDB_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  };
+
+  const idbPut = async (key: string, value: any) => {
+    const db = await openUploadsDb();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  };
+
+  const idbGet = async <T,>(key: string): Promise<T | null> => {
+    const db = await openUploadsDb();
+    return new Promise<T | null>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve((req.result as T) ?? null);
+      req.onerror = () => reject(req.error);
+    });
+  };
+
+  const idbDel = async (key: string) => {
+    const db = await openUploadsDb();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  };
+
+  type QueueMeta = Array<{
+    id: string;
+    name: string;
+    type: string;
+    size: number;
+    lastModified: number;
+    status: UploadQueueItem['status'];
+    error?: string;
+    addedAt: number;
+    loadedBytes?: number;
+    totalBytes?: number;
+    multipart?: UploadQueueItem['multipart'];
+  }>;
+
+  const persistQueueMeta = (next: UploadQueueItem[]) => {
+    const meta: QueueMeta = next.map((it) => ({
+      id: it.id,
+      name: it.file.name,
+      type: it.file.type,
+      size: it.file.size,
+      lastModified: it.file.lastModified,
+      status: it.status,
+      error: it.error,
+      addedAt: it.addedAt,
+      loadedBytes: it.loadedBytes,
+      totalBytes: it.totalBytes,
+      multipart: it.multipart,
+    }));
+
+    try {
+      window.localStorage.setItem(QUEUE_META_KEY, JSON.stringify(meta));
+    } catch {
+      // ignore
+    }
+  };
+
+  // Restore queue after refresh (files are stored in IndexedDB).
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = window.localStorage.getItem(QUEUE_META_KEY);
+        if (!raw) return;
+        const meta = JSON.parse(raw) as QueueMeta;
+        if (!Array.isArray(meta) || meta.length === 0) return;
+
+        const restored: UploadQueueItem[] = [];
+        for (const m of meta) {
+          const stored = await idbGet<{ blob: Blob; name: string; type: string; lastModified: number }>(m.id);
+          if (!stored?.blob) {
+            // If bytes are missing, keep the entry but mark it failed.
+            restored.push({
+              id: m.id,
+              file: new File([], m.name || 'missing-file'),
+              status: 'error',
+              error: 'Missing local file bytes (cleared storage)',
+              addedAt: m.addedAt || Date.now(),
+            });
+            continue;
+          }
+          const file = new File([stored.blob], stored.name || m.name, {
+            type: stored.type || m.type,
+            lastModified: stored.lastModified || m.lastModified,
+          });
+          restored.push({
+            id: m.id,
+            file,
+            status: m.status === 'uploading' ? 'queued' : m.status, // restart uploads on refresh
+            error: m.error,
+            addedAt: m.addedAt || Date.now(),
+            loadedBytes: m.loadedBytes,
+            totalBytes: m.totalBytes,
+            multipart: m.multipart,
+          });
+        }
+
+        if (restored.length) {
+          setUploadQueue(restored);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Keep queue meta durable for resume-after-refresh.
+    try {
+      persistQueueMeta(uploadQueue);
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadQueue]);
 
   useEffect(() => {
     fetch('/api/premium/me', { cache: 'no-store' })
@@ -259,11 +409,23 @@ export default function Home() {
       file,
       status: 'queued',
       addedAt: now,
+      loadedBytes: 0,
+      totalBytes: file.size,
     }));
     setUploadQueue((prev) => [...prev, ...items]);
     setQueuePaused(false);
     setActiveView('upload');
     showToast(`${files.length} file${files.length === 1 ? '' : 's'} added to queue`, 'info');
+
+    // Persist bytes for resume-after-refresh.
+    for (const item of items) {
+      idbPut(item.id, {
+        blob: item.file,
+        name: item.file.name,
+        type: item.file.type,
+        lastModified: item.file.lastModified,
+      }).catch(() => {});
+    }
   };
 
   const generateRandomFilename = (originalFilename: string): string => {
@@ -485,77 +647,158 @@ export default function Home() {
   };
 
   // Queue engine: starts the next queued item when idle.
-  const uploadQueueItem = async (itemId: string, file: File) => {
+  const uploadQueueItem = async (item: UploadQueueItem) => {
+    const itemId = item.id;
+    const file = item.file;
     if (file.size > maxUploadBytes) {
       throw new Error('File too large');
     }
 
-    const randomFilename = generateRandomFilename(file.name);
-    const pathname = `d/${randomFilename}`;
+    // Always use multipart for true resume-after-refresh.
+    let multipart = item.multipart;
 
-    const initResponse = await fetchWithRetry(
-      '/api/upload',
+    if (!multipart) {
+      const randomFilename = generateRandomFilename(file.name);
+      const pathname = `d/${randomFilename}`;
+      const initRes = await fetchWithRetry(
+        '/api/multipart/init',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pathname,
+            contentType: file.type || 'application/octet-stream',
+            size: file.size,
+          }),
+        },
+        3
+      );
+
+      const initPayload = await initRes.json().catch(() => ({}));
+      if (!initRes.ok || !initPayload?.data?.uploadId || !initPayload?.data?.objectKey) {
+        throw new Error(initPayload?.error || 'Failed to initialize multipart upload');
+      }
+
+      multipart = {
+        objectKey: initPayload.data.objectKey as string,
+        uploadId: initPayload.data.uploadId as string,
+        partSize: Number(initPayload.data.partSize) || 8 * 1024 * 1024,
+        parts: [],
+      };
+
+      setUploadQueue((prev) =>
+        prev.map((it) => (it.id === itemId ? { ...it, multipart } : it))
+      );
+    }
+
+    const partSize = Math.max(5 * 1024 * 1024, multipart.partSize);
+    const totalParts = Math.ceil(file.size / partSize);
+    const done = new Map<number, string>(multipart.parts.map((p) => [p.partNumber, p.etag]));
+
+    const uploadPartXhr = (url: string, blob: Blob, startOffset: number) =>
+      new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        queueXhrsRef.current[itemId] = xhr;
+        xhr.open('PUT', url, true);
+
+        xhr.upload.onprogress = (event) => {
+          const loaded = startOffset + (event.loaded || 0);
+          setUploadQueue((prev) =>
+            prev.map((it) =>
+              it.id === itemId ? { ...it, loadedBytes: loaded, totalBytes: file.size } : it
+            )
+          );
+        };
+
+        xhr.onload = () => {
+          queueXhrsRef.current[itemId] = null;
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const etag = xhr.getResponseHeader('ETag') || xhr.getResponseHeader('etag') || '';
+            resolve(etag.replace(/^\"|\"$/g, '') || etag);
+            return;
+          }
+          reject(new Error(`Part upload failed with status ${xhr.status}`));
+        };
+
+        xhr.onerror = () => {
+          queueXhrsRef.current[itemId] = null;
+          reject(new Error('Part upload request failed'));
+        };
+
+        xhr.onabort = () => {
+          queueXhrsRef.current[itemId] = null;
+          reject(new Error('Upload cancelled'));
+        };
+
+        xhr.send(blob);
+      });
+
+    for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
+      if (queuePaused) {
+        throw new Error('Upload paused');
+      }
+      if (cancelUploadRef.current) {
+        throw new Error('Upload cancelled');
+      }
+      if (done.has(partNumber)) {
+        continue;
+      }
+
+      const start = (partNumber - 1) * partSize;
+      const end = Math.min(file.size, start + partSize);
+      const blob = file.slice(start, end);
+
+      const presignRes = await fetchWithRetry(
+        '/api/multipart/part',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uploadId: multipart.uploadId,
+            objectKey: multipart.objectKey,
+            partNumber,
+          }),
+        },
+        3
+      );
+      const presignPayload = await presignRes.json().catch(() => ({}));
+      if (!presignRes.ok || !presignPayload?.data?.url) {
+        throw new Error(presignPayload?.error || 'Failed to presign upload part');
+      }
+
+      const etag = await uploadPartXhr(presignPayload.data.url as string, blob, start);
+      done.set(partNumber, etag);
+
+      const nextParts = Array.from(done.entries())
+        .map(([pn, e]) => ({ partNumber: pn, etag: e }))
+        .sort((a, b) => a.partNumber - b.partNumber);
+      multipart.parts = nextParts;
+
+      setUploadQueue((prev) =>
+        prev.map((it) => (it.id === itemId ? { ...it, multipart } : it))
+      );
+    }
+
+    const completeRes = await fetchWithRetry(
+      '/api/multipart/complete',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pathname,
-          contentType: file.type || 'application/octet-stream',
-          size: file.size,
+          uploadId: multipart.uploadId,
+          objectKey: multipart.objectKey,
+          parts: multipart.parts,
         }),
       },
-      3
+      2
     );
-
-    const initPayload = await initResponse.json().catch(() => ({}));
-    if (!initResponse.ok || !initPayload?.uploadUrl) {
-      throw new Error(initPayload?.error || 'Failed to initialize upload');
+    const completePayload = await completeRes.json().catch(() => ({}));
+    if (!completeRes.ok) {
+      throw new Error(completePayload?.error || 'Failed to complete multipart upload');
     }
 
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      queueXhrsRef.current[itemId] = xhr;
-
-      xhr.open('PUT', initPayload.uploadUrl, true);
-      if (file.type) {
-        xhr.setRequestHeader('Content-Type', file.type);
-      }
-
-      xhr.upload.onprogress = (event) => {
-        const total = event.total || file.size;
-        const loaded = event.loaded;
-        setUploadQueue((prev) =>
-          prev.map((it) =>
-            it.id === itemId
-              ? { ...it, loadedBytes: loaded, totalBytes: total }
-              : it
-          )
-        );
-      };
-
-      xhr.onload = () => {
-        queueXhrsRef.current[itemId] = null;
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
-          return;
-        }
-        reject(new Error(`Upload failed with status ${xhr.status}`));
-      };
-
-      xhr.onerror = () => {
-        queueXhrsRef.current[itemId] = null;
-        reject(new Error('Upload request failed'));
-      };
-
-      xhr.onabort = () => {
-        queueXhrsRef.current[itemId] = null;
-        reject(new Error('Upload cancelled'));
-      };
-
-      xhr.send(file);
-    });
-
-    const newUrl = `${window.location.origin}/download/${randomFilename}`;
+    const uploadedFilename = multipart.objectKey.split('/').pop() || '';
+    const newUrl = `${window.location.origin}/download/${uploadedFilename}`;
     const uploadedAt = Date.now();
 
     setUploadedFiles((prev) => [
@@ -613,7 +856,7 @@ export default function Home() {
     for (const item of toStart) {
       (async () => {
         try {
-          await uploadQueueItem(item.id, item.file);
+          await uploadQueueItem(item);
           setUploadQueue((prev) =>
             prev.map((it) => (it.id === item.id ? { ...it, status: 'success' } : it))
           );
@@ -842,7 +1085,7 @@ export default function Home() {
       }
 
       setRemoteStage('server');
-      const res = await fetch('/api/remote-upload', {
+      const res = await fetch('/api/remote-upload/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -853,15 +1096,59 @@ export default function Home() {
             : undefined,
         }),
       });
-
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || !payload?.data?.url) {
+      if (!res.ok || !res.body) {
+        const payload = await res.json().catch(() => ({}));
         throw new Error(payload?.error || 'Remote upload failed');
       }
 
-      const downloadUrl = payload.data.url as string;
-      const filename = (payload.data.filename as string) || parsed.pathname.split('/').pop() || 'remote-file';
-      const size = Number(payload.data.size) || 0;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let donePayload: any = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + 1);
+          if (!line) continue;
+          let evt: any;
+          try {
+            evt = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (evt.type === 'progress') {
+            if (typeof evt.total === 'number' && Number.isFinite(evt.total)) {
+              setRemoteTotalBytes(evt.total);
+            } else {
+              setRemoteTotalBytes(null);
+            }
+            if (typeof evt.loaded === 'number') {
+              setRemoteDownloadedBytes(evt.loaded);
+              if (typeof evt.total === 'number' && evt.total > 0) {
+                const pct = Math.round((evt.loaded / evt.total) * 100);
+                setUploadStatus(`${evt.stage === 'upload' ? 'Uploading' : 'Downloading'} ${Math.min(100, pct)}%`);
+              }
+            }
+          } else if (evt.type === 'done') {
+            donePayload = evt;
+          } else if (evt.type === 'error') {
+            throw new Error(evt.error || 'Remote upload failed');
+          }
+        }
+      }
+
+      if (!donePayload?.data?.url) {
+        throw new Error('Remote upload failed');
+      }
+
+      const downloadUrl = donePayload.data.url as string;
+      const filename = (donePayload.data.filename as string) || parsed.pathname.split('/').pop() || 'remote-file';
+      const size = Number(donePayload.data.size) || 0;
       const uploadedAt = Date.now();
 
       setUploadedFiles((prev) => [
@@ -1679,7 +1966,15 @@ export default function Home() {
                   {queuePaused ? 'Resume' : 'Pause'}
                 </button>
                 <button
-                  onClick={() => setUploadQueue((prev) => prev.filter((q) => q.status !== 'success'))}
+                  onClick={() => {
+                    setUploadQueue((prev) => {
+                      const doneIds = prev.filter((q) => q.status === 'success').map((q) => q.id);
+                      for (const id of doneIds) {
+                        idbDel(id).catch(() => {});
+                      }
+                      return prev.filter((q) => q.status !== 'success');
+                    });
+                  }}
                   style={{
                     padding: '0.35rem 0.7rem',
                     borderRadius: '999px',
@@ -1757,7 +2052,10 @@ export default function Home() {
                         </button>
                       )}
                       <button
-                        onClick={() => setUploadQueue((prev) => prev.filter((q) => q.id !== item.id))}
+                        onClick={() => {
+                          setUploadQueue((prev) => prev.filter((q) => q.id !== item.id));
+                          idbDel(item.id).catch(() => {});
+                        }}
                         disabled={item.status === 'uploading'}
                         style={{
                           width: '32px',

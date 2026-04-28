@@ -24,6 +24,8 @@ export default function DownloadPage() {
   const [notFound, setNotFound] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewText, setPreviewText] = useState<string>('');
+  const [previewTextTruncated, setPreviewTextTruncated] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isEmbedCopied, setIsEmbedCopied] = useState(false);
   const [isDirectCopied, setIsDirectCopied] = useState(false);
@@ -159,6 +161,69 @@ export default function DownloadPage() {
         setIsPremium(false);
       });
   }, []);
+
+  useEffect(() => {
+    if (!showPreview) return;
+    if (!fileData) return;
+    if (getFileType(fileData.filename) !== 'text') return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setPreviewLoading(true);
+        setPreviewText('');
+        setPreviewTextTruncated(false);
+
+        const res = await fetch(downloadUrl, { cache: 'no-store' });
+        if (!res.ok || !res.body) {
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        const MAX_BYTES = 220 * 1024; // keep preview snappy
+        let received = 0;
+        let text = '';
+
+        while (received < MAX_BYTES) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (!value) continue;
+          received += value.byteLength;
+          text += decoder.decode(value, { stream: true });
+          if (cancelled) return;
+        }
+
+        if (received >= MAX_BYTES) {
+          setPreviewTextTruncated(true);
+          try {
+            reader.cancel();
+          } catch {
+            // ignore
+          }
+        }
+
+        // Pretty-print JSON when possible.
+        const ext = (fileData.filename.split('.').pop() || '').toLowerCase();
+        if (ext === 'json') {
+          try {
+            const obj = JSON.parse(text);
+            text = JSON.stringify(obj, null, 2);
+          } catch {
+            // ignore
+          }
+        }
+
+        setPreviewText(text);
+      } finally {
+        setPreviewLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showPreview, fileData, downloadUrl]);
 
   useEffect(() => {
     const fetchFileData = async () => {
@@ -501,11 +566,37 @@ export default function DownloadPage() {
                     />
                   )}
                   {getFileType(fileData.filename) === 'text' && (
-                    <iframe
-                      src={downloadUrl}
-                      style={{ width: '100%', height: '100%', borderRadius: '12px', border: 'none' }}
-                      onLoad={() => setPreviewLoading(false)}
-                    />
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        background: 'rgba(0,0,0,0.22)',
+                        overflow: 'auto',
+                        padding: '0.8rem',
+                      }}
+                    >
+                      <pre
+                        style={{
+                          margin: 0,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          fontSize: '0.78rem',
+                          lineHeight: 1.45,
+                          fontFamily:
+                            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                          color: 'rgba(245,245,245,0.88)',
+                        }}
+                      >
+                        {previewText || (previewLoading ? 'Loading…' : 'No preview')}
+                      </pre>
+                      {previewTextTruncated && (
+                        <div style={{ marginTop: '0.6rem', fontSize: '0.72rem', color: 'rgba(245,245,245,0.55)' }}>
+                          Preview truncated.
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </>

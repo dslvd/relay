@@ -3,6 +3,10 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
   PutObjectCommand,
   S3Client,
   type _Object,
@@ -187,4 +191,73 @@ export async function listAllObjects(prefix?: string): Promise<_Object[]> {
   }
 
   return objects;
+}
+
+export async function createMultipartUpload(input: {
+  objectKey: string;
+  contentType?: string;
+}): Promise<{ uploadId: string; objectKey: string }> {
+  const command = new CreateMultipartUploadCommand({
+    Bucket: getR2BucketName(),
+    Key: normalizeObjectKey(input.objectKey),
+    ContentType: input.contentType || 'application/octet-stream',
+  });
+
+  const res = await getR2Client().send(command);
+  if (!res.UploadId) {
+    throw new Error('Failed to create multipart upload');
+  }
+
+  return { uploadId: res.UploadId, objectKey: normalizeObjectKey(input.objectKey) };
+}
+
+export async function createPresignedUploadPartUrl(input: {
+  objectKey: string;
+  uploadId: string;
+  partNumber: number;
+  expiresInSeconds?: number;
+}): Promise<string> {
+  const command = new UploadPartCommand({
+    Bucket: getR2BucketName(),
+    Key: normalizeObjectKey(input.objectKey),
+    UploadId: input.uploadId,
+    PartNumber: input.partNumber,
+  });
+
+  return getSignedUrl(getR2Client(), command, {
+    expiresIn: input.expiresInSeconds ?? 300,
+  });
+}
+
+export async function completeMultipartUpload(input: {
+  objectKey: string;
+  uploadId: string;
+  parts: Array<{ etag: string; partNumber: number }>;
+}): Promise<void> {
+  const command = new CompleteMultipartUploadCommand({
+    Bucket: getR2BucketName(),
+    Key: normalizeObjectKey(input.objectKey),
+    UploadId: input.uploadId,
+    MultipartUpload: {
+      Parts: input.parts.map((p) => ({
+        ETag: p.etag,
+        PartNumber: p.partNumber,
+      })),
+    },
+  });
+
+  await getR2Client().send(command);
+}
+
+export async function abortMultipartUpload(input: {
+  objectKey: string;
+  uploadId: string;
+}): Promise<void> {
+  const command = new AbortMultipartUploadCommand({
+    Bucket: getR2BucketName(),
+    Key: normalizeObjectKey(input.objectKey),
+    UploadId: input.uploadId,
+  });
+
+  await getR2Client().send(command);
 }
