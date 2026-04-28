@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
+import { getRedisClient, hasRedisConfigured } from '@/app/lib/data/redis-client';
 
 export interface PremiumUserRecord {
   id: string;
@@ -171,6 +172,20 @@ async function readAuthStateFromD1(): Promise<PremiumAuthState> {
   }
 }
 
+async function readAuthStateFromRedis(): Promise<PremiumAuthState> {
+  const client = await getRedisClient();
+  const raw = await client.get(PREMIUM_AUTH_STATE_KEY);
+  if (!raw) {
+    return { ...EMPTY_AUTH_STATE };
+  }
+
+  try {
+    return normalizeAuthState(JSON.parse(raw));
+  } catch {
+    return { ...EMPTY_AUTH_STATE };
+  }
+}
+
 async function writeAuthStateToD1(state: PremiumAuthState): Promise<void> {
   await ensureD1Schema();
   await d1Query(
@@ -183,9 +198,18 @@ async function writeAuthStateToD1(state: PremiumAuthState): Promise<void> {
   );
 }
 
+async function writeAuthStateToRedis(state: PremiumAuthState): Promise<void> {
+  const client = await getRedisClient();
+  await client.set(PREMIUM_AUTH_STATE_KEY, JSON.stringify(state));
+}
+
 async function readAuthState(): Promise<PremiumAuthState> {
   if (hasD1Configured()) {
     return readAuthStateFromD1();
+  }
+
+  if (hasRedisConfigured()) {
+    return readAuthStateFromRedis();
   }
 
   const store = getStore();
@@ -204,6 +228,11 @@ async function writeAuthState(state: PremiumAuthState): Promise<void> {
     return;
   }
 
+  if (hasRedisConfigured()) {
+    await writeAuthStateToRedis(state);
+    return;
+  }
+
   const store = getStore();
   store.premiumUsers = state.users;
   store.premiumInvites = state.invites;
@@ -219,11 +248,24 @@ export async function checkPremiumStorageHealth(): Promise<{
   error?: string;
 }> {
   if (!hasD1Configured()) {
-    return {
-      configured: false,
-      ok: false,
-      error: 'CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, or CLOUDFLARE_API_TOKEN is missing',
-    };
+    if (!hasRedisConfigured()) {
+      return {
+        configured: false,
+        ok: false,
+        error: 'CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, or CLOUDFLARE_API_TOKEN is missing',
+      };
+    }
+
+    try {
+      await getRedisClient();
+      return { configured: true, ok: true, pong: 'REDIS_OK' };
+    } catch (error) {
+      return {
+        configured: true,
+        ok: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
   }
 
   try {
