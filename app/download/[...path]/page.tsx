@@ -27,6 +27,8 @@ export default function DownloadPage() {
   const [isCopied, setIsCopied] = useState(false);
   const [isEmbedCopied, setIsEmbedCopied] = useState(false);
   const [isDirectCopied, setIsDirectCopied] = useState(false);
+  const [isShortCopied, setIsShortCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [shortUrl, setShortUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [isShortening, setIsShortening] = useState(false);
@@ -73,6 +75,39 @@ export default function DownloadPage() {
     return null;
   };
 
+  const copyText = async (text: string) => {
+    setCopyError(null);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // fall back
+    }
+
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '0';
+      textarea.setAttribute('readonly', 'true');
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const ok = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (!ok) {
+        throw new Error('Copy failed');
+      }
+      return true;
+    } catch (err) {
+      setCopyError(err instanceof Error ? err.message : 'Copy failed');
+      return false;
+    }
+  };
+
   const ensureShortLink = async (): Promise<string | null> => {
     if (shortUrl) return shortUrl;
     try {
@@ -84,11 +119,13 @@ export default function DownloadPage() {
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok || !payload?.data?.shortUrl) {
+        setCopyError(payload?.error || 'Failed to create short link');
         return null;
       }
       setShortUrl(payload.data.shortUrl);
       return payload.data.shortUrl as string;
     } catch {
+      setCopyError('Failed to create short link');
       return null;
     } finally {
       setIsShortening(false);
@@ -696,16 +733,20 @@ export default function DownloadPage() {
                       onClick={async () => {
                         const s = await ensureShortLink();
                         if (!s) return;
-                        navigator.clipboard.writeText(s);
+                        const ok = await copyText(s);
+                        if (ok) {
+                          setIsShortCopied(true);
+                          setTimeout(() => setIsShortCopied(false), 2000);
+                        }
                       }}
                       style={{
                         flex: 1,
                         minWidth: '150px',
                         padding: '0.55rem 0.9rem',
                         borderRadius: '6px',
-                        background: 'rgba(255, 255, 255, 0.06)',
-                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                        color: '#f5f5f5',
+                        background: isShortCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                        border: `1px solid ${isShortCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.14)'}`,
+                        color: isShortCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
                         fontWeight: 600,
                         fontSize: '0.78rem',
                         cursor: 'pointer',
@@ -713,7 +754,13 @@ export default function DownloadPage() {
                       }}
                       title="Create and copy a short link"
                     >
-                      {isShortening ? 'Creating short link…' : shortUrl ? 'Copy short link' : 'Create short link'}
+                      {isShortening
+                        ? 'Creating short link…'
+                        : isShortCopied
+                          ? '✓ Short link copied'
+                          : shortUrl
+                            ? 'Copy short link'
+                            : 'Create short link'}
                     </button>
 
                     <button
@@ -743,6 +790,12 @@ export default function DownloadPage() {
                   {shortUrl && (
                     <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: 'rgba(245,245,245,0.8)', wordBreak: 'break-all' }}>
                       Short link: <a href={shortUrl} target="_blank" rel="noreferrer" style={{ color: '#f5f5f5' }}>{shortUrl}</a>
+                    </div>
+                  )}
+
+                  {copyError && (
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'rgba(255, 120, 120, 0.95)' }}>
+                      {copyError}
                     </div>
                   )}
 
