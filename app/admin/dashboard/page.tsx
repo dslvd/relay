@@ -484,6 +484,31 @@ export default function AdminDashboard() {
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <a
+              href="/admin/analytics"
+              style={{
+                padding: '0.625rem 1.25rem',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '999px',
+                color: '#f5f5f5',
+                fontSize: '0.875rem',
+                fontWeight: 400,
+                letterSpacing: '0.02em',
+                cursor: 'pointer',
+                fontFamily: "'Open Sans', sans-serif",
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem'
+              }}
+              title="Open detailed analytics"
+            >
+              📈 Analytics
+            </a>
             <button
               onClick={fetchFiles}
               disabled={loading}

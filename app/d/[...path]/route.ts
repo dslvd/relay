@@ -3,6 +3,13 @@ import { updateLastAccessTime } from '@/app/lib/storage/retention';
 import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage/r2-storage';
 import { loadUploadHistory } from '@/app/lib/data/upload-history-store';
 
+function getCountry(request: NextRequest): string | undefined {
+  const fromVercel = request.headers.get('x-vercel-ip-country');
+  const fromCf = request.headers.get('cf-ipcountry');
+  const value = (fromVercel || fromCf || '').trim();
+  return value ? value : undefined;
+}
+
 function buildContentDispositionAttachment(filename: string): string {
   // RFC 5987 filename* for UTF-8, plus a conservative fallback.
   const fallback = filename.replace(/[/\\]/g, '-').replace(/[\u0000-\u001f\u007f]/g, '').trim() || 'download';
@@ -191,8 +198,14 @@ export async function GET(
           'x-forwarded-for': request.headers.get('x-forwarded-for') || '',
           'x-real-ip': request.headers.get('x-real-ip') || '',
           'user-agent': request.headers.get('user-agent') || '',
+          'referer': request.headers.get('referer') || '',
+          'x-vercel-ip-country': getCountry(request) || '',
         },
-        body: JSON.stringify({ type: 'download', filename })
+        body: JSON.stringify({
+          type: 'download',
+          filename,
+          bytes: Number(response.headers.get('Content-Length')) || undefined,
+        })
       }).catch(() => {}); // Silently fail if analytics fails
     } catch {
       // Ignore analytics errors

@@ -25,10 +25,17 @@ export default function DownloadPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isEmbedCopied, setIsEmbedCopied] = useState(false);
+  const [isDirectCopied, setIsDirectCopied] = useState(false);
+  const [shortUrl, setShortUrl] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [isShortening, setIsShortening] = useState(false);
+  const [isQrOpen, setIsQrOpen] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [downloadCount, setDownloadCount] = useState<number | null>(null);
 
   const downloadUrl = `/d/${pathKey}`;
+  const downloadPageUrl = `/download/${pathKey}`;
 
   const isPreviewable = (fname: string): boolean => {
     const ext = fname.split('.').pop()?.toLowerCase() || '';
@@ -43,6 +50,66 @@ export default function DownloadPage() {
     if (ext === 'pdf') return 'pdf';
     if (['txt', 'json', 'md'].includes(ext)) return 'text';
     return 'unknown';
+  };
+
+  const buildEmbedSnippet = (): string | null => {
+    const abs = typeof window !== 'undefined'
+      ? `${window.location.origin}${downloadPageUrl}`
+      : downloadPageUrl;
+    const directAbs = typeof window !== 'undefined'
+      ? `${window.location.origin}${downloadUrl}`
+      : downloadUrl;
+    const type = getFileType(fileData?.filename || filename);
+
+    if (type === 'image') {
+      return `<a href="${abs}" target="_blank" rel="noreferrer"><img src="${directAbs}" alt="${(fileData?.filename || filename).replace(/"/g, '')}" style="max-width:100%;height:auto" /></a>`;
+    }
+    if (type === 'video') {
+      return `<video controls src="${directAbs}" style="max-width:100%"></video>`;
+    }
+    if (type === 'pdf') {
+      return `<a href="${abs}" target="_blank" rel="noreferrer">Open PDF</a>`;
+    }
+    return null;
+  };
+
+  const ensureShortLink = async (): Promise<string | null> => {
+    if (shortUrl) return shortUrl;
+    try {
+      setIsShortening(true);
+      const res = await fetch('/api/shorten', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: `${window.location.origin}${downloadPageUrl}` }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload?.data?.shortUrl) {
+        return null;
+      }
+      setShortUrl(payload.data.shortUrl);
+      return payload.data.shortUrl as string;
+    } catch {
+      return null;
+    } finally {
+      setIsShortening(false);
+    }
+  };
+
+  const ensureQr = async (): Promise<string | null> => {
+    if (qrDataUrl) return qrDataUrl;
+    const url = await ensureShortLink() || `${window.location.origin}${downloadPageUrl}`;
+    try {
+      const mod = await import('qrcode');
+      const dataUrl = await mod.toDataURL(url, {
+        margin: 1,
+        width: 240,
+        color: { dark: '#f5f5f5', light: '#00000000' },
+      });
+      setQrDataUrl(dataUrl);
+      return dataUrl;
+    } catch {
+      return null;
+    }
   };
 
   useEffect(() => {
@@ -571,6 +638,152 @@ export default function DownloadPage() {
                 >
                   {isCopied ? '✓ Copied' : 'Copy link'}
                 </button>
+
+                {/* Share extras */}
+                <div style={{ marginTop: '0.8rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}${downloadUrl}`);
+                        setIsDirectCopied(true);
+                        setTimeout(() => setIsDirectCopied(false), 2000);
+                      }}
+                      style={{
+                        flex: 1,
+                        minWidth: '150px',
+                        padding: '0.55rem 0.9rem',
+                        borderRadius: '6px',
+                        background: isDirectCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                        border: `1px solid ${isDirectCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.14)'}`,
+                        color: isDirectCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
+                        fontWeight: 600,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {isDirectCopied ? '✓ Direct copied' : 'Copy direct file URL'}
+                    </button>
+
+                    {buildEmbedSnippet() && (
+                      <button
+                        onClick={() => {
+                          const snippet = buildEmbedSnippet();
+                          if (!snippet) return;
+                          navigator.clipboard.writeText(snippet);
+                          setIsEmbedCopied(true);
+                          setTimeout(() => setIsEmbedCopied(false), 2000);
+                        }}
+                        style={{
+                          flex: 1,
+                          minWidth: '150px',
+                          padding: '0.55rem 0.9rem',
+                          borderRadius: '6px',
+                          background: isEmbedCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                          border: `1px solid ${isEmbedCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.14)'}`,
+                          color: isEmbedCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
+                          fontWeight: 600,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                        }}
+                        title="Copy an HTML embed snippet"
+                      >
+                        {isEmbedCopied ? '✓ Embed copied' : 'Copy embed snippet'}
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
+                    <button
+                      onClick={async () => {
+                        const s = await ensureShortLink();
+                        if (!s) return;
+                        navigator.clipboard.writeText(s);
+                      }}
+                      style={{
+                        flex: 1,
+                        minWidth: '150px',
+                        padding: '0.55rem 0.9rem',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        color: '#f5f5f5',
+                        fontWeight: 600,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        opacity: isShortening ? 0.7 : 1,
+                      }}
+                      title="Create and copy a short link"
+                    >
+                      {isShortening ? 'Creating short link…' : shortUrl ? 'Copy short link' : 'Create short link'}
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        const qr = await ensureQr();
+                        if (!qr) return;
+                        setIsQrOpen((v) => !v);
+                      }}
+                      style={{
+                        flex: 1,
+                        minWidth: '150px',
+                        padding: '0.55rem 0.9rem',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        color: '#f5f5f5',
+                        fontWeight: 600,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                      }}
+                      title="Show QR code"
+                    >
+                      {isQrOpen ? 'Hide QR' : 'Show QR'}
+                    </button>
+                  </div>
+
+                  {shortUrl && (
+                    <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: 'rgba(245,245,245,0.8)', wordBreak: 'break-all' }}>
+                      Short link: <a href={shortUrl} target="_blank" rel="noreferrer" style={{ color: '#f5f5f5' }}>{shortUrl}</a>
+                    </div>
+                  )}
+
+                  {isQrOpen && qrDataUrl && (
+                    <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'center' }}>
+                      <div
+                        style={{
+                          padding: '0.9rem',
+                          borderRadius: '14px',
+                          border: '1px solid rgba(255,255,255,0.14)',
+                          background: 'rgba(0,0,0,0.18)',
+                          boxShadow: '0 12px 38px rgba(0,0,0,0.35)'
+                        }}
+                      >
+                        <img src={qrDataUrl} alt="QR code" style={{ width: '240px', height: '240px' }} />
+                      </div>
+                    </div>
+                  )}
+                  {buildEmbedSnippet() && (
+                    <div
+                      style={{
+                        marginTop: '0.6rem',
+                        fontSize: '0.72rem',
+                        color: 'rgba(245, 245, 245, 0.55)',
+                        lineHeight: 1.35,
+                        wordBreak: 'break-word',
+                        padding: '0.6rem 0.75rem',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        background: 'rgba(0,0,0,0.15)',
+                      }}
+                    >
+                      <div style={{ marginBottom: '0.35rem', letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: '0.62rem' }}>
+                        Embed
+                      </div>
+                      <code style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
+                        {buildEmbedSnippet()}
+                      </code>
+                    </div>
+                  )}
+                </div>
 
                 {/* Ad Banner */}
                 {!isPremium && (

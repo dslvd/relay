@@ -91,6 +91,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const sourceUrl = typeof body?.url === 'string' ? body.url.trim() : '';
+    const filenameOverride = typeof body?.filename === 'string' ? body.filename.trim() : '';
+    const extraHeadersRaw = body?.headers && typeof body.headers === 'object' ? body.headers as Record<string, unknown> : null;
     if (!sourceUrl) {
       return NextResponse.json({ error: 'url is required' }, { status: 400 });
     }
@@ -110,6 +112,18 @@ export async function POST(request: NextRequest) {
     const premiumUser = token ? await getPremiumUserFromSession(token) : null;
     const maxFileBytes = premiumUser ? PREMIUM_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES;
 
+    const allowedHeaderNames = new Set(['authorization', 'cookie', 'referer']);
+    const extraHeaders: Record<string, string> = {};
+    if (extraHeadersRaw) {
+      for (const [k, v] of Object.entries(extraHeadersRaw)) {
+        if (!allowedHeaderNames.has(k.toLowerCase())) continue;
+        if (typeof v !== 'string') continue;
+        const trimmed = v.trim();
+        if (!trimmed) continue;
+        extraHeaders[k] = trimmed;
+      }
+    }
+
     const remoteResponse = await fetch(sourceUrl, {
       method: 'GET',
       redirect: 'follow',
@@ -117,6 +131,7 @@ export async function POST(request: NextRequest) {
         // Avoid getting compressed bodies so Content-Length, when present, is meaningful.
         'accept-encoding': 'identity',
         'user-agent': 'RelayRemoteUploader/1.0',
+        ...extraHeaders,
       },
     });
 
@@ -139,8 +154,9 @@ export async function POST(request: NextRequest) {
       remoteResponse.headers.get('content-disposition')
     );
     const urlNameRaw = parsedUrl.pathname.split('/').filter(Boolean).pop() || '';
-    const originalFilename =
-      sanitizeFilename(dispositionName || urlNameRaw || 'remote-file');
+    const originalFilename = sanitizeFilename(
+      filenameOverride || dispositionName || urlNameRaw || 'remote-file'
+    );
 
     const originalExt = originalFilename.includes('.')
       ? `.${originalFilename.split('.').pop()}`
@@ -218,4 +234,3 @@ declare global {
   // eslint-disable-next-line no-var
   var remoteUploadRateLimit: Record<string, RateEntry> | undefined;
 }
-

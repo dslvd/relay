@@ -5,12 +5,18 @@ export interface DownloadEvent {
   timestamp: number;
   ip: string;
   userAgent: string;
+  bytes?: number;
+  referer?: string;
+  country?: string;
 }
 
 export interface PageView {
   path: string;
   timestamp: number;
   ip: string;
+  referer?: string;
+  country?: string;
+  userAgent?: string;
 }
 
 export interface AnalyticsData {

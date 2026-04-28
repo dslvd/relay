@@ -20,6 +20,16 @@ interface UploadedItem {
   timestamp: number;
 }
 
+type UploadQueueItem = {
+  id: string;
+  file: File;
+  status: 'queued' | 'uploading' | 'success' | 'error';
+  error?: string;
+  loadedBytes?: number;
+  totalBytes?: number;
+  addedAt: number;
+};
+
 export default function Home() {
   // Feature flag: keep the public history UI code around, but hide it from the UI for now.
   // Flip this to `true` anytime to bring the "Uploads" button + history view back.
@@ -46,6 +56,9 @@ export default function Home() {
   const toastTimeoutRef = useRef<number | null>(null);
   const cancelUploadRef = useRef(false);
   const activeUploadRequestRef = useRef<XMLHttpRequest | null>(null);
+  const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
+  const [queuePaused, setQueuePaused] = useState(false);
+  const queueXhrsRef = useRef<Record<string, XMLHttpRequest | null>>({});
   const emptyMessages = [
     'No uploads yet 🚀',
     'Empty for now 👀',
@@ -58,7 +71,35 @@ export default function Home() {
   const maxUploadBytes = isPremium ? PREMIUM_MAX_UPLOAD_BYTES : FREE_MAX_UPLOAD_BYTES;
   const [showRemoteUpload, setShowRemoteUpload] = useState(false);
   const [remoteUrl, setRemoteUrl] = useState('');
+  const [remoteAuthHeader, setRemoteAuthHeader] = useState('');
+  const [remoteFilenameOverride, setRemoteFilenameOverride] = useState('');
   const [remoteUploading, setRemoteUploading] = useState(false);
+  const [remoteStage, setRemoteStage] = useState<'idle' | 'download' | 'enqueue' | 'server'>('idle');
+  const [remoteDownloadedBytes, setRemoteDownloadedBytes] = useState(0);
+  const [remoteTotalBytes, setRemoteTotalBytes] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Persist uploaded links across reloads for a more seamless feel.
+    try {
+      const raw = window.localStorage.getItem('relay:uploadedFiles');
+      if (raw) {
+        const parsed = JSON.parse(raw) as UploadedItem[];
+        if (Array.isArray(parsed)) {
+          setUploadedFiles(parsed.slice(0, 50));
+        }
+      }
+    } catch {
+      // Ignore storage errors.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('relay:uploadedFiles', JSON.stringify(uploadedFiles.slice(0, 50)));
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [uploadedFiles]);
 
   useEffect(() => {
     fetch('/api/premium/me', { cache: 'no-store' })
@@ -175,6 +216,54 @@ export default function Home() {
       window.clearTimeout(toastTimeoutRef.current);
     }
     toastTimeoutRef.current = window.setTimeout(() => setToast(null), 2200);
+  };
+
+  const makeQueueId = () => {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  };
+
+  const MAX_CONCURRENT_UPLOADS = 3;
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const fetchWithRetry = async (
+    input: RequestInfo | URL,
+    init: RequestInit,
+    attempts = 3
+  ): Promise<Response> => {
+    let lastError: unknown = null;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const res = await fetch(input, init);
+        if (res.ok) return res;
+        // Retry on transient server errors / throttling.
+        if (res.status >= 500 || res.status === 429) {
+          const backoff = 350 * Math.pow(2, i) + Math.floor(Math.random() * 180);
+          await sleep(backoff);
+          continue;
+        }
+        return res;
+      } catch (err) {
+        lastError = err;
+        const backoff = 350 * Math.pow(2, i) + Math.floor(Math.random() * 180);
+        await sleep(backoff);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('Network error');
+  };
+
+  const enqueueFiles = (files: File[]) => {
+    const now = Date.now();
+    const items: UploadQueueItem[] = files.map((file) => ({
+      id: makeQueueId(),
+      file,
+      status: 'queued',
+      addedAt: now,
+    }));
+    setUploadQueue((prev) => [...prev, ...items]);
+    setQueuePaused(false);
+    setActiveView('upload');
+    showToast(`${files.length} file${files.length === 1 ? '' : 's'} added to queue`, 'info');
   };
 
   const generateRandomFilename = (originalFilename: string): string => {
@@ -372,7 +461,9 @@ export default function Home() {
       }
 
       // Refresh history
-      await fetchPublicHistory();
+      if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
+        await fetchPublicHistory();
+      }
       if (notify) {
         showToast('Upload complete', 'success');
       }
@@ -393,47 +484,192 @@ export default function Home() {
     }
   };
 
-  const uploadFiles = async (files: File[]) => {
-    let successCount = 0;
-    let errorCount = 0;
+  // Queue engine: starts the next queued item when idle.
+  const uploadQueueItem = async (itemId: string, file: File) => {
+    if (file.size > maxUploadBytes) {
+      throw new Error('File too large');
+    }
 
-    for (const [index, file] of files.entries()) {
-      if (cancelUploadRef.current) {
-        break;
+    const randomFilename = generateRandomFilename(file.name);
+    const pathname = `d/${randomFilename}`;
+
+    const initResponse = await fetchWithRetry(
+      '/api/upload',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pathname,
+          contentType: file.type || 'application/octet-stream',
+          size: file.size,
+        }),
+      },
+      3
+    );
+
+    const initPayload = await initResponse.json().catch(() => ({}));
+    if (!initResponse.ok || !initPayload?.uploadUrl) {
+      throw new Error(initPayload?.error || 'Failed to initialize upload');
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      queueXhrsRef.current[itemId] = xhr;
+
+      xhr.open('PUT', initPayload.uploadUrl, true);
+      if (file.type) {
+        xhr.setRequestHeader('Content-Type', file.type);
       }
-      const current = index + 1;
-      showToast(`Uploading ${current} of ${files.length}`, 'info');
-      try {
-        await uploadFile(file, false);
-        successCount += 1;
-        showToast(`Uploaded ${current} of ${files.length}`, 'success');
-      } catch (error) {
-        errorCount += 1;
-        if (error instanceof Error && error.message === 'File too large') {
-          showToast('File is too large', 'error');
-          continue;
+
+      xhr.upload.onprogress = (event) => {
+        const total = event.total || file.size;
+        const loaded = event.loaded;
+        setUploadQueue((prev) =>
+          prev.map((it) =>
+            it.id === itemId
+              ? { ...it, loadedBytes: loaded, totalBytes: total }
+              : it
+          )
+        );
+      };
+
+      xhr.onload = () => {
+        queueXhrsRef.current[itemId] = null;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+          return;
         }
-        showToast(`Failed ${current} of ${files.length}`, 'error');
-      }
-    }
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      };
 
-    if (successCount > 0) {
-      showToast(`${successCount} file${successCount === 1 ? '' : 's'} uploaded`, 'success');
-    }
-    if (errorCount > 0) {
-      showToast('Upload failed', 'error');
-    }
+      xhr.onerror = () => {
+        queueXhrsRef.current[itemId] = null;
+        reject(new Error('Upload request failed'));
+      };
 
-    setCurrentUploadName('');
+      xhr.onabort = () => {
+        queueXhrsRef.current[itemId] = null;
+        reject(new Error('Upload cancelled'));
+      };
+
+      xhr.send(file);
+    });
+
+    const newUrl = `${window.location.origin}/download/${randomFilename}`;
+    const uploadedAt = Date.now();
+
+    setUploadedFiles((prev) => [
+      {
+        url: newUrl,
+        filename: file.name,
+        size: file.size,
+        timestamp: uploadedAt,
+      },
+      ...prev,
+    ]);
+
+    const historyResponse = await fetchWithRetry(
+      '/api/history',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: newUrl,
+          filename: file.name,
+          size: file.size,
+        }),
+      },
+      2
+    );
+
+    if (!historyResponse.ok) {
+      const errorPayload = await historyResponse.json().catch(() => ({}));
+      throw new Error(errorPayload?.error || 'Failed to save upload history');
+    }
   };
+
+  useEffect(() => {
+    if (queuePaused) return;
+
+    const active = uploadQueue.filter((q) => q.status === 'uploading').length;
+    if (active >= MAX_CONCURRENT_UPLOADS) return;
+
+    const toStart = uploadQueue
+      .filter((q) => q.status === 'queued')
+      .slice(0, MAX_CONCURRENT_UPLOADS - active);
+    if (toStart.length === 0) return;
+
+    // Mark as uploading synchronously to avoid double-start.
+    const ids = new Set(toStart.map((t) => t.id));
+    setUploadQueue((prev) =>
+      prev.map((it) =>
+        ids.has(it.id) ? { ...it, status: 'uploading', error: undefined, loadedBytes: 0, totalBytes: it.file.size } : it
+      )
+    );
+
+    // Keep the top banner visible while any are active.
+    setUploading(true);
+
+    for (const item of toStart) {
+      (async () => {
+        try {
+          await uploadQueueItem(item.id, item.file);
+          setUploadQueue((prev) =>
+            prev.map((it) => (it.id === item.id ? { ...it, status: 'success' } : it))
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Upload failed';
+          setUploadQueue((prev) =>
+            prev.map((it) => (it.id === item.id ? { ...it, status: 'error', error: message } : it))
+          );
+        }
+      })();
+    }
+  }, [uploadQueue, queuePaused]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const active = uploadQueue.filter((q) => q.status === 'uploading');
+    const anyUploading = active.length > 0;
+    setUploading(anyUploading);
+
+    if (!anyUploading) {
+      setUploadProgress(0);
+      setUploadStatus('');
+      setUploadLoadedBytes(0);
+      setUploadTotalBytes(0);
+      setCurrentUploadName('');
+      return;
+    }
+
+    // Drive the top banner off the first active upload.
+    const primary = active[0];
+    setCurrentUploadName(primary.file.name);
+    const loaded = primary.loadedBytes ?? 0;
+    const total = primary.totalBytes ?? primary.file.size;
+    setUploadLoadedBytes(loaded);
+    setUploadTotalBytes(total);
+    const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+    setUploadProgress(Math.min(100, Math.max(0, pct)));
+    setUploadStatus(`Uploading ${Math.min(100, Math.max(0, pct))}% • ${active.length} active`);
+  }, [uploadQueue]);
 
   const cancelUpload = () => {
     if (!uploading) {
       return;
     }
 
+    // Cancel any active queued uploads.
     cancelUploadRef.current = true;
-    activeUploadRequestRef.current?.abort();
+    for (const [id, xhr] of Object.entries(queueXhrsRef.current)) {
+      if (xhr) {
+        try {
+          xhr.abort();
+        } catch {
+          // ignore
+        }
+        queueXhrsRef.current[id] = null;
+      }
+    }
     setCurrentUploadName('');
     setUploadStatus('');
     setUploadProgress(0);
@@ -441,6 +677,36 @@ export default function Home() {
     setUploadTotalBytes(0);
     setUploading(false);
     showToast('Upload cancelled', 'info');
+  };
+
+  const pauseQueue = () => {
+    setQueuePaused(true);
+    // Abort active uploads and return them to queued.
+    for (const [id, xhr] of Object.entries(queueXhrsRef.current)) {
+      if (xhr) {
+        try {
+          xhr.abort();
+        } catch {
+          // ignore
+        }
+        queueXhrsRef.current[id] = null;
+      }
+    }
+    setUploadQueue((prev) =>
+      prev.map((it) => (it.status === 'uploading' ? { ...it, status: 'queued', error: undefined } : it))
+    );
+    showToast('Queue paused', 'info');
+  };
+
+  const resumeQueue = () => {
+    setQueuePaused(false);
+    showToast('Queue resumed', 'info');
+  };
+
+  const retryQueueItem = (id: string) => {
+    setUploadQueue((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, status: 'queued', error: undefined } : it))
+    );
   };
 
   const getDownloadLinks = (): string[] => {
@@ -468,7 +734,7 @@ export default function Home() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    await uploadFiles(files);
+    enqueueFiles(files);
     e.target.value = '';
   };
 
@@ -476,7 +742,7 @@ export default function Home() {
     const files = Array.from(dataTransfer?.files || []);
     if (files.length === 0) return;
     setActiveView('upload');
-    await uploadFiles(files);
+    enqueueFiles(files);
   };
 
   const submitRemoteUpload = async () => {
@@ -504,15 +770,88 @@ export default function Home() {
     }
 
     setRemoteUploading(true);
+    setRemoteStage('download');
+    setRemoteDownloadedBytes(0);
+    setRemoteTotalBytes(null);
     setUploadStatus('Fetching remote file...');
     setActiveView('upload');
     showToast('Fetching remote file…', 'info');
 
     try {
+      // First try client-side fetch so we can show real download progress (works when CORS allows it).
+      try {
+        const clientRes = await fetch(trimmed, {
+          method: 'GET',
+          headers: remoteAuthHeader.trim() ? { Authorization: remoteAuthHeader.trim() } : undefined,
+          redirect: 'follow',
+        });
+
+        if (!clientRes.ok || !clientRes.body) {
+          throw new Error('Client fetch failed');
+        }
+
+        const ct = clientRes.headers.get('content-type') || 'application/octet-stream';
+        const lenHeader = clientRes.headers.get('content-length');
+        const total = lenHeader ? Number(lenHeader) : NaN;
+        setRemoteTotalBytes(Number.isFinite(total) ? total : null);
+
+        const chunks: ArrayBuffer[] = [];
+        const reader = clientRes.body.getReader();
+        let loaded = 0;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            // Store ArrayBuffer slices to keep types consistent across runtimes.
+            chunks.push(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+            loaded += value.byteLength;
+            setRemoteDownloadedBytes(loaded);
+            if (Number.isFinite(total) && total > 0) {
+              const pct = Math.round((loaded / total) * 100);
+              setUploadStatus(`Downloading remote file ${Math.min(100, pct)}%`);
+            } else {
+              setUploadStatus(`Downloading remote file… ${formatFileSize(loaded)}`);
+            }
+          }
+        }
+
+        const blob = new Blob(chunks, { type: ct });
+        const inferredName =
+          remoteFilenameOverride.trim() ||
+          parsed.pathname.split('/').filter(Boolean).pop() ||
+          'remote-file';
+        const safeName = inferredName || 'remote-file';
+        const file = new File([blob], safeName, { type: ct });
+
+        if (file.size > maxUploadBytes) {
+          throw new Error('File too large');
+        }
+
+        setRemoteStage('enqueue');
+        setUploadStatus('Uploading…');
+        enqueueFiles([file]);
+
+        setRemoteUrl('');
+        setRemoteAuthHeader('');
+        setRemoteFilenameOverride('');
+        setShowRemoteUpload(false);
+        showToast('Remote file queued', 'success');
+        return;
+      } catch {
+        // Fall back to server-side remote upload when the browser cannot fetch (CORS, auth, etc).
+      }
+
+      setRemoteStage('server');
       const res = await fetch('/api/remote-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmed }),
+        body: JSON.stringify({
+          url: trimmed,
+          filename: remoteFilenameOverride.trim() || undefined,
+          headers: remoteAuthHeader.trim()
+            ? { Authorization: remoteAuthHeader.trim() }
+            : undefined,
+        }),
       });
 
       const payload = await res.json().catch(() => ({}));
@@ -551,6 +890,8 @@ export default function Home() {
       }
 
       setRemoteUrl('');
+      setRemoteAuthHeader('');
+      setRemoteFilenameOverride('');
       setShowRemoteUpload(false);
       showToast('Remote upload complete', 'success');
     } catch (error) {
@@ -558,6 +899,9 @@ export default function Home() {
       showToast(error instanceof Error ? error.message : 'Remote upload failed', 'error');
     } finally {
       setRemoteUploading(false);
+      setRemoteStage('idle');
+      setRemoteDownloadedBytes(0);
+      setRemoteTotalBytes(null);
       setUploadStatus('');
     }
   };
@@ -757,6 +1101,12 @@ export default function Home() {
               <div>
                 {currentUploadName ? `${currentUploadName} • ` : ''}
                 {uploadProgress > 0 ? `Uploading ${uploadProgress}%` : 'Preparing upload…'}
+                {uploadQueue.some((q) => q.status === 'queued') && (
+                  <span style={{ color: '#8a92a1' }}>
+                    {' '}
+                    • {uploadQueue.filter((q) => q.status === 'queued').length} queued
+                  </span>
+                )}
               </div>
               <div style={{ 
                 fontSize: '0.65rem', 
@@ -789,6 +1139,26 @@ export default function Home() {
                 }}
               >
                 Cancel
+              </button>
+              <button
+                onClick={queuePaused ? resumeQueue : pauseQueue}
+                style={{
+                  padding: '0.5rem 0.9rem',
+                  borderRadius: '999px',
+                  border: '1px solid rgba(255,255,255,0.13)',
+                  background: queuePaused ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  color: '#eef1f6',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  letterSpacing: '0.02em',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                }}
+                title={queuePaused ? 'Resume queue' : 'Pause queue'}
+              >
+                {queuePaused ? 'Resume' : 'Pause'}
               </button>
               <button
                 onClick={copyAllUploadedLinks}
@@ -1160,6 +1530,50 @@ export default function Home() {
                 }
               }}
             />
+            <input
+              value={remoteFilenameOverride}
+              onChange={(e) => setRemoteFilenameOverride(e.target.value)}
+              placeholder="Filename (optional)"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              disabled={remoteUploading}
+              style={{
+                flex: '1 1 160px',
+                minWidth: '160px',
+                padding: '0.55rem 0.9rem',
+                fontSize: '0.82rem',
+                fontFamily: "'Sora', sans-serif",
+                color: '#eef1f6',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '12px',
+                outline: 'none',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
+              }}
+            />
+            <input
+              value={remoteAuthHeader}
+              onChange={(e) => setRemoteAuthHeader(e.target.value)}
+              placeholder="Authorization header (optional)"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              disabled={remoteUploading}
+              style={{
+                flex: '1 1 240px',
+                minWidth: '220px',
+                padding: '0.55rem 0.9rem',
+                fontSize: '0.82rem',
+                fontFamily: "'Sora', sans-serif",
+                color: '#eef1f6',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '12px',
+                outline: 'none',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
+              }}
+            />
             <button
               onClick={submitRemoteUpload}
               disabled={remoteUploading || remoteUrl.trim().length === 0}
@@ -1179,6 +1593,29 @@ export default function Home() {
             >
               Upload URL
             </button>
+
+            {remoteUploading && (
+              <div
+                style={{
+                  width: '100%',
+                  marginTop: '0.35rem',
+                  fontSize: '0.72rem',
+                  color: '#8a92a1',
+                  textAlign: 'center',
+                }}
+              >
+                {remoteStage === 'download' && (
+                  <>
+                    Downloading remote…{' '}
+                    {remoteTotalBytes
+                      ? `${Math.min(100, Math.round((remoteDownloadedBytes / remoteTotalBytes) * 100))}% (${formatFileSize(remoteDownloadedBytes)} / ${formatFileSize(remoteTotalBytes)})`
+                      : `${formatFileSize(remoteDownloadedBytes)}`}
+                  </>
+                )}
+                {remoteStage === 'server' && <>Fetching server-side…</>}
+                {remoteStage === 'enqueue' && <>Queued for upload…</>}
+              </div>
+            )}
           </div>
         )}
 
@@ -1192,6 +1629,164 @@ export default function Home() {
         }}>
           Max upload size: {formatFileSize(maxUploadBytes)} per file {isPremium ? '• Premium' : '• Free'}
         </p>
+        )}
+
+        {!uploading && uploadQueue.length > 0 && (
+          <div
+            style={{
+              marginTop: '1.2rem',
+              width: '100%',
+              maxWidth: '720px',
+              background: 'rgba(255,255,255,0.05)',
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '16px',
+              padding: '0.85rem',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)',
+              animation: 'fadeSlideIn 0.6s ease-out'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                marginBottom: '0.65rem',
+              }}
+            >
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#eef1f6' }}>
+                Queue • {uploadQueue.filter((q) => q.status === 'queued').length} waiting
+                {uploadQueue.some((q) => q.status === 'error') ? ` • ${uploadQueue.filter((q) => q.status === 'error').length} failed` : ''}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  onClick={() => (queuePaused ? resumeQueue() : pauseQueue())}
+                  style={{
+                    padding: '0.35rem 0.7rem',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(255,255,255,0.13)',
+                    background: queuePaused ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    color: '#eef1f6',
+                    fontSize: '0.72rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                  }}
+                >
+                  {queuePaused ? 'Resume' : 'Pause'}
+                </button>
+                <button
+                  onClick={() => setUploadQueue((prev) => prev.filter((q) => q.status !== 'success'))}
+                  style={{
+                    padding: '0.35rem 0.7rem',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(255,255,255,0.13)',
+                    background: 'rgba(255,255,255,0.07)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    color: '#eef1f6',
+                    fontSize: '0.72rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                  }}
+                  title="Remove successful items from the list"
+                >
+                  Clear done
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gap: '0.55rem' }}>
+              {uploadQueue
+                .slice()
+                .sort((a, b) => a.addedAt - b.addedAt)
+                .slice(0, 8)
+                .map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                      padding: '0.7rem 0.85rem',
+                      borderRadius: '14px',
+                      border: '1px solid rgba(255,255,255,0.09)',
+                      background: 'rgba(255,255,255,0.04)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
+                    }}
+                  >
+                    <div style={{ minWidth: 0, textAlign: 'left' }}>
+                      <div style={{ fontSize: '0.85rem', color: '#eef1f6', wordBreak: 'break-all' }}>
+                        {item.file.name}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#8a92a1' }}>
+                        {formatFileSize(item.file.size)} • {item.status === 'queued' ? (queuePaused ? 'Paused' : 'Queued') : item.status === 'success' ? 'Done' : item.status === 'error' ? 'Failed' : 'Uploading'}
+                        {item.status === 'uploading' && typeof item.loadedBytes === 'number' && typeof item.totalBytes === 'number' && item.totalBytes > 0 && (
+                          <span>
+                            {' '}
+                            • {Math.min(100, Math.round((item.loadedBytes / item.totalBytes) * 100))}%
+                          </span>
+                        )}
+                        {item.status === 'error' && item.error ? ` • ${item.error}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {item.status === 'error' && (
+                        <button
+                          onClick={() => retryQueueItem(item.id)}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '999px',
+                            border: '1px solid rgba(255,255,255,0.13)',
+                            background: 'rgba(255,255,255,0.07)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            color: '#eef1f6',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                          }}
+                          title="Retry"
+                          aria-label="Retry upload"
+                        >
+                          ↻
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setUploadQueue((prev) => prev.filter((q) => q.id !== item.id))}
+                        disabled={item.status === 'uploading'}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '999px',
+                          border: '1px solid rgba(255,255,255,0.13)',
+                          background: 'rgba(255,255,255,0.07)',
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                          color: item.status === 'uploading' ? 'rgba(245,245,245,0.35)' : '#eef1f6',
+                          cursor: item.status === 'uploading' ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                        }}
+                        title={item.status === 'uploading' ? 'Cannot remove while uploading' : 'Remove'}
+                        aria-label="Remove from queue"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {uploadQueue.length > 8 && (
+              <div style={{ marginTop: '0.6rem', fontSize: '0.7rem', color: '#8a92a1' }}>
+                Showing first 8 items.
+              </div>
+            )}
+          </div>
         )}
 
         
@@ -1276,6 +1871,12 @@ export default function Home() {
               {uploadedFiles.map((fileItem, index) => {
                 const filename = fileItem.filename;
                 const url = fileItem.url;
+                const lowerExt = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
+                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(lowerExt || '');
+                const keyFromUrl = url.includes('/download/')
+                  ? url.split('/download/').pop()
+                  : url.split('/').pop();
+                const thumbKey = keyFromUrl ? keyFromUrl.split('?')[0] : '';
                 const extension = filename.includes('.')
                   ? filename.split('.').pop()?.toUpperCase()
                   : 'FILE';
@@ -1308,6 +1909,21 @@ export default function Home() {
                         gap: '0.75rem',
                         minWidth: 0
                       }}>
+                        {isImage && thumbKey && (
+                          <img
+                            src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=96&h=96`}
+                            alt=""
+                            loading="lazy"
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '12px',
+                              objectFit: 'cover',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                              background: 'rgba(255,255,255,0.04)'
+                            }}
+                          />
+                        )}
                         <span style={{
                           width: '8px',
                           height: '8px',

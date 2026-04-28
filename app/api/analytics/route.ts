@@ -17,6 +17,20 @@ function getClientIp(request: NextRequest): string {
   );
 }
 
+function getCountry(request: NextRequest): string | undefined {
+  const fromVercel = request.headers.get('x-vercel-ip-country');
+  const fromCf = request.headers.get('cf-ipcountry');
+  const value = (fromVercel || fromCf || '').trim();
+  return value ? value : undefined;
+}
+
+function normalizeReferer(value: string | null): string | undefined {
+  const ref = (value || '').trim();
+  if (!ref) return undefined;
+  // Avoid extremely long values.
+  return ref.slice(0, 500);
+}
+
 // GET: Retrieve analytics data
 export async function GET(request: NextRequest) {
   try {
@@ -24,10 +38,12 @@ export async function GET(request: NextRequest) {
     await saveAnalyticsData(data);
 
     const filenameFilter = request.nextUrl.searchParams.get('filename');
+    const detail = request.nextUrl.searchParams.get('detail') === '1';
 
     const now = Date.now();
     const last24h = now - 24 * 60 * 60 * 1000;
     const last7days = now - 7 * 24 * 60 * 60 * 1000;
+    const last30days = now - 30 * 24 * 60 * 60 * 1000;
 
     if (filenameFilter) {
       const fileDownloads = data.downloads.filter((event) => event.filename === filenameFilter);
@@ -37,6 +53,7 @@ export async function GET(request: NextRequest) {
         last24h: fileDownloads.filter((event) => event.timestamp > last24h).length,
         last7days: fileDownloads.filter((event) => event.timestamp > last7days).length,
         uniqueUsers: new Set(fileDownloads.map((event) => event.ip)).size,
+        bytesTotal: fileDownloads.reduce((acc, e) => acc + (e.bytes || 0), 0),
       });
     }
 
@@ -105,6 +122,65 @@ export async function GET(request: NextRequest) {
     const downloads24h = data.downloads.filter((download) => download.timestamp > last24h).length;
     const downloads7days = data.downloads.filter((download) => download.timestamp > last7days).length;
 
+    const totalBytes = data.downloads.reduce((acc, e) => acc + (e.bytes || 0), 0);
+    const bytes24h = data.downloads
+      .filter((e) => e.timestamp > last24h)
+      .reduce((acc, e) => acc + (e.bytes || 0), 0);
+    const bytes7days = data.downloads
+      .filter((e) => e.timestamp > last7days)
+      .reduce((acc, e) => acc + (e.bytes || 0), 0);
+
+    const topReferrers = (() => {
+      const counts = new Map<string, number>();
+      for (const e of data.downloads) {
+        const ref = (e.referer || '').trim();
+        if (!ref) continue;
+        counts.set(ref, (counts.get(ref) || 0) + 1);
+      }
+      return Array.from(counts.entries())
+        .map(([referer, count]) => ({ referer, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 15);
+    })();
+
+    const topCountries = (() => {
+      const counts = new Map<string, number>();
+      for (const e of data.downloads) {
+        const c = (e.country || '').trim();
+        if (!c) continue;
+        counts.set(c, (counts.get(c) || 0) + 1);
+      }
+      return Array.from(counts.entries())
+        .map(([country, count]) => ({ country, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 15);
+    })();
+
+    const series = (() => {
+      if (!detail) return null;
+      // Hourly buckets for last 24h.
+      const hourMs = 60 * 60 * 1000;
+      const start = now - 24 * hourMs;
+      const buckets = new Map<number, { ts: number; downloads: number; bytes: number; pageViews: number }>();
+      for (let t = start - (start % hourMs); t <= now; t += hourMs) {
+        buckets.set(t, { ts: t, downloads: 0, bytes: 0, pageViews: 0 });
+      }
+      for (const d of data.downloads) {
+        if (d.timestamp < start) continue;
+        const b = buckets.get(d.timestamp - (d.timestamp % hourMs));
+        if (!b) continue;
+        b.downloads += 1;
+        b.bytes += d.bytes || 0;
+      }
+      for (const v of data.pageViews) {
+        if (v.timestamp < start) continue;
+        const b = buckets.get(v.timestamp - (v.timestamp % hourMs));
+        if (!b) continue;
+        b.pageViews += 1;
+      }
+      return Array.from(buckets.values()).sort((a, b) => a.ts - b.ts);
+    })();
+
     return NextResponse.json({
       pageViews: {
         total: totalPageViews,
@@ -121,7 +197,15 @@ export async function GET(request: NextRequest) {
         last24h: downloads24h,
         last7days: downloads7days,
       },
+      bandwidth: {
+        totalBytes,
+        last24h: bytes24h,
+        last7days: bytes7days,
+      },
       topFiles: topFiles.slice(0, 20),
+      topReferrers,
+      topCountries,
+      series,
       recentDownloads: data.downloads
         .slice(-50)
         .reverse()
@@ -141,10 +225,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, filename, path } = body;
+    const { type, filename, path, bytes } = body;
 
     const ip = getClientIp(request);
     const userAgent = request.headers.get('user-agent') || 'Unknown';
+    const referer = normalizeReferer(request.headers.get('referer'));
+    const country = getCountry(request);
 
     const data = cleanupAnalyticsData(await loadAnalyticsData());
 
@@ -154,12 +240,18 @@ export async function POST(request: NextRequest) {
         timestamp: Date.now(),
         ip,
         userAgent,
+        bytes: Number.isFinite(Number(bytes)) ? Number(bytes) : undefined,
+        referer,
+        country,
       });
     } else if (type === 'pageview' && path) {
       data.pageViews.push({
         path,
         timestamp: Date.now(),
         ip,
+        referer,
+        country,
+        userAgent,
       });
     }
 
