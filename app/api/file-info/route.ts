@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadUploadHistory, type UploadRecord } from '@/app/lib/data/upload-history-store';
+import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { getObjectMetadata } from '@/app/lib/storage/r2-storage';
 
 function findRecordByKey(history: UploadRecord[], key: string): UploadRecord | null {
@@ -63,7 +64,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Fallback: object metadata (keeps the download page informative even without history).
-    const metadata = await getObjectMetadata(`d/${key}`);
+    const aliasTarget = await resolveAliasObjectKey(key);
+    const metadata = await getObjectMetadata(aliasTarget || `d/${key}`);
     if (metadata) {
       return NextResponse.json(
         {

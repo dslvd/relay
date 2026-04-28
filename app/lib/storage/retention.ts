@@ -1,4 +1,5 @@
 import { loadUploadHistory, saveUploadHistory, type UploadHistoryScope } from '@/app/lib/data/upload-history-store';
+import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { deleteObject, objectExists, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -7,6 +8,14 @@ export const RETENTION_DAYS = 15;
 export const RETENTION_MS = RETENTION_DAYS * DAY_MS;
 const HISTORY_SCOPES: UploadHistoryScope[] = ['public', 'premium'];
 const EXISTENCE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+
+async function resolveObjectKeyFromAppUrl(url: string): Promise<string | null> {
+  const objectKey = toObjectKeyFromAppUrl(url);
+  if (!objectKey) return null;
+  const key = objectKey.startsWith('d/') ? objectKey.slice(2) : objectKey;
+  const aliasTarget = await resolveAliasObjectKey(key);
+  return aliasTarget || objectKey;
+}
 
 export async function pruneMissingHistoryEntries(input?: {
   now?: number;
@@ -39,7 +48,7 @@ export async function pruneMissingHistoryEntries(input?: {
 
     const keepFlags = await Promise.all(
       history.map(async (record) => {
-        const objectKey = toObjectKeyFromAppUrl(record.url);
+        const objectKey = await resolveObjectKeyFromAppUrl(record.url);
         if (!objectKey) {
           return false;
         }
@@ -70,7 +79,7 @@ export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: n
 
   let deleted = 0;
   let scanned = 0;
-  const keysToDelete: string[] = [];
+  const objectStatus = new Map<string, { anyActive: boolean }>();
 
   for (const scope of HISTORY_SCOPES) {
     const history = await loadUploadHistory(scope);
@@ -80,16 +89,23 @@ export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: n
 
     scanned += history.length;
 
-    // Check each file in history for expiration based on last access time
+    // Check each file in history for expiration based on last access time.
     for (const record of history) {
-      if (isExpired(record.lastAccessTime, now)) {
-        const objectKey = toObjectKeyFromAppUrl(record.url);
-        if (objectKey) {
-          keysToDelete.push(objectKey);
-        }
+      const objectKey = await resolveObjectKeyFromAppUrl(record.url);
+      if (!objectKey) {
+        continue;
       }
+      const state = objectStatus.get(objectKey) || { anyActive: false };
+      if (!isExpired(record.lastAccessTime, now)) {
+        state.anyActive = true;
+      }
+      objectStatus.set(objectKey, state);
     }
   }
+
+  const keysToDelete = Array.from(objectStatus.entries())
+    .filter(([, state]) => !state.anyActive)
+    .map(([objectKey]) => objectKey);
 
   for (const objectKey of keysToDelete) {
     try {

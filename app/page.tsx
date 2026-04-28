@@ -27,6 +27,7 @@ type UploadQueueItem = {
   error?: string;
   loadedBytes?: number;
   totalBytes?: number;
+  contentHash?: string;
   // Multipart state for true resume across refresh.
   multipart?: {
     objectKey: string;
@@ -174,6 +175,7 @@ export default function Home() {
     addedAt: number;
     loadedBytes?: number;
     totalBytes?: number;
+    contentHash?: string;
     multipart?: UploadQueueItem['multipart'];
   }>;
 
@@ -189,6 +191,7 @@ export default function Home() {
       addedAt: it.addedAt,
       loadedBytes: it.loadedBytes,
       totalBytes: it.totalBytes,
+      contentHash: it.contentHash,
       multipart: it.multipart,
     }));
 
@@ -219,6 +222,7 @@ export default function Home() {
               status: 'error',
               error: 'Missing local file bytes (cleared storage)',
               addedAt: m.addedAt || Date.now(),
+              contentHash: m.contentHash,
             });
             continue;
           }
@@ -234,6 +238,7 @@ export default function Home() {
             addedAt: m.addedAt || Date.now(),
             loadedBytes: m.loadedBytes,
             totalBytes: m.totalBytes,
+            contentHash: m.contentHash,
             multipart: m.multipart,
           });
         }
@@ -382,6 +387,65 @@ export default function Home() {
   const MAX_CONCURRENT_UPLOADS = 3;
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const computeFileHash = async (file: File): Promise<string> => {
+    const buffer = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    const bytes = new Uint8Array(digest);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const ensureContentHash = async (item: UploadQueueItem): Promise<string> => {
+    if (item.contentHash) return item.contentHash;
+    const hash = await computeFileHash(item.file);
+    setUploadQueue((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, contentHash: hash } : it))
+    );
+    return hash;
+  };
+
+  const checkDuplicateUpload = async (hash: string, file: File): Promise<string | null> => {
+    const res = await fetch('/api/dedupe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hash,
+        size: file.size,
+        filename: file.name,
+        contentType: file.type || 'application/octet-stream',
+      }),
+    });
+
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(payload?.error || 'Duplicate check failed');
+    }
+
+    if (payload?.duplicate && payload?.data?.downloadUrl) {
+      return payload.data.downloadUrl as string;
+    }
+
+    return null;
+  };
+
+  const commitFileHash = async (hash: string, objectKey: string, file: File): Promise<void> => {
+    try {
+      await fetch('/api/dedupe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commit: true,
+          hash,
+          objectKey,
+          size: file.size,
+          filename: file.name,
+          contentType: file.type || 'application/octet-stream',
+        }),
+      });
+    } catch {
+      // Best effort.
+    }
+  };
 
   const fetchWithRetry = async (
     input: RequestInfo | URL,
@@ -561,11 +625,50 @@ export default function Home() {
 
     setUploading(true);
     setUploadProgress(0);
-    setUploadStatus('Preparing upload...');
+    setUploadStatus('Checking for duplicates...');
     setUploadLoadedBytes(0);
     setUploadTotalBytes(file.size);
 
     try {
+      const contentHash = await computeFileHash(file);
+      const duplicateUrl = await checkDuplicateUpload(contentHash, file);
+      if (duplicateUrl) {
+        const uploadedAt = Date.now();
+        setUploadedFiles((prev) => [
+          {
+            url: duplicateUrl,
+            filename: file.name,
+            size: file.size,
+            timestamp: uploadedAt,
+          },
+          ...prev,
+        ]);
+
+        const historyResponse = await fetch('/api/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: duplicateUrl,
+            filename: file.name,
+            size: file.size,
+          }),
+        });
+
+        if (!historyResponse.ok) {
+          const errorPayload = await historyResponse.json().catch(() => ({}));
+          throw new Error(errorPayload?.error || 'Failed to save upload history');
+        }
+
+        if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
+          await fetchPublicHistory();
+        }
+        if (notify) {
+          showToast('Upload complete', 'success');
+        }
+        return;
+      }
+
+      setUploadStatus('Preparing upload...');
       const randomFilename = generateRandomFilename(file.name);
       const pathname = `d/${randomFilename}`;
 
@@ -629,6 +732,8 @@ export default function Home() {
         throw new Error(errorPayload?.error || 'Failed to save upload history');
       }
 
+      await commitFileHash(contentHash, pathname, file);
+
       // Refresh history
       if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
         await fetchPublicHistory();
@@ -659,6 +764,53 @@ export default function Home() {
     const file = item.file;
     if (file.size > maxUploadBytes) {
       throw new Error('File too large');
+    }
+
+    setUploadStatus('Checking for duplicates...');
+    const contentHash = await ensureContentHash(item);
+    const duplicateUrl = await checkDuplicateUpload(contentHash, file);
+    if (duplicateUrl) {
+      setUploadQueue((prev) =>
+        prev.map((it) =>
+          it.id === itemId ? { ...it, loadedBytes: file.size, totalBytes: file.size } : it
+        )
+      );
+
+      const uploadedAt = Date.now();
+      setUploadedFiles((prev) => [
+        {
+          url: duplicateUrl,
+          filename: file.name,
+          size: file.size,
+          timestamp: uploadedAt,
+        },
+        ...prev,
+      ]);
+
+      const historyResponse = await fetchWithRetry(
+        '/api/history',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: duplicateUrl,
+            filename: file.name,
+            size: file.size,
+          }),
+        },
+        2
+      );
+
+      if (!historyResponse.ok) {
+        const errorPayload = await historyResponse.json().catch(() => ({}));
+        throw new Error(errorPayload?.error || 'Failed to save upload history');
+      }
+
+      if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
+        await fetchPublicHistory();
+      }
+
+      return;
     }
 
     // Always use multipart for true resume-after-refresh.
@@ -836,6 +988,8 @@ export default function Home() {
       const errorPayload = await historyResponse.json().catch(() => ({}));
       throw new Error(errorPayload?.error || 'Failed to save upload history');
     }
+
+    await commitFileHash(contentHash, multipart.objectKey, file);
   };
 
   useEffect(() => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { updateLastAccessTime } from '@/app/lib/storage/retention';
 import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage/r2-storage';
 import { loadUploadHistory } from '@/app/lib/data/upload-history-store';
+import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 
 function getCountry(request: NextRequest): string | undefined {
   const fromVercel = request.headers.get('x-vercel-ip-country');
@@ -159,13 +160,19 @@ function fileNotFoundResponse(): NextResponse {
   });
 }
 
+async function resolveDownloadObjectKey(pathParts: string[]): Promise<string> {
+  const key = pathParts.join('/');
+  const aliasTarget = await resolveAliasObjectKey(key);
+  return aliasTarget || `d/${key}`;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
     const { path } = await params;
-    const pathname = `d/${path.join('/')}`;
+    const pathname = await resolveDownloadObjectKey(path);
 
     const signedUrl = await createPresignedDownloadUrl({
       objectKey: pathname,
@@ -241,7 +248,7 @@ export async function HEAD(
 ) {
   try {
     const { path } = await params;
-    const pathname = `d/${path.join('/')}`;
+    const pathname = await resolveDownloadObjectKey(path);
     const metadata = await getObjectMetadata(pathname);
 
     if (metadata) {
