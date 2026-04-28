@@ -45,6 +45,7 @@ export default function Home() {
   const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
   const PREMIUM_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
+  const [showUploadedFiles, setShowUploadedFiles] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
@@ -107,6 +108,12 @@ export default function Home() {
       // Ignore storage errors.
     }
   }, [uploadedFiles]);
+
+  useEffect(() => {
+    if (uploadedFiles.length === 0 && showUploadedFiles) {
+      setShowUploadedFiles(false);
+    }
+  }, [uploadedFiles.length, showUploadedFiles]);
 
   const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
   const IDB_NAME = 'relay_uploads_v1';
@@ -2140,6 +2147,47 @@ export default function Home() {
 
         {activeView === 'upload' && uploadedFiles.length > 0 && (
           <div style={{
+            marginTop: '1.6rem',
+            display: 'flex',
+            justifyContent: 'center',
+            animation: 'fadeSlideIn 0.7s ease-out'
+          }}>
+            <button
+              onClick={() => setShowUploadedFiles((prev) => !prev)}
+              style={{
+                fontFamily: "'Sora', sans-serif",
+                padding: '0.45rem 1.4rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                color: '#eef1f6',
+                background: showUploadedFiles ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(14px)',
+                WebkitBackdropFilter: 'blur(14px)',
+                border: '1px solid rgba(255,255,255,0.13)',
+                borderRadius: '50px',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = showUploadedFiles ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
+              }}
+              aria-expanded={showUploadedFiles}
+              aria-controls="uploaded-files-list"
+            >
+              {showUploadedFiles ? 'Hide files' : `Show files • ${uploadedFiles.length}`}
+            </button>
+          </div>
+        )}
+
+        {activeView === 'upload' && uploadedFiles.length > 0 && showUploadedFiles && (
+          <div style={{
             marginTop: '2rem',
             animation: 'fadeSlideIn 0.8s ease-out',
             width: '100%',
@@ -2155,7 +2203,9 @@ export default function Home() {
               Uploaded Files • {uploadedFiles.length}
             </p>
             
-            <div style={{
+            <div
+              id="uploaded-files-list"
+              style={{
               maxHeight: '320px',
               overflowY: 'auto',
               background: 'rgba(255,255,255,0.05)',
