@@ -9,6 +9,8 @@ interface UploadRecord {
   timestamp: number;
   size: number;
   ip?: string;
+  quarantined?: boolean;
+  quarantineReason?: string | null;
 }
 
 interface AnalyticsData {
@@ -57,6 +59,54 @@ interface PremiumUser {
   lastLoginAt?: number;
 }
 
+interface StorageStats {
+  storage: {
+    bytes: number;
+    objects: number;
+    updatedAt: number;
+  };
+  bandwidth: {
+    bytes24h: number;
+    bytes7days: number;
+  };
+  cost: {
+    storageMonthly: number;
+    storageWeekly: number;
+    storageDaily: number;
+    bandwidth24h: number;
+    bandwidth7days: number;
+    pricing: {
+      storagePerGbMonth: number;
+      egressPerGb: number;
+    };
+  };
+  cached: boolean;
+}
+
+interface BlacklistRule {
+  id: string;
+  type: 'ip' | 'filename';
+  pattern: string;
+  createdAt: number;
+}
+
+interface QuarantineRecord {
+  objectKey: string;
+  reason?: string;
+  createdAt: number;
+  createdByIp?: string;
+}
+
+interface AuditLogEntry {
+  id: string;
+  timestamp: number;
+  action: string;
+  actorIp?: string;
+  userAgent?: string;
+  target?: string;
+  meta?: Record<string, unknown>;
+}
+
 type SortKey = 'filename' | 'size' | 'timestamp' | 'ip';
 type SortOrder = 'asc' | 'desc';
 
@@ -77,6 +127,13 @@ export default function AdminDashboard() {
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [deletingSilent, setDeletingSilent] = useState<Set<string>>(new Set());
   const [deleteFeedback, setDeleteFeedback] = useState<Record<string, 'ok' | 'err'>>({});
+  const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [blacklistRules, setBlacklistRules] = useState<BlacklistRule[]>([]);
+  const [quarantineRecords, setQuarantineRecords] = useState<QuarantineRecord[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [blacklistType, setBlacklistType] = useState<'ip' | 'filename'>('ip');
+  const [blacklistPattern, setBlacklistPattern] = useState('');
+  const [addingRule, setAddingRule] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -100,17 +157,27 @@ export default function AdminDashboard() {
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const [historyResponse, analyticsResponse, premiumResponse] = await Promise.all([
-        fetch('/api/history?includePremium=1', { cache: 'no-store' }),
+      const [filesResponse, analyticsResponse, premiumResponse, statsResponse, abuseResponse, auditResponse] = await Promise.all([
+        fetch('/api/admin/files', { cache: 'no-store' }),
         fetch('/api/analytics', { cache: 'no-store' }),
-        fetch('/api/admin/premium', { cache: 'no-store' })
+        fetch('/api/admin/premium', { cache: 'no-store' }),
+        fetch('/api/admin/stats', { cache: 'no-store' }),
+        fetch('/api/admin/abuse', { cache: 'no-store' }),
+        fetch('/api/admin/audit?limit=200', { cache: 'no-store' }),
       ]);
-      
-      if (historyResponse.ok) {
-        const data = await historyResponse.json();
+
+      const responses = [filesResponse, analyticsResponse, premiumResponse, statsResponse, abuseResponse, auditResponse];
+      if (responses.some((res) => res.status === 401)) {
+        sessionStorage.removeItem('admin_authenticated');
+        router.push('/admin');
+        return;
+      }
+
+      if (filesResponse.ok) {
+        const data = await filesResponse.json();
         setFiles(data.history || []);
       }
-      
+
       if (analyticsResponse.ok) {
         const data = await analyticsResponse.json();
         setAnalytics(data);
@@ -120,6 +187,22 @@ export default function AdminDashboard() {
         const data = await premiumResponse.json();
         setPremiumInvites(data.invites || []);
         setPremiumUsers(data.users || []);
+      }
+
+      if (statsResponse.ok) {
+        const data = await statsResponse.json();
+        setStorageStats(data as StorageStats);
+      }
+
+      if (abuseResponse.ok) {
+        const data = await abuseResponse.json();
+        setBlacklistRules(data.blacklist || []);
+        setQuarantineRecords(data.quarantine || []);
+      }
+
+      if (auditResponse.ok) {
+        const data = await auditResponse.json();
+        setAuditLog(data.entries || []);
       }
     } catch (error) {
       console.error('Failed to fetch files:', error);
@@ -318,6 +401,10 @@ export default function AdminDashboard() {
     return `${days}d ago`;
   };
 
+  const formatCurrency = (value: number) => {
+    return `$${Math.round(value * 100) / 100}`;
+  };
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -367,6 +454,104 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const runBulkAction = async (action: 'delete' | 'expire' | 'quarantine' | 'unquarantine', urls?: string[]) => {
+    const targets = urls || Array.from(selectedFiles);
+    if (targets.length === 0) return;
+
+    if (action === 'delete' && !confirm(`Delete ${targets.length} file(s)? This cannot be undone.`)) {
+      return;
+    }
+
+    if (action === 'expire' && !confirm(`Expire ${targets.length} file(s)? They will be removed permanently.`)) {
+      return;
+    }
+
+    let reason = '';
+    if (action === 'quarantine') {
+      reason = prompt('Reason for quarantine (optional):') || '';
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admin/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, urls: targets, reason }),
+      });
+
+      if (!response.ok) {
+        alert('Bulk action failed');
+        return;
+      }
+
+      setSelectedFiles(new Set());
+      await fetchFiles();
+    } catch (error) {
+      console.error('Bulk action failed:', error);
+      alert('Bulk action failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleQuarantine = async (file: UploadRecord) => {
+    const action = file.quarantined ? 'unquarantine' : 'quarantine';
+    await runBulkAction(action, [file.url]);
+  };
+
+  const addBlacklistRule = async (patternOverride?: string, typeOverride?: 'ip' | 'filename') => {
+    const pattern = (patternOverride ?? blacklistPattern).trim();
+    const type = typeOverride ?? blacklistType;
+    if (!pattern) return;
+
+    try {
+      setAddingRule(true);
+      const response = await fetch('/api/admin/abuse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, pattern }),
+      });
+
+      if (!response.ok) {
+        alert('Failed to add rule');
+        return;
+      }
+
+      setBlacklistPattern('');
+      await fetchFiles();
+    } catch (error) {
+      console.error('Failed to add blacklist rule:', error);
+      alert('Failed to add rule');
+    } finally {
+      setAddingRule(false);
+    }
+  };
+
+  const removeBlacklistRuleById = async (id: string) => {
+    try {
+      const response = await fetch('/api/admin/abuse', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+
+      if (!response.ok) {
+        alert('Failed to remove rule');
+        return;
+      }
+
+      await fetchFiles();
+    } catch (error) {
+      console.error('Failed to remove blacklist rule:', error);
+    }
+  };
+
+  const blacklistIpFromFile = async (ip?: string) => {
+    if (!ip) return;
+    setBlacklistType('ip');
+    await addBlacklistRule(ip, 'ip');
   };
 
   const exportData = (format: 'json' | 'csv') => {
@@ -745,7 +930,9 @@ export default function AdminDashboard() {
             padding: '1.5rem'
           }}>
             <div style={{ fontSize: '0.8rem', color: '#666666', marginBottom: '0.5rem' }}>Total Storage</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{formatFileSize(totalSize)}</div>
+            <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>
+              {formatFileSize(storageStats?.storage.bytes ?? totalSize)}
+            </div>
           </div>
           <div style={{
             background: 'rgba(255, 255, 255, 0.04)',
@@ -766,6 +953,68 @@ export default function AdminDashboard() {
             <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{uniqueIPs}</div>
           </div>
         </div>
+
+        {storageStats && (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '16px',
+            padding: '1.5rem',
+            marginBottom: '2rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 300, color: '#f5f5f5', margin: 0 }}>
+                💸 Storage usage + cost estimates
+              </h3>
+              <div style={{ fontSize: '0.72rem', color: '#666666' }}>
+                Updated {formatTimeAgo(storageStats.storage.updatedAt)} {storageStats.cached ? '• cached' : ''}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '12px',
+                padding: '1.1rem'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.4rem' }}>Storage (current)</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{formatFileSize(storageStats.storage.bytes)}</div>
+                <div style={{ fontSize: '0.7rem', color: '#666666' }}>{storageStats.storage.objects} objects</div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '12px',
+                padding: '1.1rem'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.4rem' }}>Est. storage cost / mo</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{formatCurrency(storageStats.cost.storageMonthly)}</div>
+                <div style={{ fontSize: '0.7rem', color: '#666666' }}>${storageStats.cost.pricing.storagePerGbMonth}/GB-mo</div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '12px',
+                padding: '1.1rem'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.4rem' }}>Bandwidth cost (24h)</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{formatCurrency(storageStats.cost.bandwidth24h)}</div>
+                <div style={{ fontSize: '0.7rem', color: '#666666' }}>{formatFileSize(storageStats.bandwidth.bytes24h)}</div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '12px',
+                padding: '1.1rem'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.4rem' }}>Bandwidth cost (7d)</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{formatCurrency(storageStats.cost.bandwidth7days)}</div>
+                <div style={{ fontSize: '0.7rem', color: '#666666' }}>{formatFileSize(storageStats.bandwidth.bytes7days)}</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Analytics Section */}
         {analytics && (
@@ -1131,6 +1380,60 @@ export default function AdminDashboard() {
                 🗑️ Delete Selected
               </button>
               <button
+                onClick={() => runBulkAction('expire')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'rgba(255,200,100,0.18)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255,200,100,0.35)',
+                  borderRadius: '10px',
+                  color: '#ffd1a3',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  fontFamily: "'Open Sans', sans-serif",
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                }}
+              >
+                ⏳ Expire Selected
+              </button>
+              <button
+                onClick={() => runBulkAction('quarantine')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'rgba(200, 60, 60, 0.18)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255, 120, 120, 0.45)',
+                  borderRadius: '10px',
+                  color: '#f2bcbc',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  fontFamily: "'Open Sans', sans-serif",
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                }}
+              >
+                🧪 Quarantine Selected
+              </button>
+              <button
+                onClick={() => runBulkAction('unquarantine')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'rgba(255,255,255,0.06)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '10px',
+                  color: '#c3cad6',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  fontFamily: "'Open Sans', sans-serif",
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                }}
+              >
+                ✅ Unquarantine
+              </button>
+              <button
                 onClick={() => setSelectedFiles(new Set())}
                 style={{
                   padding: '0.5rem 1rem',
@@ -1187,6 +1490,177 @@ export default function AdminDashboard() {
           >
             🗑️ Delete All Files
           </button>
+        </div>
+
+        {/* Abuse + Blacklist */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.04)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '16px',
+          padding: '1.5rem',
+          marginBottom: '2rem'
+        }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 300, marginBottom: '0.9rem', color: '#f5f5f5' }}>
+            🚫 Abuse flags + blacklist
+          </h3>
+
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem' }}>
+            <select
+              value={blacklistType}
+              onChange={(e) => setBlacklistType(e.target.value as 'ip' | 'filename')}
+              style={{
+                padding: '0.55rem 0.75rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '10px',
+                color: '#f5f5f5',
+                fontSize: '0.82rem',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="ip">IP pattern</option>
+              <option value="filename">Filename pattern</option>
+            </select>
+            <input
+              value={blacklistPattern}
+              onChange={(e) => setBlacklistPattern(e.target.value)}
+              placeholder={blacklistType === 'ip' ? 'e.g. ^192\\.168\\.' : 'e.g. .*\.exe$'}
+              style={{
+                flex: '1 1 280px',
+                padding: '0.55rem 0.75rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '10px',
+                color: '#f5f5f5',
+                fontSize: '0.82rem',
+                outline: 'none'
+              }}
+            />
+            <button
+              onClick={addBlacklistRule}
+              disabled={addingRule}
+              style={{
+                padding: '0.55rem 1rem',
+                background: 'rgba(233,236,242,0.18)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(233,236,242,0.35)',
+                borderRadius: '999px',
+                color: '#eef1f6',
+                fontSize: '0.82rem',
+                cursor: addingRule ? 'not-allowed' : 'pointer',
+                fontFamily: "'Open Sans', sans-serif",
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+              }}
+            >
+              {addingRule ? 'Adding...' : 'Add rule'}
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              padding: '1rem'
+            }}>
+              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>
+                Blacklist rules ({blacklistRules.length})
+              </div>
+              <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
+                {blacklistRules.length === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No rules yet</div>
+                )}
+                {blacklistRules.map((rule) => (
+                  <div key={rule.id} style={{
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '10px',
+                    padding: '0.65rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.6rem'
+                  }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.78rem', color: '#f5f5f5' }}>{rule.pattern}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>{rule.type} • {new Date(rule.createdAt).toLocaleString()}</div>
+                    </div>
+                    <button
+                      onClick={() => removeBlacklistRuleById(rule.id)}
+                      style={{
+                        padding: '0.35rem 0.6rem',
+                        background: 'transparent',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f5f5f5',
+                        fontSize: '0.72rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              padding: '1rem'
+            }}>
+              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>
+                Quarantined files ({quarantineRecords.length})
+              </div>
+              <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
+                {quarantineRecords.length === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No quarantined files</div>
+                )}
+                {quarantineRecords.slice(0, 25).map((record) => (
+                  <div key={record.objectKey} style={{
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '10px',
+                    padding: '0.65rem'
+                  }}>
+                    <div style={{ fontSize: '0.78rem', color: '#f5f5f5', wordBreak: 'break-all' }}>{record.objectKey}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>{record.reason || 'No reason'} • {new Date(record.createdAt).toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Admin Audit Log */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.04)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '16px',
+          padding: '1.5rem',
+          marginBottom: '2rem'
+        }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 300, marginBottom: '0.9rem', color: '#f5f5f5' }}>
+            🧾 Admin audit log
+          </h3>
+          <div style={{ maxHeight: '260px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
+            {auditLog.length === 0 && (
+              <div style={{ fontSize: '0.8rem', color: '#666666' }}>No recent activity</div>
+            )}
+            {auditLog.map((entry) => (
+              <div key={entry.id} style={{
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '10px',
+                padding: '0.65rem'
+              }}>
+                <div style={{ fontSize: '0.78rem', color: '#f5f5f5' }}>{entry.action}</div>
+                <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>
+                  {new Date(entry.timestamp).toLocaleString()} • {entry.actorIp || 'unknown'}
+                  {entry.target ? ` • ${entry.target}` : ''}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* File Manager — dedicated delete panel */}
@@ -1316,6 +1790,23 @@ export default function AdminDashboard() {
                       <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#f5f5f5', wordBreak: 'break-all', lineHeight: 1.35 }}>
                         {file.filename}
                       </div>
+                      {file.quarantined && (
+                        <div style={{
+                          marginTop: '0.25rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '999px',
+                          border: '1px solid rgba(255, 120, 120, 0.45)',
+                          background: 'rgba(200, 60, 60, 0.18)',
+                          color: '#f2bcbc',
+                          fontSize: '0.68rem',
+                          letterSpacing: '0.04em'
+                        }}>
+                          Quarantined
+                        </div>
+                      )}
                       <div style={{ fontSize: '0.72rem', color: '#666666', marginTop: '0.2rem' }}>
                         {formatFileSize(file.size)} &bull; {formatTimestamp(file.timestamp)}{file.ip ? ` · ${file.ip}` : ''}
                       </div>
@@ -1348,6 +1839,43 @@ export default function AdminDashboard() {
                       >
                         {isDeleting ? 'Deleting...' : '🗑️ Delete'}
                       </button>
+                      <button
+                        onClick={() => toggleQuarantine(file)}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '8px',
+                          background: file.quarantined ? 'rgba(255,255,255,0.05)' : 'rgba(255,200,100,0.18)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          border: file.quarantined ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,200,100,0.35)',
+                          color: file.quarantined ? '#8a92a1' : '#ffd1a3',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: "'Open Sans', sans-serif",
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {file.quarantined ? 'Unquarantine' : 'Quarantine'}
+                      </button>
+                      {file.ip && (
+                        <button
+                          onClick={() => blacklistIpFromFile(file.ip)}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '8px',
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#d0d6e0',
+                            fontSize: '0.72rem',
+                            cursor: 'pointer',
+                            fontFamily: "'Open Sans', sans-serif",
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          Block IP
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1508,6 +2036,19 @@ export default function AdminDashboard() {
                         >
                           {file.filename}
                         </a>
+                        {file.quarantined && (
+                          <span style={{
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            border: '1px solid rgba(255, 120, 120, 0.45)',
+                            background: 'rgba(200, 60, 60, 0.18)',
+                            color: '#f2bcbc',
+                            fontSize: '0.65rem',
+                            letterSpacing: '0.04em'
+                          }}>
+                            Quarantined
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td style={{
@@ -1556,6 +2097,46 @@ export default function AdminDashboard() {
                         >
                           📋
                         </button>
+                        <button
+                          onClick={() => toggleQuarantine(file)}
+                          title={file.quarantined ? 'Unquarantine' : 'Quarantine'}
+                          style={{
+                            padding: '0.45rem 0.7rem',
+                            background: file.quarantined ? 'rgba(255,255,255,0.05)' : 'rgba(255,200,100,0.18)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            border: file.quarantined ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,200,100,0.35)',
+                            borderRadius: '8px',
+                            color: file.quarantined ? '#8a92a1' : '#ffd1a3',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            fontFamily: "'Open Sans', sans-serif",
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                          }}
+                        >
+                          {file.quarantined ? '✅' : '🧪'}
+                        </button>
+                        {file.ip && (
+                          <button
+                            onClick={() => blacklistIpFromFile(file.ip)}
+                            title="Blacklist IP"
+                            style={{
+                              padding: '0.45rem 0.7rem',
+                              background: 'rgba(255,255,255,0.05)',
+                              backdropFilter: 'blur(10px)',
+                              WebkitBackdropFilter: 'blur(10px)',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              borderRadius: '8px',
+                              color: '#c3cad6',
+                              fontSize: '0.8rem',
+                              cursor: 'pointer',
+                              fontFamily: "'Open Sans', sans-serif",
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                            }}
+                          >
+                            🚫
+                          </button>
+                        )}
                         <button
                           onClick={() => deleteFile(file.url, file.filename)}
                           disabled={deleting === file.url}

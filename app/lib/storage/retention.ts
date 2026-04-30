@@ -1,5 +1,6 @@
 import { loadUploadHistory, saveUploadHistory, type UploadHistoryScope } from '@/app/lib/data/upload-history-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
+import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
 import { deleteObject, objectExists, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -80,6 +81,7 @@ export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: n
   let deleted = 0;
   let scanned = 0;
   const objectStatus = new Map<string, { anyActive: boolean }>();
+  const quarantineMap = await loadQuarantineMap();
 
   for (const scope of HISTORY_SCOPES) {
     const history = await loadUploadHistory(scope);
@@ -104,7 +106,7 @@ export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: n
   }
 
   const keysToDelete = Array.from(objectStatus.entries())
-    .filter(([, state]) => !state.anyActive)
+    .filter(([objectKey, state]) => !state.anyActive && !quarantineMap.has(objectKey))
     .map(([objectKey]) => objectKey);
 
   for (const objectKey of keysToDelete) {
@@ -125,6 +127,7 @@ export async function pruneExpiredHistoryCache(
 ): Promise<number> {
   const scopes = scope ? [scope] : HISTORY_SCOPES;
   let totalRemoved = 0;
+  const quarantineMap = await loadQuarantineMap();
 
   for (const currentScope of scopes) {
     const history = await loadUploadHistory(currentScope);
@@ -132,7 +135,16 @@ export async function pruneExpiredHistoryCache(
       continue;
     }
 
-    const filtered = history.filter((record) => !isExpired(record.lastAccessTime, now));
+    const keepFlags = await Promise.all(
+      history.map(async (record) => {
+        if (!isExpired(record.lastAccessTime, now)) return true;
+        const objectKey = await resolveObjectKeyFromAppUrl(record.url);
+        if (!objectKey) return false;
+        return quarantineMap.has(objectKey);
+      })
+    );
+
+    const filtered = history.filter((_, index) => keepFlags[index]);
     if (filtered.length !== history.length) {
       await saveUploadHistory(filtered, currentScope);
       totalRemoved += history.length - filtered.length;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/retention';
 import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
 import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
+import { isBlacklisted } from '@/app/lib/data/abuse-store';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
     const pathname = typeof body?.pathname === 'string' ? body.pathname : '';
     const contentType = typeof body?.contentType === 'string' ? body.contentType : undefined;
     const size = Number(body?.size);
+    const filename = typeof body?.filename === 'string' ? body.filename : '';
 
     if (!pathname || !pathname.startsWith('d/')) {
       return NextResponse.json({ error: 'Invalid pathname' }, { status: 400 });
@@ -53,6 +55,10 @@ export async function POST(request: NextRequest) {
 
     if (!Number.isFinite(size) || size <= 0) {
       return NextResponse.json({ error: 'Invalid file size' }, { status: 400 });
+    }
+
+    if (await isBlacklisted(ip, filename)) {
+      return NextResponse.json({ error: 'Upload blocked' }, { status: 403 });
     }
 
     const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;

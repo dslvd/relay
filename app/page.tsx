@@ -679,6 +679,7 @@ export default function Home() {
           pathname,
           contentType: file.type || 'application/octet-stream',
           size: file.size,
+          filename: file.name,
         }),
       });
 
@@ -828,6 +829,7 @@ export default function Home() {
             pathname,
             contentType: file.type || 'application/octet-stream',
             size: file.size,
+            filename: file.name,
           }),
         },
         3

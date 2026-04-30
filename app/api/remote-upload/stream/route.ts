@@ -9,11 +9,20 @@ import {
 import { UploadPartCommand } from '@aws-sdk/client-s3';
 import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/retention';
 import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
+import { isBlacklisted } from '@/app/lib/data/abuse-store';
 
 const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024;
 const PREMIUM_MAX_FILE_BYTES = 500 * 1024 * 1024;
 const PREMIUM_COOKIE_NAME = 'premium_auth';
 const PART_SIZE = 8 * 1024 * 1024;
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'Unknown'
+  );
+}
 
 function sanitizeFilename(input: string): string {
   return input
@@ -119,6 +128,13 @@ export async function POST(request: NextRequest) {
         const dispositionName = tryGetFilenameFromContentDisposition(remoteResponse.headers.get('content-disposition'));
         const urlNameRaw = parsedUrl.pathname.split('/').filter(Boolean).pop() || '';
         const originalFilename = sanitizeFilename(filenameOverride || dispositionName || urlNameRaw || 'remote-file');
+
+        const ip = getClientIp(request);
+        if (await isBlacklisted(ip, originalFilename)) {
+          send({ type: 'error', error: 'Upload blocked' });
+          controller.close();
+          return;
+        }
 
         // Preserve extension from provided/remote name if present.
         const originalExt = originalFilename.includes('.') ? `.${originalFilename.split('.').pop()}` : '';

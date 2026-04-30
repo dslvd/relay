@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteObject, listAllObjects, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 import { loadUploadHistory, saveUploadHistory } from '@/app/lib/data/upload-history-store';
+import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
+import { removeQuarantineRecord, saveQuarantineRecords } from '@/app/lib/data/abuse-store';
+import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 
 const ADMIN_COOKIE_NAME = 'admin_auth';
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'Unknown'
+  );
+}
+
+function getUserAgent(request: NextRequest): string {
+  return request.headers.get('user-agent') || 'Unknown';
+}
 
 function requireAdmin(request: NextRequest): NextResponse | null {
   const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
@@ -63,12 +78,44 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await deleteObject(objectKey);
+    const key = objectKey.startsWith('d/') ? objectKey.slice(2) : objectKey;
+    const aliasTarget = await resolveAliasObjectKey(key);
+    const targetKey = aliasTarget || objectKey;
+
+    await deleteObject(targetKey);
+    await removeQuarantineRecord(targetKey);
 
     const publicHistory = await loadUploadHistory('public');
     const premiumHistory = await loadUploadHistory('premium');
-    await saveUploadHistory(publicHistory.filter((record) => record.url !== url), 'public');
-    await saveUploadHistory(premiumHistory.filter((record) => record.url !== url), 'premium');
+
+    const resolveKey = async (recordUrl: string): Promise<string | null> => {
+      const rawKey = toObjectKeyFromAppUrl(recordUrl);
+      if (!rawKey) return null;
+      const raw = rawKey.startsWith('d/') ? rawKey.slice(2) : rawKey;
+      const resolved = await resolveAliasObjectKey(raw);
+      return resolved || rawKey;
+    };
+
+    const publicFlags = await Promise.all(publicHistory.map(async (record) => {
+      const key = await resolveKey(record.url);
+      return key !== targetKey;
+    }));
+    const premiumFlags = await Promise.all(premiumHistory.map(async (record) => {
+      const key = await resolveKey(record.url);
+      return key !== targetKey;
+    }));
+
+    await saveUploadHistory(publicHistory.filter((_, idx) => publicFlags[idx]), 'public');
+    await saveUploadHistory(premiumHistory.filter((_, idx) => premiumFlags[idx]), 'premium');
+
+    await appendAuditLog({
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: Date.now(),
+      action: 'file.delete',
+      actorIp: getClientIp(request),
+      userAgent: getUserAgent(request),
+      target: url,
+    });
 
     return NextResponse.json({ 
       success: true,
@@ -97,6 +144,16 @@ export async function POST(request: NextRequest) {
       const deleted = await deleteAllBlobs();
       await saveUploadHistory([], 'public');
       await saveUploadHistory([], 'premium');
+      await saveQuarantineRecords([]);
+
+      await appendAuditLog({
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        action: 'files.clear_all',
+        actorIp: getClientIp(request),
+        userAgent: getUserAgent(request),
+        meta: { deleted },
+      });
 
       return NextResponse.json({ 
         success: true,

@@ -3,6 +3,7 @@ import { updateLastAccessTime } from '@/app/lib/storage/retention';
 import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage/r2-storage';
 import { loadUploadHistory } from '@/app/lib/data/upload-history-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
+import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
 
 function getCountry(request: NextRequest): string | undefined {
   const fromVercel = request.headers.get('x-vercel-ip-country');
@@ -160,6 +161,39 @@ function fileNotFoundResponse(): NextResponse {
   });
 }
 
+function fileQuarantinedResponse(): NextResponse {
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>File quarantined</title>
+    <style>
+      :root { color-scheme: dark; --bg: #0b0b0d; --text: #f5f5f5; --muted: rgba(245,245,245,0.6); }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: "Open Sans", system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: grid; place-items: center; padding: 2rem; }
+      .card { width: min(720px, 92vw); border-radius: 20px; border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.05); padding: 2.6rem; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+      h1 { margin: 0 0 0.6rem; font-size: clamp(1.8rem, 4vw, 2.6rem); }
+      p { margin: 0; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <section class="card">
+      <h1>File quarantined</h1>
+      <p>This file is unavailable while it is under review.</p>
+    </section>
+  </body>
+</html>`;
+
+  return new NextResponse(html, {
+    status: 403,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store'
+    }
+  });
+}
+
 async function resolveDownloadObjectKey(pathParts: string[]): Promise<string> {
   const key = pathParts.join('/');
   const aliasTarget = await resolveAliasObjectKey(key);
@@ -173,6 +207,10 @@ export async function GET(
   try {
     const { path } = await params;
     const pathname = await resolveDownloadObjectKey(path);
+    const quarantineMap = await loadQuarantineMap();
+    if (quarantineMap.has(pathname)) {
+      return fileQuarantinedResponse();
+    }
 
     const signedUrl = await createPresignedDownloadUrl({
       objectKey: pathname,
@@ -249,6 +287,10 @@ export async function HEAD(
   try {
     const { path } = await params;
     const pathname = await resolveDownloadObjectKey(path);
+    const quarantineMap = await loadQuarantineMap();
+    if (quarantineMap.has(pathname)) {
+      return new NextResponse(null, { status: 403 });
+    }
     const metadata = await getObjectMetadata(pathname);
 
     if (metadata) {

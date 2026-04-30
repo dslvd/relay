@@ -7,8 +7,21 @@ import {
   listPremiumUsers,
   revokePremiumInvite,
 } from '@/app/lib/auth/premium-auth';
+import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
 
 const ADMIN_COOKIE_NAME = 'admin_auth';
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'Unknown'
+  );
+}
+
+function getUserAgent(request: NextRequest): string {
+  return request.headers.get('user-agent') || 'Unknown';
+}
 
 function requireAdmin(request: NextRequest): NextResponse | null {
   const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
@@ -64,6 +77,16 @@ export async function POST(request: NextRequest) {
     const ttl = Number.isFinite(Number(ttlHours)) ? Number(ttlHours) : 24;
     const invite = await createPremiumInvite(ttl);
 
+    await appendAuditLog({
+      id: invite.id,
+      timestamp: Date.now(),
+      action: 'premium.invite.create',
+      actorIp: getClientIp(request),
+      userAgent: getUserAgent(request),
+      target: invite.id,
+      meta: { ttlHours: ttl },
+    });
+
     return NextResponse.json({
       success: true,
       invite: sanitizeInviteForAdmin(invite),
@@ -87,11 +110,31 @@ export async function DELETE(request: NextRequest) {
 
     if (type === 'invite') {
       const removed = await revokePremiumInvite(String(id));
+      if (removed) {
+        await appendAuditLog({
+          id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: Date.now(),
+          action: 'premium.invite.revoke',
+          actorIp: getClientIp(request),
+          userAgent: getUserAgent(request),
+          target: String(id),
+        });
+      }
       return NextResponse.json({ success: removed });
     }
 
     if (type === 'user') {
       const removed = await deletePremiumUser(String(id));
+      if (removed) {
+        await appendAuditLog({
+          id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: Date.now(),
+          action: 'premium.user.delete',
+          actorIp: getClientIp(request),
+          userAgent: getUserAgent(request),
+          target: String(id),
+        });
+      }
       return NextResponse.json({ success: removed });
     }
 
