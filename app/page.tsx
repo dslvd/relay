@@ -68,6 +68,7 @@ export default function Home() {
   const activeUploadRequestRef = useRef<XMLHttpRequest | null>(null);
   const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
   const [queuePaused, setQueuePaused] = useState(false);
+  const queuePausedRef = useRef(false);
   const queueXhrsRef = useRef<Record<string, XMLHttpRequest | null>>({});
   const emptyMessages = [
     'No uploads yet 🚀',
@@ -110,6 +111,10 @@ export default function Home() {
       // Ignore storage errors.
     }
   }, [uploadedFiles]);
+
+  useEffect(() => {
+    queuePausedRef.current = queuePaused;
+  }, [queuePaused]);
 
   useEffect(() => {
     if (uploadedFiles.length === 0 && showUploadedFiles) {
@@ -486,6 +491,7 @@ export default function Home() {
     }));
     setUploadQueue((prev) => [...prev, ...items]);
     cancelUploadRef.current = false;
+    queuePausedRef.current = false;
     setQueuePaused(false);
     setActiveView('upload');
     showToast(`${files.length} file${files.length === 1 ? '' : 's'} added to queue`, 'info');
@@ -766,14 +772,17 @@ export default function Home() {
     const itemId = item.id;
     const file = item.file;
     const cancelToken = cancelTokenRef.current;
+    const throwIfPaused = () => {
+      if (queuePausedRef.current) {
+        throw new Error('Upload paused');
+      }
+    };
     const throwIfCancelled = () => {
       if (cancelUploadRef.current || cancelTokenRef.current !== cancelToken) {
         throw new Error('Upload cancelled');
       }
     };
-    if (queuePaused) {
-      throw new Error('Upload paused');
-    }
+    throwIfPaused();
     throwIfCancelled();
     if (file.size > maxUploadBytes) {
       throw new Error('File too large');
@@ -781,8 +790,10 @@ export default function Home() {
 
     setUploadStatus('Checking for duplicates...');
     const contentHash = await ensureContentHash(item);
+    throwIfPaused();
     throwIfCancelled();
     const duplicateUrl = await checkDuplicateUpload(contentHash, file);
+    throwIfPaused();
     if (duplicateUrl) {
       setUploadQueue((prev) =>
         prev.map((it) =>
@@ -852,6 +863,7 @@ export default function Home() {
       if (!initRes.ok || !initPayload?.data?.uploadId || !initPayload?.data?.objectKey) {
         throw new Error(initPayload?.error || 'Failed to initialize multipart upload');
       }
+      throwIfPaused();
 
       multipart = {
         objectKey: initPayload.data.objectKey as string,
@@ -908,9 +920,7 @@ export default function Home() {
       });
 
     for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
-      if (queuePaused) {
-        throw new Error('Upload paused');
-      }
+      throwIfPaused();
       throwIfCancelled();
       if (done.has(partNumber)) {
         continue;
@@ -937,6 +947,7 @@ export default function Home() {
       if (!presignRes.ok || !presignPayload?.data?.url) {
         throw new Error(presignPayload?.error || 'Failed to presign upload part');
       }
+      throwIfPaused();
 
       const etag = await uploadPartXhr(presignPayload.data.url as string, blob, start);
       throwIfCancelled();
@@ -1085,6 +1096,7 @@ export default function Home() {
     // Cancel any active queued uploads.
     cancelTokenRef.current += 1;
     cancelUploadRef.current = true;
+    queuePausedRef.current = false;
     setQueuePaused(false);
     if (activeUploadRequestRef.current) {
       try {
@@ -1121,6 +1133,7 @@ export default function Home() {
   };
 
   const pauseQueue = () => {
+    queuePausedRef.current = true;
     setQueuePaused(true);
     // Abort active uploads and return them to queued.
     for (const [id, xhr] of Object.entries(queueXhrsRef.current)) {
@@ -1141,6 +1154,7 @@ export default function Home() {
 
   const resumeQueue = () => {
     cancelUploadRef.current = false;
+    queuePausedRef.current = false;
     setQueuePaused(false);
     showToast('Queue resumed', 'info');
   };

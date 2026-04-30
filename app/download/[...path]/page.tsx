@@ -36,6 +36,9 @@ export default function DownloadPage() {
 
   const downloadUrl = `/d/${pathKey}`;
   const downloadPageUrl = `/download/${pathKey}`;
+  const shortLink = typeof window !== 'undefined'
+    ? `${window.location.origin}${downloadPageUrl}`
+    : downloadPageUrl;
 
   const isPreviewable = (fname: string): boolean => {
     const ext = fname.split('.').pop()?.toLowerCase() || '';
@@ -53,9 +56,7 @@ export default function DownloadPage() {
   };
 
   const buildEmbedSnippet = (): string | null => {
-    const abs = typeof window !== 'undefined'
-      ? `${window.location.origin}${downloadPageUrl}`
-      : downloadPageUrl;
+    const abs = shortLink;
     const directAbs = typeof window !== 'undefined'
       ? `${window.location.origin}${downloadUrl}`
       : downloadUrl;
@@ -71,6 +72,14 @@ export default function DownloadPage() {
       return `<a href="${abs}" target="_blank" rel="noreferrer">Open PDF</a>`;
     }
     return null;
+  };
+
+  const embedSnippet = buildEmbedSnippet();
+
+  const copyShortLink = async () => {
+    await navigator.clipboard.writeText(shortLink);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const ensureQr = async (): Promise<string | null> => {
@@ -670,13 +679,9 @@ export default function DownloadPage() {
                   </button>
                 </div>
 
-                {/* Copy Link Button */}
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/download/${pathArray.join('/')}`);
-                    setIsCopied(true);
-                    setTimeout(() => setIsCopied(false), 2000);
-                  }}
+                {/* Copy Short Link Button */}
+                  <button
+                    onClick={copyShortLink}
                   style={{
                     display: 'block',
                     width: '100%',
@@ -703,13 +708,13 @@ export default function DownloadPage() {
                     }
                   }}
                 >
-                  {isCopied ? '✓ Copied' : 'Copy link'}
+                  {isCopied ? '✓ Copied' : 'Copy short link'}
                 </button>
 
                 {/* Share extras */}
                 <div style={{ marginTop: '0.8rem' }}>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {buildEmbedSnippet() && (
+                    {embedSnippet && (
                       <button
                         onClick={() => setShowEmbed((prev) => !prev)}
                         style={{
@@ -730,13 +735,11 @@ export default function DownloadPage() {
                     )}
                   </div>
 
-                  {showEmbed && buildEmbedSnippet() && (
+                  {showEmbed && embedSnippet && (
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
                       <button
                         onClick={() => {
-                          const snippet = buildEmbedSnippet();
-                          if (!snippet) return;
-                          navigator.clipboard.writeText(snippet);
+                          navigator.clipboard.writeText(embedSnippet);
                           setIsEmbedCopied(true);
                           setTimeout(() => setIsEmbedCopied(false), 2000);
                         }}
@@ -796,7 +799,7 @@ export default function DownloadPage() {
                       </div>
                     </div>
                   )}
-                  {showEmbed && buildEmbedSnippet() && (
+                  {showEmbed && embedSnippet && (
                     <div
                       style={{
                         marginTop: '0.6rem',
@@ -814,7 +817,7 @@ export default function DownloadPage() {
                         Embed
                       </div>
                       <code style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
-                        {buildEmbedSnippet()}
+                        {embedSnippet}
                       </code>
                     </div>
                   )}

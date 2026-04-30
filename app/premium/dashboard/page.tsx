@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
 interface UploadRecord {
@@ -14,24 +14,33 @@ interface UploadRecord {
 
 export default function PremiumDashboard() {
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [lastSynced, setLastSynced] = useState<number | null>(null);
+  const mountedRef = useRef(false);
+  const syncRequestIdRef = useRef(0);
 
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
 
-    const load = async () => {
+    const syncUploads = async (initial = false) => {
+      const requestId = ++syncRequestIdRef.current;
       try {
-        if (mounted) {
-          setLoading(true);
+        if (mountedRef.current) {
+          if (initial) {
+            setLoading(true);
+          } else {
+            setSyncing(true);
+          }
           setError(null);
         }
 
         const meResponse = await fetch('/api/premium/me', { cache: 'no-store' });
+        if (!mountedRef.current || requestId !== syncRequestIdRef.current) return;
         const me = await meResponse.json();
         if (!me?.premium) {
           window.location.href = '/premium';
@@ -39,32 +48,47 @@ export default function PremiumDashboard() {
         }
 
         const uploadsResponse = await fetch('/api/premium/uploads', { cache: 'no-store' });
+        if (!mountedRef.current || requestId !== syncRequestIdRef.current) return;
         if (!uploadsResponse.ok) {
           throw new Error('Failed to load uploads');
         }
 
         const data = await uploadsResponse.json();
-        if (mounted) {
+        if (mountedRef.current && requestId === syncRequestIdRef.current) {
           setUploads(data.uploads || []);
           setLastSynced(Date.now());
         }
       } catch (err) {
-        if (mounted) {
+        if (mountedRef.current && requestId === syncRequestIdRef.current) {
           setError(err instanceof Error ? err.message : 'Failed to load uploads');
         }
       } finally {
-        if (mounted) {
-          setLoading(false);
+        if (mountedRef.current && requestId === syncRequestIdRef.current) {
+          if (initial) {
+            setLoading(false);
+          } else {
+            setSyncing(false);
+          }
         }
       }
     };
 
-    load();
-    const interval = window.setInterval(load, 30000);
+    void syncUploads(true);
+    const interval = window.setInterval(() => {
+      void syncUploads(false);
+    }, 30000);
+
+    const handleFocus = () => {
+      void syncUploads(false);
+    };
+
+    window.addEventListener('focus', handleFocus);
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
+      syncRequestIdRef.current += 1;
       window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
@@ -100,20 +124,41 @@ export default function PremiumDashboard() {
   };
 
   const refreshUploads = async () => {
-    setLoading(true);
-    setError(null);
+    if (syncing) return;
+    const requestId = ++syncRequestIdRef.current;
     try {
+      if (mountedRef.current) {
+        setSyncing(true);
+        setError(null);
+      }
+
+      const meResponse = await fetch('/api/premium/me', { cache: 'no-store' });
+      if (!mountedRef.current || requestId !== syncRequestIdRef.current) return;
+      const me = await meResponse.json();
+      if (!me?.premium) {
+        window.location.href = '/premium';
+        return;
+      }
+
       const uploadsResponse = await fetch('/api/premium/uploads', { cache: 'no-store' });
+      if (!mountedRef.current || requestId !== syncRequestIdRef.current) return;
       if (!uploadsResponse.ok) {
         throw new Error('Failed to load uploads');
       }
+
       const data = await uploadsResponse.json();
-      setUploads(data.uploads || []);
-      setLastSynced(Date.now());
+      if (mountedRef.current && requestId === syncRequestIdRef.current) {
+        setUploads(data.uploads || []);
+        setLastSynced(Date.now());
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load uploads');
+      if (mountedRef.current && requestId === syncRequestIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load uploads');
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current && requestId === syncRequestIdRef.current) {
+        setSyncing(false);
+      }
     }
   };
 
@@ -148,6 +193,14 @@ export default function PremiumDashboard() {
 
   const totalBytes = uploads.reduce((sum, file) => sum + (file.size || 0), 0);
   const latestUpload = uploads[0];
+  const queuedCount = uploads.length;
+  const syncedLabel = loading
+    ? 'Loading uploads'
+    : syncing
+      ? 'Refreshing list'
+      : lastSynced
+        ? `Synced at ${new Date(lastSynced).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+        : 'Not synced yet';
 
   return (
     <>
@@ -175,87 +228,144 @@ export default function PremiumDashboard() {
         margin: '0 auto'
       }}>
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          marginBottom: '2rem'
+          marginBottom: '1.5rem',
+          padding: '1.25rem 1.3rem',
+          borderRadius: '22px',
+          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))',
+          boxShadow: '0 16px 42px rgba(0,0,0,0.28)',
+          backdropFilter: 'blur(18px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(18px) saturate(180%)'
         }}>
-          <div>
-            <div style={{
-              fontSize: '0.7rem',
-              letterSpacing: '0.22em',
-              textTransform: 'uppercase',
-              color: '#8a92a1'
-            }}>
-              Premium
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                fontSize: '0.68rem',
+                letterSpacing: '0.24em',
+                textTransform: 'uppercase',
+                color: '#8a92a1'
+              }}>
+                Premium vault
+              </div>
+              <h1 style={{
+                margin: '0.35rem 0 0',
+                fontSize: 'clamp(1.7rem, 4vw, 2.35rem)',
+                lineHeight: 1.05
+              }}>
+                Your uploads
+              </h1>
+              <p style={{
+                margin: '0.45rem 0 0',
+                color: '#a9b2c1',
+                fontSize: '0.9rem',
+                maxWidth: '52ch'
+              }}>
+                Browse, sync, and manage the files attached to your premium account.
+              </p>
             </div>
-            <h1 style={{
-              fontSize: '2rem',
-              marginTop: '0.35rem'
-            }}>
-              Your uploads
-            </h1>
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <Link
+                href="/"
+                className="pressable"
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '999px',
+                  border: '1px solid rgba(255,255,255,0.13)',
+                  background: 'rgba(255,255,255,0.07)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  color: '#cfd6e1',
+                  textDecoration: 'none',
+                  fontSize: '0.75rem',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                }}
+              >
+                Back to upload
+              </Link>
+              <button
+                onClick={refreshUploads}
+                className="pressable"
+                disabled={loading || syncing}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '999px',
+                  border: '1px solid rgba(255,255,255,0.13)',
+                  background: 'rgba(255,255,255,0.07)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  color: '#cfd6e1',
+                  fontSize: '0.75rem',
+                  cursor: loading || syncing ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                }}
+              >
+                {loading || syncing ? 'Refreshing…' : 'Refresh list'}
+              </button>
+              <button
+                onClick={copyAllLinks}
+                className="pressable"
+                disabled={uploads.length === 0 || loading}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '999px',
+                  border: uploads.length === 0 || loading ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(233,236,242,0.4)',
+                  background: uploads.length === 0 || loading ? 'rgba(255,255,255,0.05)' : 'rgba(233,236,242,0.18)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  color: uploads.length === 0 || loading ? '#8a92a1' : '#eef1f6',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: uploads.length === 0 || loading ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                }}
+              >
+                {copiedAll ? 'Copied' : 'Copy all links'}
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.6rem' }}>
-            <Link
-              href="/"
-              className="pressable"
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '999px',
-                border: '1px solid rgba(255,255,255,0.13)',
-                background: 'rgba(255,255,255,0.07)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                color: '#c3cad6',
-                textDecoration: 'none',
-                fontSize: '0.75rem',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-              }}
-            >
-              Back to upload
-            </Link>
-            <button
-              onClick={refreshUploads}
-              className="pressable"
-              disabled={loading}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '999px',
-                border: '1px solid rgba(255,255,255,0.13)',
-                background: 'rgba(255,255,255,0.07)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                color: '#c3cad6',
-                fontSize: '0.75rem',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-              }}
-            >
-              {loading ? 'Syncing…' : 'Sync now'}
-            </button>
-            <button
-              onClick={copyAllLinks}
-              className="pressable"
-              disabled={uploads.length === 0 || loading}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '999px',
-                border: uploads.length === 0 || loading ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(233,236,242,0.4)',
-                background: uploads.length === 0 || loading ? 'rgba(255,255,255,0.05)' : 'rgba(233,236,242,0.18)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                color: uploads.length === 0 || loading ? '#8a92a1' : '#eef1f6',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                cursor: uploads.length === 0 || loading ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-              }}
-            >
-              {copiedAll ? 'Copied' : 'Copy all links'}
-            </button>
+
+          <div style={{
+            display: 'flex',
+            gap: '0.6rem',
+            flexWrap: 'wrap',
+            marginTop: '1rem'
+          }}>
+            <div style={{
+              padding: '0.45rem 0.75rem',
+              borderRadius: '999px',
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(255,255,255,0.05)',
+              color: '#cfd6e1',
+              fontSize: '0.74rem'
+            }}>
+              {queuedCount} file{queuedCount === 1 ? '' : 's'}
+            </div>
+            <div style={{
+              padding: '0.45rem 0.75rem',
+              borderRadius: '999px',
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(255,255,255,0.05)',
+              color: '#cfd6e1',
+              fontSize: '0.74rem'
+            }}>
+              {formatFileSize(totalBytes)} stored
+            </div>
+            <div style={{
+              padding: '0.45rem 0.75rem',
+              borderRadius: '999px',
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: syncing ? 'rgba(79, 248, 192, 0.14)' : 'rgba(255,255,255,0.05)',
+              color: syncing ? '#7ef4cb' : '#cfd6e1',
+              fontSize: '0.74rem'
+            }}>
+              {syncedLabel}
+            </div>
           </div>
         </div>
 
@@ -318,6 +428,21 @@ export default function PremiumDashboard() {
           boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
           marginBottom: '1.4rem'
         }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            marginBottom: '0.7rem',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ fontSize: '0.74rem', color: '#8a92a1', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+              Search
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#8a92a1' }}>
+              {filteredUploads.length} visible
+            </div>
+          </div>
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -349,17 +474,28 @@ export default function PremiumDashboard() {
           ) : error ? (
             <div style={{ color: '#e29b9b' }}>{error}</div>
           ) : filteredUploads.length === 0 ? (
-            <div style={{ color: '#8a92a1' }}>No uploads yet. Upload a file to see it here.</div>
+            <div style={{
+              padding: '1rem',
+              borderRadius: '14px',
+              border: '1px dashed rgba(255,255,255,0.14)',
+              background: 'rgba(255,255,255,0.03)',
+              color: '#a9b2c1',
+              textAlign: 'center'
+            }}>
+              {uploads.length === 0
+                ? 'No uploads yet. Premium uploads will appear here automatically once they sync.'
+                : 'No matches for your search. Try a different filename or clear the filter.'}
+            </div>
           ) : (
             <div style={{ display: 'grid', gap: '0.85rem' }}>
               {filteredUploads.map((file, index) => (
                 <div
                   key={`${file.url}-${index}`}
                   style={{
-                    padding: '0.9rem 1rem',
-                    borderRadius: '14px',
+                    padding: '1rem 1.05rem',
+                    borderRadius: '16px',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.05)',
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.035))',
                     backdropFilter: 'blur(14px)',
                     WebkitBackdropFilter: 'blur(14px)',
                     display: 'flex',
@@ -367,26 +503,41 @@ export default function PremiumDashboard() {
                     justifyContent: 'space-between',
                     gap: '1rem',
                     flexWrap: 'wrap',
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)'
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.06)'
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, flex: '1 1 280px' }}>
                     <div style={{
-                      fontSize: '0.95rem',
+                      fontSize: '0.98rem',
                       fontWeight: 600,
                       wordBreak: 'break-all'
                     }}>
                       {file.filename}
                     </div>
-                    <div style={{
-                      fontSize: '0.72rem',
-                      color: '#8a92a1',
-                      marginTop: '0.25rem'
-                    }}>
-                      Uploaded {formatTimestamp(file.timestamp)} • {formatFileSize(file.size)}
+                    <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.45rem' }}>
+                      <span style={{
+                        padding: '0.28rem 0.55rem',
+                        borderRadius: '999px',
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        color: '#cfd6e1',
+                        fontSize: '0.68rem'
+                      }}>
+                        {formatFileSize(file.size)}
+                      </span>
+                      <span style={{
+                        padding: '0.28rem 0.55rem',
+                        borderRadius: '999px',
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        color: '#cfd6e1',
+                        fontSize: '0.68rem'
+                      }}>
+                        Uploaded {formatTimestamp(file.timestamp)}
+                      </span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <a
                       href={file.url}
                       target="_blank"
@@ -396,10 +547,10 @@ export default function PremiumDashboard() {
                         padding: '0.4rem 0.8rem',
                         borderRadius: '999px',
                       border: '1px solid rgba(255,255,255,0.13)',
-                      background: 'rgba(255,255,255,0.07)',
+                      background: 'rgba(255,255,255,0.08)',
                       backdropFilter: 'blur(10px)',
                       WebkitBackdropFilter: 'blur(10px)',
-                      color: '#c3cad6',
+                      color: '#dbe0e8',
                       textDecoration: 'none',
                       fontSize: '0.7rem',
                       boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
@@ -414,7 +565,7 @@ export default function PremiumDashboard() {
                         padding: '0.4rem 0.8rem',
                         borderRadius: '999px',
                       border: '1px solid rgba(233,236,242,0.4)',
-                      background: 'rgba(233,236,242,0.18)',
+                      background: 'rgba(233,236,242,0.16)',
                       backdropFilter: 'blur(10px)',
                       WebkitBackdropFilter: 'blur(10px)',
                       color: '#eef1f6',
@@ -434,7 +585,7 @@ export default function PremiumDashboard() {
                         padding: '0.4rem 0.8rem',
                         borderRadius: '999px',
                       border: deletingUrl === file.url ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(220,80,80,0.35)',
-                      background: deletingUrl === file.url ? 'rgba(255,255,255,0.05)' : 'rgba(180,50,50,0.18)',
+                      background: deletingUrl === file.url ? 'rgba(255,255,255,0.05)' : 'rgba(180,50,50,0.16)',
                       backdropFilter: 'blur(10px)',
                       WebkitBackdropFilter: 'blur(10px)',
                       color: deletingUrl === file.url ? '#8a92a1' : '#f2c6c6',

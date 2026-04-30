@@ -1,17 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Open_Sans } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import ClickRipple from "./click-ripple";
 import type { Viewport } from "next";
-
-const openSans = Open_Sans({
-  variable: "--font-open-sans",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Relay",
@@ -30,10 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" style={{ backgroundColor: "#0a0a0a" }}>
-      <body
-        className={`${openSans.variable} antialiased`}
-        style={{ backgroundColor: "#0a0a0a", margin: 0 }}
-      >
+      <body className="antialiased" style={{ backgroundColor: "#0a0a0a", margin: 0 }}>
         <Script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7504951431311068"
