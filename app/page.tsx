@@ -484,6 +484,7 @@ export default function Home() {
       totalBytes: file.size,
     }));
     setUploadQueue((prev) => [...prev, ...items]);
+    cancelUploadRef.current = false;
     setQueuePaused(false);
     setActiveView('upload');
     showToast(`${files.length} file${files.length === 1 ? '' : 's'} added to queue`, 'info');
@@ -763,6 +764,12 @@ export default function Home() {
   const uploadQueueItem = async (item: UploadQueueItem) => {
     const itemId = item.id;
     const file = item.file;
+    if (queuePaused) {
+      throw new Error('Upload paused');
+    }
+    if (cancelUploadRef.current) {
+      throw new Error('Upload cancelled');
+    }
     if (file.size > maxUploadBytes) {
       throw new Error('File too large');
     }
@@ -1025,6 +1032,12 @@ export default function Home() {
           );
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Upload failed';
+          if (message === 'Upload paused' || message === 'Upload cancelled') {
+            setUploadQueue((prev) =>
+              prev.map((it) => (it.id === item.id ? { ...it, status: 'queued', error: undefined } : it))
+            );
+            return;
+          }
           setUploadQueue((prev) =>
             prev.map((it) => (it.id === item.id ? { ...it, status: 'error', error: message } : it))
           );
@@ -1066,6 +1079,7 @@ export default function Home() {
 
     // Cancel any active queued uploads.
     cancelUploadRef.current = true;
+    setQueuePaused(true);
     for (const [id, xhr] of Object.entries(queueXhrsRef.current)) {
       if (xhr) {
         try {
@@ -1076,6 +1090,10 @@ export default function Home() {
         queueXhrsRef.current[id] = null;
       }
     }
+    cancelUploadRef.current = false;
+    setUploadQueue((prev) =>
+      prev.map((it) => (it.status === 'uploading' ? { ...it, status: 'queued', error: undefined } : it))
+    );
     setCurrentUploadName('');
     setUploadStatus('');
     setUploadProgress(0);
@@ -1105,6 +1123,7 @@ export default function Home() {
   };
 
   const resumeQueue = () => {
+    cancelUploadRef.current = false;
     setQueuePaused(false);
     showToast('Queue resumed', 'info');
   };

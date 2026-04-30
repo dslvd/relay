@@ -18,10 +18,19 @@ export default function PremiumDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [lastSynced, setLastSynced] = useState<number | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     const load = async () => {
       try {
+        if (mounted) {
+          setLoading(true);
+          setError(null);
+        }
+
         const meResponse = await fetch('/api/premium/me', { cache: 'no-store' });
         const me = await meResponse.json();
         if (!me?.premium) {
@@ -35,15 +44,28 @@ export default function PremiumDashboard() {
         }
 
         const data = await uploadsResponse.json();
-        setUploads(data.uploads || []);
+        if (mounted) {
+          setUploads(data.uploads || []);
+          setLastSynced(Date.now());
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load uploads');
+        if (mounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load uploads');
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     load();
+    const interval = window.setInterval(load, 30000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   const formatFileSize = (bytes: number) => {
@@ -77,6 +99,24 @@ export default function PremiumDashboard() {
     window.setTimeout(() => setCopiedAll(false), 1200);
   };
 
+  const refreshUploads = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const uploadsResponse = await fetch('/api/premium/uploads', { cache: 'no-store' });
+      if (!uploadsResponse.ok) {
+        throw new Error('Failed to load uploads');
+      }
+      const data = await uploadsResponse.json();
+      setUploads(data.uploads || []);
+      setLastSynced(Date.now());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load uploads');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deleteUpload = async (url: string, filename: string) => {
     if (!confirm(`Delete "${filename}"?`)) return;
 
@@ -99,6 +139,15 @@ export default function PremiumDashboard() {
       setDeletingUrl(null);
     }
   };
+
+  const filteredUploads = uploads.filter((file) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return file.filename.toLowerCase().includes(q) || file.url.toLowerCase().includes(q);
+  });
+
+  const totalBytes = uploads.reduce((sum, file) => sum + (file.size || 0), 0);
+  const latestUpload = uploads[0];
 
   return (
     <>
@@ -169,6 +218,25 @@ export default function PremiumDashboard() {
               Back to upload
             </Link>
             <button
+              onClick={refreshUploads}
+              className="pressable"
+              disabled={loading}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '999px',
+                border: '1px solid rgba(255,255,255,0.13)',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                color: '#c3cad6',
+                fontSize: '0.75rem',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+              }}
+            >
+              {loading ? 'Syncing…' : 'Sync now'}
+            </button>
+            <button
               onClick={copyAllLinks}
               className="pressable"
               disabled={uploads.length === 0 || loading}
@@ -192,6 +260,82 @@ export default function PremiumDashboard() {
         </div>
 
         <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '0.9rem',
+          marginBottom: '1.6rem'
+        }}>
+          <div style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '16px',
+            padding: '1.2rem'
+          }}>
+            <div style={{ fontSize: '0.72rem', color: '#8a92a1', marginBottom: '0.35rem' }}>Total uploads</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{uploads.length}</div>
+          </div>
+          <div style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '16px',
+            padding: '1.2rem'
+          }}>
+            <div style={{ fontSize: '0.72rem', color: '#8a92a1', marginBottom: '0.35rem' }}>Storage used</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{formatFileSize(totalBytes)}</div>
+          </div>
+          <div style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '16px',
+            padding: '1.2rem'
+          }}>
+            <div style={{ fontSize: '0.72rem', color: '#8a92a1', marginBottom: '0.35rem' }}>Latest upload</div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 600, wordBreak: 'break-all' }}>
+              {latestUpload ? latestUpload.filename : '—'}
+            </div>
+          </div>
+          <div style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '16px',
+            padding: '1.2rem'
+          }}>
+            <div style={{ fontSize: '0.72rem', color: '#8a92a1', marginBottom: '0.35rem' }}>Last synced</div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+              {lastSynced ? new Date(lastSynced).toLocaleTimeString() : '—'}
+            </div>
+            <div style={{ fontSize: '0.68rem', color: '#8a92a1', marginTop: '0.25rem' }}>Auto-sync every 30s</div>
+          </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(255,255,255,0.05)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '18px',
+          padding: '1.2rem 1.5rem',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+          marginBottom: '1.4rem'
+        }}>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search uploads"
+            style={{
+              width: '100%',
+              padding: '0.7rem 0.9rem',
+              borderRadius: '10px',
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.06)',
+              color: '#eef1f6',
+              fontSize: '0.8rem',
+              outline: 'none'
+            }}
+          />
+        </div>
+
+        <div style={{
           background: 'rgba(255,255,255,0.05)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
@@ -204,11 +348,11 @@ export default function PremiumDashboard() {
             <div style={{ color: '#8a92a1' }}>Loading uploads...</div>
           ) : error ? (
             <div style={{ color: '#e29b9b' }}>{error}</div>
-          ) : uploads.length === 0 ? (
+          ) : filteredUploads.length === 0 ? (
             <div style={{ color: '#8a92a1' }}>No uploads yet. Upload a file to see it here.</div>
           ) : (
             <div style={{ display: 'grid', gap: '0.85rem' }}>
-              {uploads.map((file, index) => (
+              {filteredUploads.map((file, index) => (
                 <div
                   key={`${file.url}-${index}`}
                   style={{

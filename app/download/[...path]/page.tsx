@@ -28,8 +28,7 @@ export default function DownloadPage() {
   const [previewTextTruncated, setPreviewTextTruncated] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isEmbedCopied, setIsEmbedCopied] = useState(false);
-  const [isDirectCopied, setIsDirectCopied] = useState(false);
-  const [isShortCopied, setIsShortCopied] = useState(false);
+  const [showEmbed, setShowEmbed] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [shortUrl, setShortUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -770,29 +769,29 @@ export default function DownloadPage() {
                 {/* Share extras */}
                 <div style={{ marginTop: '0.8rem' }}>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}${downloadUrl}`);
-                        setIsDirectCopied(true);
-                        setTimeout(() => setIsDirectCopied(false), 2000);
-                      }}
-                      style={{
-                        flex: 1,
-                        minWidth: '150px',
-                        padding: '0.55rem 0.9rem',
-                        borderRadius: '6px',
-                        background: isDirectCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-                        border: `1px solid ${isDirectCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.14)'}`,
-                        color: isDirectCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
-                        fontWeight: 600,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {isDirectCopied ? '✓ Direct copied' : 'Copy direct file URL'}
-                    </button>
-
                     {buildEmbedSnippet() && (
+                      <button
+                        onClick={() => setShowEmbed((prev) => !prev)}
+                        style={{
+                          flex: 1,
+                          minWidth: '150px',
+                          padding: '0.55rem 0.9rem',
+                          borderRadius: '6px',
+                          background: showEmbed ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.06)',
+                          border: '1px solid rgba(255, 255, 255, 0.14)',
+                          color: '#f5f5f5',
+                          fontWeight: 600,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {showEmbed ? 'Hide embed' : 'Show embed'}
+                      </button>
+                    )}
+                  </div>
+
+                  {showEmbed && buildEmbedSnippet() && (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
                       <button
                         onClick={() => {
                           const snippet = buildEmbedSnippet();
@@ -817,70 +816,29 @@ export default function DownloadPage() {
                       >
                         {isEmbedCopied ? '✓ Embed copied' : 'Copy embed snippet'}
                       </button>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
-                    <button
-                      onClick={async () => {
-                        const s = await ensureShortLink();
-                        if (!s) return;
-                        const ok = await copyText(s);
-                        if (ok) {
-                          setIsShortCopied(true);
-                          setTimeout(() => setIsShortCopied(false), 2000);
-                        }
-                      }}
-                      style={{
-                        flex: 1,
-                        minWidth: '150px',
-                        padding: '0.55rem 0.9rem',
-                        borderRadius: '6px',
-                        background: isShortCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-                        border: `1px solid ${isShortCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.14)'}`,
-                        color: isShortCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
-                        fontWeight: 600,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                        opacity: isShortening ? 0.7 : 1,
-                      }}
-                      title="Create and copy a short link"
-                    >
-                      {isShortening
-                        ? 'Creating short link…'
-                        : isShortCopied
-                          ? '✓ Short link copied'
-                          : shortUrl
-                            ? 'Copy short link'
-                            : 'Create short link'}
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        const qr = await ensureQr();
-                        if (!qr) return;
-                        setIsQrOpen((v) => !v);
-                      }}
-                      style={{
-                        flex: 1,
-                        minWidth: '150px',
-                        padding: '0.55rem 0.9rem',
-                        borderRadius: '6px',
-                        background: 'rgba(255, 255, 255, 0.06)',
-                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                        color: '#f5f5f5',
-                        fontWeight: 600,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                      }}
-                      title="Show QR code"
-                    >
-                      {isQrOpen ? 'Hide QR' : 'Show QR'}
-                    </button>
-                  </div>
-
-                  {shortUrl && (
-                    <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: 'rgba(245,245,245,0.8)', wordBreak: 'break-all' }}>
-                      Short link: <a href={shortUrl} target="_blank" rel="noreferrer" style={{ color: '#f5f5f5' }}>{shortUrl}</a>
+                      <button
+                        onClick={async () => {
+                          const qr = await ensureQr();
+                          if (!qr) return;
+                          setIsQrOpen((v) => !v);
+                        }}
+                        style={{
+                          flex: 1,
+                          minWidth: '150px',
+                          padding: '0.55rem 0.9rem',
+                          borderRadius: '6px',
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          border: '1px solid rgba(255, 255, 255, 0.14)',
+                          color: '#f5f5f5',
+                          fontWeight: 600,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          opacity: isShortening ? 0.7 : 1,
+                        }}
+                        title="Show QR code"
+                      >
+                        {isQrOpen ? 'Hide QR' : 'Show QR'}
+                      </button>
                     </div>
                   )}
 
@@ -890,7 +848,7 @@ export default function DownloadPage() {
                     </div>
                   )}
 
-                  {isQrOpen && qrDataUrl && (
+                  {showEmbed && isQrOpen && qrDataUrl && (
                     <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'center' }}>
                       <div
                         style={{
@@ -905,7 +863,7 @@ export default function DownloadPage() {
                       </div>
                     </div>
                   )}
-                  {buildEmbedSnippet() && (
+                  {showEmbed && buildEmbedSnippet() && (
                     <div
                       style={{
                         marginTop: '0.6rem',
