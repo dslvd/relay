@@ -29,10 +29,7 @@ export default function DownloadPage() {
   const [isCopied, setIsCopied] = useState(false);
   const [isEmbedCopied, setIsEmbedCopied] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
-  const [copyError, setCopyError] = useState<string | null>(null);
-  const [shortUrl, setShortUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [isShortening, setIsShortening] = useState(false);
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [downloadCount, setDownloadCount] = useState<number | null>(null);
@@ -76,66 +73,9 @@ export default function DownloadPage() {
     return null;
   };
 
-  const copyText = async (text: string) => {
-    setCopyError(null);
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        return true;
-      }
-    } catch {
-      // fall back
-    }
-
-    try {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
-      textarea.style.top = '0';
-      textarea.setAttribute('readonly', 'true');
-      document.body.appendChild(textarea);
-      textarea.select();
-      textarea.setSelectionRange(0, textarea.value.length);
-      const ok = document.execCommand('copy');
-      document.body.removeChild(textarea);
-      if (!ok) {
-        throw new Error('Copy failed');
-      }
-      return true;
-    } catch (err) {
-      setCopyError(err instanceof Error ? err.message : 'Copy failed');
-      return false;
-    }
-  };
-
-  const ensureShortLink = async (): Promise<string | null> => {
-    if (shortUrl) return shortUrl;
-    try {
-      setIsShortening(true);
-      const res = await fetch('/api/shorten', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: `${window.location.origin}${downloadPageUrl}` }),
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || !payload?.data?.shortUrl) {
-        setCopyError(payload?.error || 'Failed to create short link');
-        return null;
-      }
-      setShortUrl(payload.data.shortUrl);
-      return payload.data.shortUrl as string;
-    } catch {
-      setCopyError('Failed to create short link');
-      return null;
-    } finally {
-      setIsShortening(false);
-    }
-  };
-
   const ensureQr = async (): Promise<string | null> => {
     if (qrDataUrl) return qrDataUrl;
-    const url = await ensureShortLink() || `${window.location.origin}${downloadPageUrl}`;
+    const url = `${window.location.origin}${downloadPageUrl}`;
     try {
       const mod = await import('qrcode');
       const dataUrl = await mod.toDataURL(url, {
@@ -833,18 +773,11 @@ export default function DownloadPage() {
                           fontWeight: 600,
                           fontSize: '0.78rem',
                           cursor: 'pointer',
-                          opacity: isShortening ? 0.7 : 1,
                         }}
                         title="Show QR code"
                       >
                         {isQrOpen ? 'Hide QR' : 'Show QR'}
                       </button>
-                    </div>
-                  )}
-
-                  {copyError && (
-                    <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'rgba(255, 120, 120, 0.95)' }}>
-                      {copyError}
                     </div>
                   )}
 

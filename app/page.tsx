@@ -64,6 +64,7 @@ export default function Home() {
   const [premiumEmail, setPremiumEmail] = useState('');
   const toastTimeoutRef = useRef<number | null>(null);
   const cancelUploadRef = useRef(false);
+  const cancelTokenRef = useRef(0);
   const activeUploadRequestRef = useRef<XMLHttpRequest | null>(null);
   const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
   const [queuePaused, setQueuePaused] = useState(false);
@@ -764,18 +765,23 @@ export default function Home() {
   const uploadQueueItem = async (item: UploadQueueItem) => {
     const itemId = item.id;
     const file = item.file;
+    const cancelToken = cancelTokenRef.current;
+    const throwIfCancelled = () => {
+      if (cancelUploadRef.current || cancelTokenRef.current !== cancelToken) {
+        throw new Error('Upload cancelled');
+      }
+    };
     if (queuePaused) {
       throw new Error('Upload paused');
     }
-    if (cancelUploadRef.current) {
-      throw new Error('Upload cancelled');
-    }
+    throwIfCancelled();
     if (file.size > maxUploadBytes) {
       throw new Error('File too large');
     }
 
     setUploadStatus('Checking for duplicates...');
     const contentHash = await ensureContentHash(item);
+    throwIfCancelled();
     const duplicateUrl = await checkDuplicateUpload(contentHash, file);
     if (duplicateUrl) {
       setUploadQueue((prev) =>
@@ -905,9 +911,7 @@ export default function Home() {
       if (queuePaused) {
         throw new Error('Upload paused');
       }
-      if (cancelUploadRef.current) {
-        throw new Error('Upload cancelled');
-      }
+      throwIfCancelled();
       if (done.has(partNumber)) {
         continue;
       }
@@ -935,6 +939,7 @@ export default function Home() {
       }
 
       const etag = await uploadPartXhr(presignPayload.data.url as string, blob, start);
+      throwIfCancelled();
       done.set(partNumber, etag);
 
       const nextParts = Array.from(done.entries())
@@ -1078,8 +1083,17 @@ export default function Home() {
     }
 
     // Cancel any active queued uploads.
+    cancelTokenRef.current += 1;
     cancelUploadRef.current = true;
-    setQueuePaused(true);
+    setQueuePaused(false);
+    if (activeUploadRequestRef.current) {
+      try {
+        activeUploadRequestRef.current.abort();
+      } catch {
+        // ignore
+      }
+      activeUploadRequestRef.current = null;
+    }
     for (const [id, xhr] of Object.entries(queueXhrsRef.current)) {
       if (xhr) {
         try {
@@ -1101,6 +1115,9 @@ export default function Home() {
     setUploadTotalBytes(0);
     setUploading(false);
     showToast('Upload cancelled', 'info');
+    window.setTimeout(() => {
+      cancelUploadRef.current = false;
+    }, 0);
   };
 
   const pauseQueue = () => {
