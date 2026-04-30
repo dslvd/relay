@@ -1537,7 +1537,7 @@ export default function AdminDashboard() {
               }}
             />
             <button
-              onClick={addBlacklistRule}
+              onClick={() => void addBlacklistRule()}
               disabled={addingRule}
               style={{
                 padding: '0.55rem 1rem',

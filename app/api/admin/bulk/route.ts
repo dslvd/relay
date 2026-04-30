@@ -58,7 +58,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const action = body?.action as BulkAction;
-    const urls = Array.isArray(body?.urls) ? body.urls.filter((u: unknown) => typeof u === 'string') : [];
+    const urls: string[] = Array.isArray(body?.urls)
+      ? (body.urls as unknown[]).filter((u: unknown): u is string => typeof u === 'string')
+      : [];
     const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
 
     if (!action || urls.length === 0) {
