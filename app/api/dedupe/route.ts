@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     await saveAliasRecord(aliasKey, existing.objectKey);
 
-    const downloadUrl = `${request.nextUrl.origin}/download/${aliasKey}`;
+    const downloadUrl = `${request.nextUrl.origin}/d/${aliasKey}`;
     return NextResponse.json({
       success: true,
       duplicate: true,

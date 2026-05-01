@@ -26,12 +26,22 @@ async function findOriginalFilenameByKey(key: string): Promise<string | null> {
     for (const record of history) {
       try {
         const parsed = new URL(record.url, 'http://localhost');
-        if (parsed.pathname === `/download/${key}` || parsed.pathname.endsWith(`/download/${key}`)) {
+        if (
+          parsed.pathname === `/download/${key}` ||
+          parsed.pathname.endsWith(`/download/${key}`) ||
+          parsed.pathname === `/d/${key}` ||
+          parsed.pathname.endsWith(`/d/${key}`)
+        ) {
           return record.filename || null;
         }
-        // Many links are just `/download/<lastSegment>`.
+        // Many links are just `/download/<lastSegment>` (or `/d/<lastSegment>`).
         const last = key.split('/').pop() || key;
-        if (parsed.pathname === `/download/${last}` || parsed.pathname.endsWith(`/download/${last}`)) {
+        if (
+          parsed.pathname === `/download/${last}` ||
+          parsed.pathname.endsWith(`/download/${last}`) ||
+          parsed.pathname === `/d/${last}` ||
+          parsed.pathname.endsWith(`/d/${last}`)
+        ) {
           return record.filename || null;
         }
       } catch {

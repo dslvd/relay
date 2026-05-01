@@ -930,7 +930,7 @@ export default function Home() {
       }
 
       const filename = pathname.split('/').pop() || '';
-      const newUrl = `${window.location.origin}/download/${filename}`;
+      const newUrl = `${window.location.origin}/d/${filename}`;
       const uploadedAt = Date.now();
 
       setUploadedFiles(prev => [
@@ -1197,7 +1197,7 @@ export default function Home() {
     }
 
     const uploadedFilename = multipart.objectKey.split('/').pop() || '';
-    const newUrl = `${window.location.origin}/download/${uploadedFilename}`;
+    const newUrl = `${window.location.origin}/d/${uploadedFilename}`;
     const uploadedAt = Date.now();
 
     setUploadedFiles((prev) => [
@@ -1383,13 +1383,13 @@ export default function Home() {
 
   const getDownloadLinks = (): string[] => {
     return uploadedFiles.map(file => {
-      // For files uploaded in this session, the URL is already the download page link
-      if (file.url.includes('/download/')) {
+      // For files uploaded in this session, the URL is already a shareable link
+      if (file.url.includes('/d/') || file.url.includes('/download/')) {
         return file.url;
       }
-      // For legacy files or if needed, extract filename and create download page URL
+      // For legacy files or if needed, extract filename and create a direct download URL
       const filename = file.url.split('/').pop() || '';
-      return `${window.location.origin}/download/${filename}`;
+      return `${window.location.origin}/d/${filename}`;
     });
   };
 
@@ -2683,6 +2683,8 @@ export default function Home() {
                 const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(lowerExt || '');
                 const keyFromUrl = url.includes('/download/')
                   ? url.split('/download/').pop()
+                  : url.includes('/d/')
+                    ? url.split('/d/').pop()
                   : url.split('/').pop();
                 const thumbKey = keyFromUrl ? keyFromUrl.split('?')[0] : '';
                 const extension = filename.includes('.')
@@ -2823,7 +2825,7 @@ export default function Home() {
                         Link
                       </div>
                       <a 
-                        href={url.includes('/download/') ? url : `${window.location.origin}/download/${url.split('/').pop()}`} 
+                        href={url.includes('/d/') || url.includes('/download/') ? url : `${window.location.origin}/d/${url.split('/').pop()}`} 
                         target="_blank" 
                         rel="noreferrer"
                         style={{
@@ -3118,7 +3120,7 @@ export default function Home() {
                         Link
                       </div>
                       <a 
-                        href={record.url.includes('/download/') ? record.url : `${window.location.origin}/download/${record.url.split('/').pop()}`} 
+                        href={record.url.includes('/d/') || record.url.includes('/download/') ? record.url : `${window.location.origin}/d/${record.url.split('/').pop()}`} 
                         target="_blank" 
                         rel="noreferrer"
                         style={{

@@ -12,6 +12,8 @@ function findRecordByKey(history: UploadRecord[], key: string): UploadRecord | n
       // Prefer exact matches for download URLs.
       if (pathname === `/download/${key}`) return record;
       if (pathname.endsWith(`/download/${key}`)) return record;
+      if (pathname === `/d/${key}`) return record;
+      if (pathname.endsWith(`/d/${key}`)) return record;
 
       // Back-compat / loose matching.
       if (pathname.includes(key)) return record;
@@ -98,4 +100,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch file info' }, { status: 500 });
   }
 }
-

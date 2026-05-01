@@ -587,7 +587,7 @@ export default function DownloadPage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
-                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Global downloads:</div>
+                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Downloads:</div>
                     <div style={{ flex: 1, color: '#f5f5f5' }}>
                       {typeof downloadCount === 'number' ? downloadCount.toLocaleString() : 'Unknown'}
                     </div>
@@ -679,7 +679,7 @@ export default function DownloadPage() {
                   </button>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem' }}>
+                <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.5rem' }}>
                   <button
                       onClick={copyShortLink}
                     style={{
@@ -744,7 +744,7 @@ export default function DownloadPage() {
 
                 {/* Share extras */}
                 <div style={{ marginTop: '0.8rem' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                     {embedSnippet && (
                       <button
                         onClick={() => setShowEmbed((prev) => !prev)}
@@ -792,7 +792,7 @@ export default function DownloadPage() {
                     </div>
                   )}
 
-                  {showEmbed && isQrOpen && qrDataUrl && (
+                  {isQrOpen && qrDataUrl && (
                     <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'center' }}>
                       <div
                         style={{

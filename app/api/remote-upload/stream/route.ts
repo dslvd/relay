@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
 
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
         const fileKey = objectKey.split('/').pop() || '';
-        const downloadUrl = `${baseUrl}/download/${fileKey}`;
+        const downloadUrl = `${baseUrl}/d/${fileKey}`;
 
         send({
           type: 'done',

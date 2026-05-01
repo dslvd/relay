@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
     await pruneExpiredHistoryCache();
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
-    const downloadUrl = `${baseUrl}/download/${randomFilename}`;
+    const downloadUrl = `${baseUrl}/d/${randomFilename}`;
 
     return NextResponse.json({
       success: true,
