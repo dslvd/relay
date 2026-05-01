@@ -185,12 +185,12 @@ export default function DownloadPage() {
         
         const [fileInfoResponse, analyticsResponse] = await Promise.all([
           fetch(`/api/file-info?key=${encodeURIComponent(pathKey)}`, { cache: 'no-store' }),
-          fetch(`/api/analytics?filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
+          fetch('/api/analytics', { cache: 'no-store' })
         ]);
 
         if (analyticsResponse.ok) {
           const analyticsData = await analyticsResponse.json();
-          setDownloadCount(analyticsData.totalDownloads ?? 0);
+          setDownloadCount(analyticsData?.downloads?.total ?? 0);
         }
 
         if (fileInfoResponse.ok) {
@@ -587,7 +587,7 @@ export default function DownloadPage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
-                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Downloads:</div>
+                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Global downloads:</div>
                     <div style={{ flex: 1, color: '#f5f5f5' }}>
                       {typeof downloadCount === 'number' ? downloadCount.toLocaleString() : 'Unknown'}
                     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type SVGProps } from 'react';
 import Image from 'next/image';
 // import AdBanner from './components/AdBanner';
 import logo from './logo.png';
@@ -38,6 +38,126 @@ type UploadQueueItem = {
   addedAt: number;
 };
 
+type MonoIconName =
+  | 'cloudUpload'
+  | 'spark'
+  | 'warning'
+  | 'check'
+  | 'arrowLeft'
+  | 'refresh'
+  | 'retry'
+  | 'close'
+  | 'folder'
+  | 'pause'
+  | 'play'
+  | 'share';
+
+function MonoIcon({
+  name,
+  className,
+  ...props
+}: { name: MonoIconName; className?: string } & SVGProps<SVGSVGElement>) {
+  const common = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+
+  switch (name) {
+    case 'cloudUpload':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M7.5 18.5h8.8a3.7 3.7 0 0 0 .7-7.33A5.3 5.3 0 0 0 6.6 9.6 3.7 3.7 0 0 0 7.5 18.5Z" />
+          <path {...common} d="M12 15V8" />
+          <path {...common} d="m8.8 11.8 3.2-3.2 3.2 3.2" />
+        </svg>
+      );
+    case 'spark':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M12 3.5l1.8 4.6L18.5 10l-4.7 1.8L12 16.5l-1.8-4.7L5.5 10l4.7-1.9L12 3.5Z" />
+        </svg>
+      );
+    case 'warning':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M12 4.5 21 19.5H3L12 4.5Z" />
+          <path {...common} d="M12 9v4.8" />
+          <path {...common} d="M12 16.8h.01" />
+        </svg>
+      );
+    case 'check':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />
+          <path {...common} d="m8.5 12.4 2.4 2.4 4.7-5.2" />
+        </svg>
+      );
+    case 'arrowLeft':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M10 6 4 12l6 6" />
+          <path {...common} d="M5 12h15" />
+        </svg>
+      );
+    case 'refresh':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M20 12a8 8 0 0 0-14.8-4.2" />
+          <path {...common} d="M6 4v4h4" />
+          <path {...common} d="M4 12a8 8 0 0 0 14.8 4.2" />
+          <path {...common} d="M18 20v-4h-4" />
+        </svg>
+      );
+    case 'pause':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M8 6.5v11" />
+          <path {...common} d="M16 6.5v11" />
+        </svg>
+      );
+    case 'play':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M9 6.8v10.4l8.3-5.2L9 6.8Z" />
+        </svg>
+      );
+    case 'share':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M15 6h3a1.5 1.5 0 0 1 1.5 1.5v3" />
+          <path {...common} d="M10 14 19.5 4.5" />
+          <path {...common} d="M16 4.5H19.5V8" />
+          <path {...common} d="M5.5 8.5v9A1.5 1.5 0 0 0 7 19h9" />
+        </svg>
+      );
+    case 'retry':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M20 12a8 8 0 0 0-14.8-4.2" />
+          <path {...common} d="M6 4v4h4" />
+        </svg>
+      );
+    case 'close':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M6 6 18 18" />
+          <path {...common} d="M18 6 6 18" />
+        </svg>
+      );
+    case 'folder':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M3.5 7.5h6.1l1.8 2.2h8.1v8.8a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5V7.5Z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 export default function Home() {
   // Feature flag: keep the public history UI code around, but hide it from the UI for now.
   // Flip this to `true` anytime to bring the "Uploads" button + history view back.
@@ -71,13 +191,15 @@ export default function Home() {
   const queuePausedRef = useRef(false);
   const queueXhrsRef = useRef<Record<string, XMLHttpRequest | null>>({});
   const emptyMessages = [
-    'No uploads yet 🚀',
-    'Empty for now 👀',
-    'Nothing here… yet',
-    'Upload something!',
-    'Drop a file in ✨'
+    { icon: 'cloudUpload' as const, title: 'No uploads yet', detail: 'Drop a file to start building your vault.' },
+    { icon: 'spark' as const, title: 'Empty for now', detail: 'Your latest upload will show up here.' },
+    { icon: 'folder' as const, title: 'Nothing here yet', detail: 'Upload a file and it will appear automatically.' },
+    { icon: 'cloudUpload' as const, title: 'Ready when you are', detail: 'Choose a file or drag one into the window.' },
+    { icon: 'spark' as const, title: 'Fresh start', detail: 'A clean space for your next upload.' },
   ];
   const [emptyMessageIndex] = useState(() => Math.floor(Math.random() * emptyMessages.length));
+  const [uploadSuccessCue, setUploadSuccessCue] = useState<{ filename: string; label: string } | null>(null);
+  const uploadSuccessTimeoutRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const maxUploadBytes = isPremium ? PREMIUM_MAX_UPLOAD_BYTES : FREE_MAX_UPLOAD_BYTES;
   const [showRemoteUpload, setShowRemoteUpload] = useState(false);
@@ -111,6 +233,14 @@ export default function Home() {
       // Ignore storage errors.
     }
   }, [uploadedFiles]);
+
+  useEffect(() => {
+    return () => {
+      if (uploadSuccessTimeoutRef.current) {
+        window.clearTimeout(uploadSuccessTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     queuePausedRef.current = queuePaused;
@@ -333,7 +463,7 @@ export default function Home() {
       if (document.hidden && uploading) {
         // User switched tabs during upload - warn them
         console.warn('Tab switched during upload. Upload may be throttled by browser.');
-        showToast('⚠️ Keep this tab open during upload!', 'info');
+        showToast('Keep this tab open during upload.', 'info');
       }
     };
 
@@ -384,6 +514,16 @@ export default function Home() {
       window.clearTimeout(toastTimeoutRef.current);
     }
     toastTimeoutRef.current = window.setTimeout(() => setToast(null), 2200);
+  };
+
+  const showUploadSuccessCue = (filename: string, label = 'Upload complete') => {
+    setUploadSuccessCue({ filename, label });
+    if (uploadSuccessTimeoutRef.current) {
+      window.clearTimeout(uploadSuccessTimeoutRef.current);
+    }
+    uploadSuccessTimeoutRef.current = window.setTimeout(() => {
+      setUploadSuccessCue(null);
+    }, 1800);
   };
 
   const makeQueueId = () => {
@@ -670,6 +810,7 @@ export default function Home() {
         if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
           await fetchPublicHistory();
         }
+        showUploadSuccessCue(file.name);
         if (notify) {
           showToast('Upload complete', 'success');
         }
@@ -747,6 +888,7 @@ export default function Home() {
       if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
         await fetchPublicHistory();
       }
+      showUploadSuccessCue(file.name);
       if (notify) {
         showToast('Upload complete', 'success');
       }
@@ -1046,6 +1188,7 @@ export default function Home() {
           setUploadQueue((prev) =>
             prev.map((it) => (it.id === item.id ? { ...it, status: 'success' } : it))
           );
+          showUploadSuccessCue(item.file.name);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Upload failed';
           if (message === 'Upload paused' || message === 'Upload cancelled') {
@@ -1389,6 +1532,7 @@ export default function Home() {
         await fetchPublicHistory();
       }
 
+      showUploadSuccessCue(filename);
       setRemoteUrl('');
       setRemoteAuthHeader('');
       setRemoteFilenameOverride('');
@@ -1493,6 +1637,28 @@ export default function Home() {
           50% { opacity: 1; }
         }
 
+        @keyframes iconFloat {
+          0%, 100% { transform: translateY(0) scale(1); opacity: 0.9; }
+          50% { transform: translateY(-1px) scale(1.03); opacity: 1; }
+        }
+
+        @keyframes successPop {
+          0% { transform: scale(0.72); opacity: 0; }
+          55% { transform: scale(1.06); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes successSweep {
+          0% { transform: translateX(-120%) skewX(-16deg); opacity: 0; }
+          35% { opacity: 1; }
+          100% { transform: translateX(120%) skewX(-16deg); opacity: 0; }
+        }
+
+        @keyframes successGlow {
+          0%, 100% { box-shadow: 0 0 0 rgba(79,248,192,0); }
+          50% { box-shadow: 0 0 24px rgba(79,248,192,0.28); }
+        }
+
         @keyframes slideSide {
           0%   { transform: translateX(0) scaleX(1); opacity: 1; }
           35%  { transform: translateX(0) scaleX(1); opacity: 1; }
@@ -1519,6 +1685,29 @@ export default function Home() {
         ::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.35);
         }
+
+        .monoIcon {
+          display: inline-flex;
+          vertical-align: middle;
+          animation: iconFloat 2.8s ease-in-out infinite;
+          color: #eef1f6;
+        }
+
+        .monoIcon--success {
+          animation: successPop 420ms ease-out, iconFloat 2.8s ease-in-out infinite 420ms;
+        }
+
+        .uploadSuccessCard {
+          animation: fadeSlideIn 260ms ease-out, successGlow 1.5s ease-in-out infinite;
+        }
+
+        .uploadSuccessSweep {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, rgba(79,248,192,0), rgba(79,248,192,0.28), rgba(79,248,192,0));
+          animation: successSweep 1.2s ease-in-out infinite;
+          pointer-events: none;
+        }
       `}} />
 
       <main style={{
@@ -1532,6 +1721,45 @@ export default function Home() {
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
+        {uploadSuccessCue && !uploading && (
+          <div className="uploadSuccessCard" style={{
+            width: '100%',
+            maxWidth: '1200px',
+            marginBottom: '1rem',
+            padding: '0.85rem 1.05rem',
+            borderRadius: '16px',
+            border: '1px solid rgba(79,248,192,0.35)',
+            background: 'linear-gradient(135deg, rgba(79,248,192,0.16), rgba(255,255,255,0.05))',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.8rem',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <div className="uploadSuccessSweep" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', minWidth: 0 }}>
+              <MonoIcon name="check" className="monoIcon monoIcon--success" width={22} height={22} style={{ color: '#7ef4cb', flex: '0 0 auto' }} />
+              <div style={{ minWidth: 0, textAlign: 'left' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#eef1f6' }}>
+                  {uploadSuccessCue.label}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#a9b2c1', wordBreak: 'break-all' }}>
+                  {uploadSuccessCue.filename}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#7ef4cb', fontSize: '0.74rem', fontWeight: 700 }}>
+              <MonoIcon name="spark" className="monoIcon monoIcon--success" width={14} height={14} style={{ color: '#7ef4cb' }} />
+              Saved
+            </div>
+          </div>
+        )}
+
         {uploading && (
           <div style={{
             width: '100%',
@@ -1575,7 +1803,10 @@ export default function Home() {
                 boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
               }}
             >
-              ← Back
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <MonoIcon name="arrowLeft" className="monoIcon" width={14} height={14} />
+                Back
+              </span>
             </button>
             {uploadFilePreview && (
               <img
@@ -1598,7 +1829,14 @@ export default function Home() {
               flexDirection: 'column',
               gap: '0.2rem'
             }}>
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                <MonoIcon
+                  name={uploadProgress >= 100 ? 'check' : 'cloudUpload'}
+                  className={uploadProgress >= 100 ? 'monoIcon monoIcon--success' : 'monoIcon'}
+                  width={14}
+                  height={14}
+                  style={{ color: uploadProgress >= 100 ? '#7ef4cb' : '#eef1f6' }}
+                />
                 {currentUploadName ? `${currentUploadName} • ` : ''}
                 {uploadProgress > 0 ? `Uploading ${uploadProgress}%` : 'Preparing upload…'}
                 {uploadQueue.some((q) => q.status === 'queued') && (
@@ -2174,9 +2412,12 @@ export default function Home() {
                     fontSize: '0.72rem',
                     cursor: 'pointer',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-                  }}
+                }}
                 >
-                  {queuePaused ? 'Resume' : 'Pause'}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <MonoIcon name={queuePaused ? 'play' : 'pause'} className="monoIcon" width={12} height={12} />
+                    {queuePaused ? 'Resume' : 'Pause'}
+                  </span>
                 </button>
                 <button
                   onClick={() => {
@@ -2202,7 +2443,10 @@ export default function Home() {
                   }}
                   title="Remove successful items from the list"
                 >
-                  Clear done
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <MonoIcon name="close" className="monoIcon" width={12} height={12} />
+                    Clear done
+                  </span>
                 </button>
               </div>
             </div>
@@ -2261,7 +2505,7 @@ export default function Home() {
                           title="Retry"
                           aria-label="Retry upload"
                         >
-                          ↻
+                          <MonoIcon name="retry" className="monoIcon" width={12} height={12} />
                         </button>
                       )}
                       <button
@@ -2285,7 +2529,7 @@ export default function Home() {
                         title={item.status === 'uploading' ? 'Cannot remove while uploading' : 'Remove'}
                         aria-label="Remove from queue"
                       >
-                        ✕
+                        <MonoIcon name="close" className="monoIcon" width={12} height={12} />
                       </button>
                     </div>
                   </div>
@@ -2327,14 +2571,18 @@ export default function Home() {
               WebkitBackdropFilter: 'blur(8px)',
               borderRadius: '999px',
               overflow: 'hidden',
-              border: '1px solid rgba(255,255,255,0.1)'
+              border: '1px solid rgba(255,255,255,0.1)',
+              position: 'relative'
             }}>
               <div style={{
                 height: '100%',
                 width: `${uploadProgress}%`,
-                background: '#e9ecf2',
+                background: uploadProgress >= 100
+                  ? 'linear-gradient(90deg, #7ef4cb 0%, #eef1f6 50%, #7ef4cb 100%)'
+                  : '#e9ecf2',
                 transition: 'width 0.2s ease-out'
               }} />
+              {uploadProgress >= 100 && <div className="uploadSuccessSweep" />}
             </div>
             <p style={{
               marginTop: '0.6rem',
@@ -2343,7 +2591,16 @@ export default function Home() {
               fontStyle: 'italic',
               textAlign: 'center'
             }}>
-              {uploadStatus || 'Uploading…'}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'center' }}>
+                <MonoIcon
+                  name={uploadProgress >= 100 ? 'check' : 'cloudUpload'}
+                  className={uploadProgress >= 100 ? 'monoIcon monoIcon--success' : 'monoIcon'}
+                  width={13}
+                  height={13}
+                  style={{ color: uploadProgress >= 100 ? '#7ef4cb' : '#eef1f6' }}
+                />
+                {uploadStatus || 'Uploading…'}
+              </span>
               {uploadTotalBytes > 0 && (
                 <span> • {formatFileSize(uploadLoadedBytes)} / {formatFileSize(uploadTotalBytes)}</span>
               )}
@@ -2547,7 +2804,7 @@ export default function Home() {
                             boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                           }}
                         >
-                          ⤴
+                          <MonoIcon name="share" className="monoIcon" width={12} height={12} />
                         </button>
                       </div>
                     </div>
@@ -2696,7 +2953,21 @@ export default function Home() {
               color: '#8a92a1',
               boxShadow: '0 4px 24px rgba(0,0,0,0.35)'
             }}>
-              {emptyMessages[emptyMessageIndex]}
+              <div style={{ display: 'grid', justifyItems: 'center', gap: '0.75rem' }}>
+                <MonoIcon
+                  name={emptyMessages[emptyMessageIndex].icon}
+                  className="monoIcon"
+                  width={28}
+                  height={28}
+                  style={{ color: '#eef1f6' }}
+                />
+                <div style={{ color: '#eef1f6', fontSize: '0.9rem', fontWeight: 600 }}>
+                  {emptyMessages[emptyMessageIndex].title}
+                </div>
+                <div style={{ maxWidth: '28rem', lineHeight: 1.5, fontSize: '0.78rem', color: '#8a92a1' }}>
+                  {emptyMessages[emptyMessageIndex].detail}
+                </div>
+              </div>
             </div>
           ) : (
             <div style={{
@@ -2812,7 +3083,7 @@ export default function Home() {
                             boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                           }}
                         >
-                          ⤴
+                          <MonoIcon name="share" className="monoIcon" width={12} height={12} />
                         </button>
                       </div>
                     </div>
@@ -2911,7 +3182,16 @@ export default function Home() {
             fontWeight: 500,
             letterSpacing: '0.02em'
           }}>
-            {toast.message}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <MonoIcon
+                name={toast.type === 'success' ? 'check' : toast.type === 'error' ? 'warning' : 'spark'}
+                className={toast.type === 'success' ? 'monoIcon monoIcon--success' : 'monoIcon'}
+                width={14}
+                height={14}
+                style={{ color: toast.type === 'success' ? '#7ef4cb' : toast.type === 'error' ? '#f2c6c6' : '#eef1f6' }}
+              />
+              <span>{toast.message}</span>
+            </div>
           </div>
         )}
       </main>
