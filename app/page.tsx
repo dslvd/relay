@@ -2014,34 +2014,37 @@ export default function Home() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '1rem',
+          gap: '1.35rem',
           marginBottom: '0.1rem'
         }}>
-             <Image
+          <Image
             src={logo}
             alt="Logo"
             width={200}
             height={200}
                style={{
+                 transform: 'translateY(-26px)',
                  animation: 'slideSide 9s cubic-bezier(0.4, 0, 0.2, 1) infinite'
                }}
           />
           <h1 style={{
           fontFamily: "'Sora', sans-serif",
-          fontSize: '1.6rem',
+          fontSize: '1.45rem',
           fontWeight: 700,
+          lineHeight: 1.42,
           letterSpacing: '-0.02em',
           color: '#eef1f6',
           animation: 'fadeSlideIn 1s ease-out',
+          marginTop: '0.1rem',
           textAlign: 'center'
         }}>
           Quick, secure, and
           <br />
           seamless file sharing.
-        </h1>
+          </h1>
           <div
             style={{
-              marginTop: '0.2rem',
+              marginTop: '-0.35rem',
               width: '100%',
               maxWidth: '520px',
               display: 'flex',
