@@ -2032,8 +2032,8 @@ export default function Home() {
           fontSize: '1.45rem',
           fontWeight: 700,
           lineHeight: 1.42,
-          letterSpacing: '-0.02em',
-          color: '#eef1f6',
+          letterSpacing: '-0.03em',
+          color: 'rgba(238, 241, 246, 0.98)',
           animation: 'fadeSlideIn 1s ease-out',
           marginTop: '0.1rem',
           textAlign: 'center'
@@ -2059,17 +2059,17 @@ export default function Home() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                fontSize: '0.72rem',
-                color: '#b5bcc9',
-                letterSpacing: '0.02em'
+                fontSize: '0.7rem',
+                color: 'rgba(181, 188, 201, 0.9)',
+                letterSpacing: '0.01em'
               }}
             >
               {isPremium ? (
-                <span style={{ color: '#8a92a1' }}>
+                <span style={{ color: 'rgba(138, 146, 161, 0.95)' }}>
                   {premiumEmail || 'Active'}
                 </span>
               ) : (
-                <span style={{ color: '#8a92a1' }}>
+                <span style={{ color: 'rgba(138, 146, 161, 0.95)' }}>
                   Premium = Higher limits + no ads
                 </span>
               )}
@@ -2080,17 +2080,17 @@ export default function Home() {
                 <a
                   href="/premium/dashboard"
                   style={{
-                    padding: '0.35rem 0.7rem',
+                    padding: '0.34rem 0.72rem',
                     borderRadius: '999px',
-                    border: '1px solid rgba(255,255,255,0.13)',
-                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(255,255,255,0.045)',
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
-                    color: '#c3cad6',
-                    fontSize: '0.7rem',
+                    color: 'rgba(223, 228, 237, 0.95)',
+                    fontSize: '0.68rem',
                     cursor: 'pointer',
                     textDecoration: 'none',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                    boxShadow: '0 3px 12px rgba(0,0,0,0.16)'
                   }}
                 >
                   Dashboard
@@ -2098,16 +2098,16 @@ export default function Home() {
                 <button
                   onClick={logoutPremium}
                   style={{
-                    padding: '0.35rem 0.7rem',
+                    padding: '0.34rem 0.72rem',
                     borderRadius: '999px',
-                    border: '1px solid rgba(255,255,255,0.13)',
-                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(255,255,255,0.045)',
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
-                    color: '#c3cad6',
-                    fontSize: '0.7rem',
+                    color: 'rgba(223, 228, 237, 0.95)',
+                    fontSize: '0.68rem',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                    boxShadow: '0 3px 12px rgba(0,0,0,0.16)'
                   }}
                 >
                   Logout
@@ -2116,19 +2116,19 @@ export default function Home() {
             ) : (
               <a
                 href="/premium"
-                style={{
-                  padding: '0.38rem 0.75rem',
+              style={{
+                  padding: '0.36rem 0.75rem',
                   borderRadius: '999px',
-                  border: '1px solid rgba(233,236,242,0.35)',
-                  background: 'rgba(233,236,242,0.15)',
+                  border: '1px solid rgba(233,236,242,0.28)',
+                  background: 'linear-gradient(180deg, rgba(233,236,242,0.16), rgba(233,236,242,0.11))',
                   backdropFilter: 'blur(14px)',
                   WebkitBackdropFilter: 'blur(14px)',
-                  color: '#eef1f6',
-                  fontSize: '0.72rem',
+                  color: 'rgba(238, 241, 246, 0.98)',
+                  fontSize: '0.7rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   textDecoration: 'none',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.1)'
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.08)'
                 }}
               >
                 Premium login

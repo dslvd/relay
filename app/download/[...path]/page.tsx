@@ -37,8 +37,8 @@ export default function DownloadPage() {
   const downloadUrl = `/d/${pathKey}`;
   const downloadPageUrl = `/download/${pathKey}`;
   const shortLink = typeof window !== 'undefined'
-    ? `${window.location.origin}${downloadPageUrl}`
-    : downloadPageUrl;
+    ? `${window.location.origin}${downloadUrl}`
+    : downloadUrl;
 
   const isPreviewable = (fname: string): boolean => {
     const ext = fname.split('.').pop()?.toLowerCase() || '';
@@ -84,7 +84,7 @@ export default function DownloadPage() {
 
   const ensureQr = async (): Promise<string | null> => {
     if (qrDataUrl) return qrDataUrl;
-    const url = `${window.location.origin}${downloadPageUrl}`;
+    const url = `${window.location.origin}${downloadUrl}`;
     try {
       const mod = await import('qrcode');
       const dataUrl = await mod.toDataURL(url, {
@@ -679,37 +679,68 @@ export default function DownloadPage() {
                   </button>
                 </div>
 
-                {/* Copy Short Link Button */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem' }}>
                   <button
-                    onClick={copyShortLink}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '0.6rem 1rem',
-                    borderRadius: '6px',
-                    background: isCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                    border: `1px solid ${isCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.16)'}`,
-                    color: isCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
-                    fontWeight: 600,
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isCopied) {
+                      onClick={copyShortLink}
+                    style={{
+                      flex: 1,
+                      padding: '0.6rem 1rem',
+                      borderRadius: '6px',
+                      background: isCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                      border: `1px solid ${isCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.16)'}`,
+                      color: isCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isCopied) {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.24)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isCopied) {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
+                      }
+                    }}
+                  >
+                    {isCopied ? '✓ Copied' : 'Copy link'}
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      const qr = await ensureQr();
+                      if (!qr) return;
+                      setIsQrOpen((v) => !v);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '0.6rem 1rem',
+                      borderRadius: '6px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.16)',
+                      color: '#f5f5f5',
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
                       e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
                       e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.24)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isCopied) {
+                    }}
+                    onMouseLeave={(e) => {
                       e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                       e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
-                    }
-                  }}
-                >
-                  {isCopied ? '✓ Copied' : 'Copy short link'}
-                </button>
+                    }}
+                    title="Show QR code"
+                  >
+                    {isQrOpen ? 'Hide QR' : 'Show QR'}
+                  </button>
+                </div>
 
                 {/* Share extras */}
                 <div style={{ marginTop: '0.8rem' }}>
@@ -736,7 +767,7 @@ export default function DownloadPage() {
                   </div>
 
                   {showEmbed && embedSnippet && (
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
+                    <div style={{ marginTop: '0.6rem' }}>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(embedSnippet);
@@ -744,8 +775,7 @@ export default function DownloadPage() {
                           setTimeout(() => setIsEmbedCopied(false), 2000);
                         }}
                         style={{
-                          flex: 1,
-                          minWidth: '150px',
+                          width: '100%',
                           padding: '0.55rem 0.9rem',
                           borderRadius: '6px',
                           background: isEmbedCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.06)',
@@ -758,28 +788,6 @@ export default function DownloadPage() {
                         title="Copy an HTML embed snippet"
                       >
                         {isEmbedCopied ? '✓ Embed copied' : 'Copy embed snippet'}
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const qr = await ensureQr();
-                          if (!qr) return;
-                          setIsQrOpen((v) => !v);
-                        }}
-                        style={{
-                          flex: 1,
-                          minWidth: '150px',
-                          padding: '0.55rem 0.9rem',
-                          borderRadius: '6px',
-                          background: 'rgba(255, 255, 255, 0.06)',
-                          border: '1px solid rgba(255, 255, 255, 0.14)',
-                          color: '#f5f5f5',
-                          fontWeight: 600,
-                          fontSize: '0.78rem',
-                          cursor: 'pointer',
-                        }}
-                        title="Show QR code"
-                      >
-                        {isQrOpen ? 'Hide QR' : 'Show QR'}
                       </button>
                     </div>
                   )}
