@@ -197,7 +197,7 @@ body {
 
 .queue-panel__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 0.8rem;
@@ -205,6 +205,11 @@ body {
 
 .queue-panel__title {
   min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
 }
 
 .queue-panel__eyebrow {
