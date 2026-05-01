@@ -200,6 +200,12 @@ export default function Home() {
   const [emptyMessageIndex] = useState(() => Math.floor(Math.random() * emptyMessages.length));
   const [uploadSuccessCue, setUploadSuccessCue] = useState<{ filename: string; label: string } | null>(null);
   const uploadSuccessTimeoutRef = useRef<number | null>(null);
+  const topProgressRafRef = useRef<number | null>(null);
+  const topProgressPendingRef = useRef<{ loaded: number; total: number; status: string } | null>(null);
+  const queueProgressRafRef = useRef<Record<string, number | null>>({});
+  const queueProgressPendingRef = useRef<Record<string, { loaded: number; total: number }>>({});
+  const remoteProgressRafRef = useRef<number | null>(null);
+  const remoteProgressPendingRef = useRef<{ loaded: number; total: number | null; status: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const maxUploadBytes = isPremium ? PREMIUM_MAX_UPLOAD_BYTES : FREE_MAX_UPLOAD_BYTES;
   const [showRemoteUpload, setShowRemoteUpload] = useState(false);
@@ -238,6 +244,17 @@ export default function Home() {
     return () => {
       if (uploadSuccessTimeoutRef.current) {
         window.clearTimeout(uploadSuccessTimeoutRef.current);
+      }
+      if (topProgressRafRef.current) {
+        window.cancelAnimationFrame(topProgressRafRef.current);
+      }
+      if (remoteProgressRafRef.current) {
+        window.cancelAnimationFrame(remoteProgressRafRef.current);
+      }
+      for (const rafId of Object.values(queueProgressRafRef.current)) {
+        if (rafId) {
+          window.cancelAnimationFrame(rafId);
+        }
       }
     };
   }, []);
@@ -524,6 +541,59 @@ export default function Home() {
     uploadSuccessTimeoutRef.current = window.setTimeout(() => {
       setUploadSuccessCue(null);
     }, 1800);
+  };
+
+  const scheduleTopUploadProgress = (loaded: number, total: number, status?: string) => {
+    topProgressPendingRef.current = {
+      loaded,
+      total,
+      status: status ?? uploadStatus,
+    };
+
+    if (topProgressRafRef.current !== null) return;
+    topProgressRafRef.current = window.requestAnimationFrame(() => {
+      topProgressRafRef.current = null;
+      const pending = topProgressPendingRef.current;
+      if (!pending) return;
+      topProgressPendingRef.current = null;
+      setUploadLoadedBytes(pending.loaded);
+      setUploadTotalBytes(pending.total);
+      const pct = pending.total > 0 ? Math.round((pending.loaded / pending.total) * 100) : 0;
+      setUploadProgress(Math.min(100, Math.max(0, pct)));
+      if (pending.status) {
+        setUploadStatus(pending.status);
+      }
+    });
+  };
+
+  const scheduleQueueUploadProgress = (itemId: string, loaded: number, total: number) => {
+    queueProgressPendingRef.current[itemId] = { loaded, total };
+    if (queueProgressRafRef.current[itemId] != null) return;
+    queueProgressRafRef.current[itemId] = window.requestAnimationFrame(() => {
+      queueProgressRafRef.current[itemId] = null;
+      const pending = queueProgressPendingRef.current[itemId];
+      if (!pending) return;
+      delete queueProgressPendingRef.current[itemId];
+      setUploadQueue((prev) =>
+        prev.map((it) =>
+          it.id === itemId ? { ...it, loadedBytes: pending.loaded, totalBytes: pending.total } : it
+        )
+      );
+    });
+  };
+
+  const scheduleRemoteUploadProgress = (loaded: number, total: number | null, status: string) => {
+    remoteProgressPendingRef.current = { loaded, total, status };
+    if (remoteProgressRafRef.current !== null) return;
+    remoteProgressRafRef.current = window.requestAnimationFrame(() => {
+      remoteProgressRafRef.current = null;
+      const pending = remoteProgressPendingRef.current;
+      if (!pending) return;
+      remoteProgressPendingRef.current = null;
+      setRemoteDownloadedBytes(pending.loaded);
+      setUploadStatus(pending.status);
+      setRemoteTotalBytes(pending.total);
+    });
   };
 
   const makeQueueId = () => {
@@ -842,10 +912,7 @@ export default function Home() {
           return;
         }
         const percent = total > 0 ? Math.round((loaded / total) * 100) : 0;
-        setUploadProgress(Math.min(100, percent));
-        setUploadStatus(`Uploading ${percent}%`);
-        setUploadLoadedBytes(loaded);
-        setUploadTotalBytes(total);
+        scheduleTopUploadProgress(loaded, total, `Uploading ${Math.min(100, percent)}%`);
       });
 
       if (cancelUploadRef.current) {
@@ -1031,11 +1098,7 @@ export default function Home() {
 
         xhr.upload.onprogress = (event) => {
           const loaded = startOffset + (event.loaded || 0);
-          setUploadQueue((prev) =>
-            prev.map((it) =>
-              it.id === itemId ? { ...it, loadedBytes: loaded, totalBytes: file.size } : it
-            )
-          );
+          scheduleQueueUploadProgress(itemId, loaded, file.size);
         };
 
         xhr.onload = () => {
@@ -1484,11 +1547,15 @@ export default function Home() {
               setRemoteTotalBytes(null);
             }
             if (typeof evt.loaded === 'number') {
-              setRemoteDownloadedBytes(evt.loaded);
-              if (typeof evt.total === 'number' && evt.total > 0) {
-                const pct = Math.round((evt.loaded / evt.total) * 100);
-                setUploadStatus(`${evt.stage === 'upload' ? 'Uploading' : 'Downloading'} ${Math.min(100, pct)}%`);
-              }
+              const total = typeof evt.total === 'number' && evt.total > 0 ? evt.total : null;
+              const pct = total ? Math.round((evt.loaded / total) * 100) : 0;
+              scheduleRemoteUploadProgress(
+                evt.loaded,
+                total,
+                total
+                  ? `${evt.stage === 'upload' ? 'Uploading' : 'Downloading'} ${Math.min(100, pct)}%`
+                  : `Downloading remote file… ${formatFileSize(evt.loaded)}`
+              );
             }
           } else if (evt.type === 'done') {
             donePayload = evt;
@@ -2617,34 +2684,21 @@ export default function Home() {
           }}>
             <button
               onClick={() => setShowUploadedFiles((prev) => !prev)}
+              className="minimal-link"
               style={{
-                fontFamily: "'Sora', sans-serif",
-                padding: '0.45rem 1.4rem',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                letterSpacing: '0.02em',
-                color: '#eef1f6',
-                background: showUploadedFiles ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
-                backdropFilter: 'blur(14px)',
-                WebkitBackdropFilter: 'blur(14px)',
-                border: '1px solid rgba(255,255,255,0.13)',
-                borderRadius: '50px',
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)'
+                marginTop: '0.25rem',
+                opacity: showUploadedFiles ? 1 : 0.92
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
+                e.currentTarget.style.opacity = '1';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = showUploadedFiles ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
+                e.currentTarget.style.opacity = showUploadedFiles ? '1' : '0.92';
               }}
               aria-expanded={showUploadedFiles}
               aria-controls="uploaded-files-list"
             >
-              {showUploadedFiles ? 'Hide files' : `Show files • ${uploadedFiles.length}`}
+              {showUploadedFiles ? 'Hide files' : `Show files (${uploadedFiles.length})`}
             </button>
           </div>
         )}

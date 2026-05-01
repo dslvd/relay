@@ -152,3 +152,24 @@ body {
   color: #ffffff;
   transform: translateY(-1px);
 }
+
+.minimal-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  padding: 0.2rem 0;
+  background: transparent;
+  color: rgba(245, 245, 245, 0.6);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+}
+
+.minimal-link:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
