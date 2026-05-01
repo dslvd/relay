@@ -614,7 +614,12 @@ export default function DownloadPage() {
                     onClick={(e) => {
                       e.preventDefault();
                       setDownloadCount((prev) => (typeof prev === 'number' ? prev + 1 : 1));
-                      window.location.href = `${downloadUrl}?dl=${Date.now()}`;
+                      const link = document.createElement('a');
+                      link.href = `${downloadUrl}?dl=${Date.now()}`;
+                      link.setAttribute('download', fileData.filename || 'download');
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
                     }}
                     style={{
                       flex: 1,
