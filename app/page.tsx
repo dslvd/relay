@@ -69,9 +69,9 @@ function MonoIcon({
     case 'cloudUpload':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M7.5 18.5h8.8a3.7 3.7 0 0 0 .7-7.33A5.3 5.3 0 0 0 6.6 9.6 3.7 3.7 0 0 0 7.5 18.5Z" />
-          <path {...common} d="M12 15V8" />
-          <path {...common} d="m8.8 11.8 3.2-3.2 3.2 3.2" />
+          <path {...common} d="M7 18h9.2a3.8 3.8 0 0 0 1-7.46A5.4 5.4 0 0 0 6.5 9.9 3.8 3.8 0 0 0 7 18Z" />
+          <path {...common} d="M12 15V8.2" />
+          <path {...common} d="M9.8 10.8 12 8.6l2.2 2.2" />
         </svg>
       );
     case 'spark':
