@@ -37,8 +37,8 @@ export default function DownloadPage() {
   const downloadUrl = `/d/${pathKey}`;
   const downloadPageUrl = `/download/${pathKey}`;
   const shortLink = typeof window !== 'undefined'
-    ? `${window.location.origin}${downloadUrl}`
-    : downloadUrl;
+    ? `${window.location.origin}${downloadPageUrl}`
+    : downloadPageUrl;
 
   const isPreviewable = (fname: string): boolean => {
     const ext = fname.split('.').pop()?.toLowerCase() || '';
