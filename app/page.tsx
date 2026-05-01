@@ -2462,7 +2462,7 @@ export default function Home() {
               <div className="queue-panel__title">
                 <div className="queue-panel__eyebrow">Queue</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                  <div className="queue-panel__headline">Waiting uploads</div>
+                  {/* <div className="queue-panel__headline">Uploads</div> */}
                   <span className="queue-panel__count">
                     {uploadQueue.filter((q) => q.status === 'queued').length} waiting
                   </span>
@@ -2640,34 +2640,6 @@ export default function Home() {
                 <span> • {formatFileSize(uploadLoadedBytes)} / {formatFileSize(uploadTotalBytes)}</span>
               )}
             </p>
-          </div>
-        )}
-
-        {activeView === 'upload' && uploadedFiles.length > 0 && (
-          <div style={{
-            marginTop: '1.6rem',
-            display: 'flex',
-            justifyContent: 'center',
-            animation: 'fadeSlideIn 0.7s ease-out'
-          }}>
-            <button
-              onClick={() => setShowUploadedFiles((prev) => !prev)}
-              className="minimal-link"
-              style={{
-                marginTop: '0.25rem',
-                opacity: showUploadedFiles ? 1 : 0.92
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '1';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = showUploadedFiles ? '1' : '0.92';
-              }}
-              aria-expanded={showUploadedFiles}
-              aria-controls="uploaded-files-list"
-            >
-              {showUploadedFiles ? 'Hide files' : `Show files (${uploadedFiles.length})`}
-            </button>
           </div>
         )}
 
@@ -3215,6 +3187,24 @@ export default function Home() {
               <span>{toast.message}</span>
             </div>
           </div>
+        )}
+
+        {activeView === 'upload' && uploadedFiles.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowUploadedFiles((prev) => !prev)}
+            className="footer-link footer-link--show-files"
+            aria-expanded={showUploadedFiles}
+            aria-controls="uploaded-files-list"
+            style={{
+              border: 0,
+              background: 'transparent',
+              cursor: 'pointer',
+              opacity: showUploadedFiles ? 1 : 0.92,
+            }}
+          >
+            {showUploadedFiles ? 'Hide files' : `Show files (${uploadedFiles.length})`}
+          </button>
         )}
       </main>
     </>

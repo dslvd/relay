@@ -32,7 +32,7 @@ export default function RootLayout({
         />
         {children}
         <ClickRipple />
-        <Link className="dmca-link" href="/dmca" prefetch>
+        <Link className="footer-link dmca-link" href="/dmca" prefetch>
           DMCA
         </Link>
       </body>
