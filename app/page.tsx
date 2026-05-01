@@ -198,8 +198,9 @@ export default function Home() {
     { icon: 'spark' as const, title: 'Fresh start', detail: 'A clean space for your next upload.' },
   ];
   const [emptyMessageIndex] = useState(() => Math.floor(Math.random() * emptyMessages.length));
-  const [uploadSuccessCue, setUploadSuccessCue] = useState<{ filename: string; label: string } | null>(null);
+  const [uploadSuccessCue, setUploadSuccessCue] = useState<{ filename: string; label: string; exiting?: boolean } | null>(null);
   const uploadSuccessTimeoutRef = useRef<number | null>(null);
+  const uploadSuccessExitTimeoutRef = useRef<number | null>(null);
   const topProgressRafRef = useRef<number | null>(null);
   const topProgressPendingRef = useRef<{ loaded: number; total: number; status: string } | null>(null);
   const queueProgressRafRef = useRef<Record<string, number | null>>({});
@@ -244,6 +245,9 @@ export default function Home() {
     return () => {
       if (uploadSuccessTimeoutRef.current) {
         window.clearTimeout(uploadSuccessTimeoutRef.current);
+      }
+      if (uploadSuccessExitTimeoutRef.current) {
+        window.clearTimeout(uploadSuccessExitTimeoutRef.current);
       }
       if (topProgressRafRef.current) {
         window.cancelAnimationFrame(topProgressRafRef.current);
@@ -534,13 +538,19 @@ export default function Home() {
   };
 
   const showUploadSuccessCue = (filename: string, label = 'Upload complete') => {
-    setUploadSuccessCue({ filename, label });
+    setUploadSuccessCue({ filename, label, exiting: false });
     if (uploadSuccessTimeoutRef.current) {
       window.clearTimeout(uploadSuccessTimeoutRef.current);
     }
+    if (uploadSuccessExitTimeoutRef.current) {
+      window.clearTimeout(uploadSuccessExitTimeoutRef.current);
+    }
     uploadSuccessTimeoutRef.current = window.setTimeout(() => {
-      setUploadSuccessCue(null);
-    }, 1800);
+      setUploadSuccessCue((current) => (current ? { ...current, exiting: true } : current));
+      uploadSuccessExitTimeoutRef.current = window.setTimeout(() => {
+        setUploadSuccessCue(null);
+      }, 420);
+    }, 2600);
   };
 
   const scheduleTopUploadProgress = (loaded: number, total: number, status?: string) => {
@@ -1726,6 +1736,11 @@ export default function Home() {
           50% { box-shadow: 0 0 24px rgba(79,248,192,0.28); }
         }
 
+        @keyframes successExit {
+          0% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+          100% { opacity: 0; transform: translateY(-8px) scale(0.985); filter: blur(1px); }
+        }
+
         @keyframes slideSide {
           0%   { transform: translateX(0) scaleX(1); opacity: 1; }
           35%  { transform: translateX(0) scaleX(1); opacity: 1; }
@@ -1768,6 +1783,11 @@ export default function Home() {
           animation: fadeSlideIn 260ms ease-out, successGlow 1.5s ease-in-out infinite;
         }
 
+        .uploadSuccessCard--exiting {
+          animation: successExit 420ms ease-in forwards;
+          pointer-events: none;
+        }
+
         .uploadSuccessSweep {
           position: absolute;
           inset: 0;
@@ -1789,7 +1809,7 @@ export default function Home() {
         margin: '0 auto'
       }}>
         {uploadSuccessCue && !uploading && (
-          <div className="uploadSuccessCard" style={{
+          <div className={`uploadSuccessCard${uploadSuccessCue.exiting ? ' uploadSuccessCard--exiting' : ''}`} style={{
             width: '100%',
             maxWidth: '1200px',
             marginBottom: '1rem',
@@ -2437,54 +2457,30 @@ export default function Home() {
         )}
 
         {!uploading && uploadQueue.length > 0 && (
-          <div
-            style={{
-              marginTop: '1.2rem',
-              width: '100%',
-              maxWidth: '720px',
-              background: 'rgba(255,255,255,0.05)',
-              backdropFilter: 'blur(20px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '16px',
-              padding: '0.85rem',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)',
-              animation: 'fadeSlideIn 0.6s ease-out'
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '1rem',
-                marginBottom: '0.65rem',
-              }}
-            >
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#eef1f6' }}>
-                Queue • {uploadQueue.filter((q) => q.status === 'queued').length} waiting
-                {uploadQueue.some((q) => q.status === 'error') ? ` • ${uploadQueue.filter((q) => q.status === 'error').length} failed` : ''}
+          <div className="queue-panel">
+            <div className="queue-panel__header">
+              <div className="queue-panel__title">
+                <div className="queue-panel__eyebrow">Queue</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  <div className="queue-panel__headline">Waiting uploads</div>
+                  <span className="queue-panel__count">
+                    {uploadQueue.filter((q) => q.status === 'queued').length} waiting
+                  </span>
+                  {uploadQueue.some((q) => q.status === 'error') && (
+                    <span className="queue-panel__count queue-panel__count--soft">
+                      {uploadQueue.filter((q) => q.status === 'error').length} failed
+                    </span>
+                  )}
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className="queue-toolbar">
                 <button
                   onClick={() => (queuePaused ? resumeQueue() : pauseQueue())}
-                  style={{
-                    padding: '0.35rem 0.7rem',
-                    borderRadius: '999px',
-                    border: '1px solid rgba(255,255,255,0.13)',
-                    background: queuePaused ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    color: '#eef1f6',
-                    fontSize: '0.72rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-                }}
+                  className="queue-pill"
+                  type="button"
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <MonoIcon name={queuePaused ? 'play' : 'pause'} className="monoIcon" width={12} height={12} />
-                    {queuePaused ? 'Resume' : 'Pause'}
-                  </span>
+                  <MonoIcon name={queuePaused ? 'play' : 'pause'} className="monoIcon" width={12} height={12} />
+                  {queuePaused ? 'Resume' : 'Pause'}
                 </button>
                 <button
                   onClick={() => {
@@ -2496,29 +2492,17 @@ export default function Home() {
                       return prev.filter((q) => q.status !== 'success');
                     });
                   }}
-                  style={{
-                    padding: '0.35rem 0.7rem',
-                    borderRadius: '999px',
-                    border: '1px solid rgba(255,255,255,0.13)',
-                    background: 'rgba(255,255,255,0.07)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    color: '#eef1f6',
-                    fontSize: '0.72rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-                  }}
+                  className="queue-pill queue-pill--soft"
+                  type="button"
                   title="Remove successful items from the list"
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <MonoIcon name="close" className="monoIcon" width={12} height={12} />
-                    Clear done
-                  </span>
+                  <MonoIcon name="close" className="monoIcon" width={12} height={12} />
+                  Clear done
                 </button>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gap: '0.55rem' }}>
+            <div className="queue-list">
               {uploadQueue
                 .slice()
                 .sort((a, b) => a.addedAt - b.addedAt)
@@ -2526,51 +2510,41 @@ export default function Home() {
                 .map((item) => (
                   <div
                     key={item.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '0.75rem',
-                      padding: '0.7rem 0.85rem',
-                      borderRadius: '14px',
-                      border: '1px solid rgba(255,255,255,0.09)',
-                      background: 'rgba(255,255,255,0.04)',
-                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
-                    }}
+                    className="queue-item"
                   >
-                    <div style={{ minWidth: 0, textAlign: 'left' }}>
-                      <div style={{ fontSize: '0.85rem', color: '#eef1f6', wordBreak: 'break-all' }}>
+                    <div className="queue-item__body">
+                      <div className="queue-item__name">
                         {item.file.name}
                       </div>
-                      <div style={{ fontSize: '0.7rem', color: '#8a92a1' }}>
-                        {formatFileSize(item.file.size)} • {item.status === 'queued' ? (queuePaused ? 'Paused' : 'Queued') : item.status === 'success' ? 'Done' : item.status === 'error' ? 'Failed' : 'Uploading'}
+                      <div className="queue-item__meta">
+                        <span>{formatFileSize(item.file.size)}</span>
+                        <span className={`queue-status queue-status--${item.status}`}>
+                          {item.status === 'queued' ? (queuePaused ? 'Paused' : 'Queued') : item.status === 'success' ? 'Done' : item.status === 'error' ? 'Failed' : 'Uploading'}
+                        </span>
                         {item.status === 'uploading' && typeof item.loadedBytes === 'number' && typeof item.totalBytes === 'number' && item.totalBytes > 0 && (
                           <span>
-                            {' '}
-                            • {Math.min(100, Math.round((item.loadedBytes / item.totalBytes) * 100))}%
+                            {Math.min(100, Math.round((item.loadedBytes / item.totalBytes) * 100))}%
                           </span>
                         )}
-                        {item.status === 'error' && item.error ? ` • ${item.error}` : ''}
+                        {item.status === 'error' && item.error && <span>{item.error}</span>}
                       </div>
+                      {item.status === 'uploading' && typeof item.loadedBytes === 'number' && typeof item.totalBytes === 'number' && item.totalBytes > 0 && (
+                        <div className="queue-progress" aria-hidden="true">
+                          <div
+                            className="queue-progress__bar"
+                            style={{ width: `${Math.min(100, Math.round((item.loadedBytes / item.totalBytes) * 100))}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <div className="queue-item__actions">
                       {item.status === 'error' && (
                         <button
                           onClick={() => retryQueueItem(item.id)}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '999px',
-                            border: '1px solid rgba(255,255,255,0.13)',
-                            background: 'rgba(255,255,255,0.07)',
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                            color: '#eef1f6',
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-                          }}
+                          className="queue-icon-btn"
                           title="Retry"
                           aria-label="Retry upload"
+                          type="button"
                         >
                           <MonoIcon name="retry" className="monoIcon" width={12} height={12} />
                         </button>
@@ -2581,20 +2555,14 @@ export default function Home() {
                           idbDel(item.id).catch(() => {});
                         }}
                         disabled={item.status === 'uploading'}
+                        className="queue-icon-btn"
                         style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '999px',
-                          border: '1px solid rgba(255,255,255,0.13)',
-                          background: 'rgba(255,255,255,0.07)',
-                          backdropFilter: 'blur(12px)',
-                          WebkitBackdropFilter: 'blur(12px)',
                           color: item.status === 'uploading' ? 'rgba(245,245,245,0.35)' : '#eef1f6',
                           cursor: item.status === 'uploading' ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                         }}
                         title={item.status === 'uploading' ? 'Cannot remove while uploading' : 'Remove'}
                         aria-label="Remove from queue"
+                        type="button"
                       >
                         <MonoIcon name="close" className="monoIcon" width={12} height={12} />
                       </button>
@@ -2604,7 +2572,7 @@ export default function Home() {
             </div>
 
             {uploadQueue.length > 8 && (
-              <div style={{ marginTop: '0.6rem', fontSize: '0.7rem', color: '#8a92a1' }}>
+              <div className="queue-footer-note">
                 Showing first 8 items.
               </div>
             )}
