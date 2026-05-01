@@ -138,12 +138,12 @@ body {
   position: fixed;
   bottom: 1rem;
   z-index: 50;
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
   color: rgba(245, 245, 245, 0.6);
-  padding: 0.2rem 0;
+  padding: 0.1rem 0;
   transition: color 0.2s ease, transform 0.2s ease;
 }
 
@@ -157,7 +157,7 @@ body {
 }
 
 .footer-link--show-files {
-  right: 5.35rem;
+  right: 4.7rem;
 }
 
 .minimal-link {

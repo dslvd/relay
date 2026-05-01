@@ -2017,13 +2017,13 @@ export default function Home() {
           gap: '1rem',
           marginBottom: '0.1rem'
         }}>
-          <Image
+             <Image
             src={logo}
             alt="Logo"
             width={200}
             height={200}
                style={{
-                 animation: 'slideSide 5.5s cubic-bezier(0.4, 0, 0.2, 1) infinite'
+                 animation: 'slideSide 9s cubic-bezier(0.4, 0, 0.2, 1) infinite'
                }}
           />
           <h1 style={{
