@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         bytesUploaded: size,
       });
 
-      const downloadUrl = `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/api/v1/files/${encodeURIComponent(objectKey)}`;
+      const downloadPageUrl = `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/download/${objectKey}`;
       const directDownloadUrl = `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/d/${objectKey}`;
 
       return NextResponse.json({
@@ -69,8 +69,9 @@ export async function POST(request: NextRequest) {
           uploadUrl,
           method: 'PUT',
           fileId: objectKey,
-          downloadUrl,
+          downloadUrl: downloadPageUrl, // Changed from directDownloadUrl
           directDownloadUrl,
+          downloadPageUrl,
           expiresIn: 300,
           headers: {
             'Content-Type': contentType || 'application/octet-stream',

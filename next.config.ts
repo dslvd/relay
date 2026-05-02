@@ -6,11 +6,11 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      {
-        source: '/download/:path*',
-        destination: '/d/:path*',
-        permanent: true,
-      },
+      // {
+      //   source: '/download/:path*',
+      //   destination: '/d/:path*',
+      //   permanent: true,
+      // },
     ];
   },
 };
