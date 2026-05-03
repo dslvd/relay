@@ -24,6 +24,7 @@ type UploadQueueItem = {
   id: string;
   file: File;
   status: 'queued' | 'uploading' | 'success' | 'error';
+  downloadUrl?: string;
   error?: string;
   loadedBytes?: number;
   totalBytes?: number;
@@ -328,8 +329,9 @@ export default function Home() {
     size: number;
     lastModified: number;
     status: UploadQueueItem['status'];
-    error?: string;
     addedAt: number;
+    error?: string;
+    downloadUrl?: string;
     loadedBytes?: number;
     totalBytes?: number;
     contentHash?: string;
@@ -344,6 +346,7 @@ export default function Home() {
       size: it.file.size,
       lastModified: it.file.lastModified,
       status: it.status,
+      downloadUrl: it.downloadUrl,
       error: it.error,
       addedAt: it.addedAt,
       loadedBytes: it.loadedBytes,
@@ -391,6 +394,7 @@ export default function Home() {
             id: m.id,
             file,
             status: m.status === 'uploading' ? 'queued' : m.status, // restart uploads on refresh
+            downloadUrl: m.downloadUrl,
             error: m.error,
             addedAt: m.addedAt || Date.now(),
             loadedBytes: m.loadedBytes,
@@ -1014,9 +1018,12 @@ export default function Home() {
     const duplicateUrl = await checkDuplicateUpload(contentHash, file);
     throwIfPaused();
     if (duplicateUrl) {
+      const downloadPageUrl = toDownloadPageUrl(duplicateUrl);
       setUploadQueue((prev) =>
         prev.map((it) =>
-          it.id === itemId ? { ...it, loadedBytes: file.size, totalBytes: file.size } : it
+          it.id === itemId
+            ? { ...it, loadedBytes: file.size, totalBytes: file.size, downloadUrl: downloadPageUrl }
+            : it
         )
       );
 
@@ -1200,6 +1207,10 @@ export default function Home() {
     const newUrl = `${window.location.origin}/download/${uploadedFilename}`;
     const uploadedAt = Date.now();
 
+    setUploadQueue((prev) =>
+      prev.map((it) => (it.id === itemId ? { ...it, downloadUrl: newUrl } : it))
+    );
+
     setUploadedFiles((prev) => [
       {
         url: newUrl,
@@ -1381,16 +1392,33 @@ export default function Home() {
     );
   };
 
-  const getDownloadLinks = (): string[] => {
-    return uploadedFiles.map(file => {
-      // For files uploaded in this session, the URL is already a shareable link
-      if (file.url.includes('/d/') || file.url.includes('/download/')) {
-        return file.url;
+  const toDownloadPageUrl = (rawUrl: string) => {
+    const base = typeof window !== 'undefined' ? window.location.origin : '';
+
+    try {
+      const parsed = new URL(rawUrl, base || 'http://localhost');
+      const cleanPath = parsed.pathname.replace(/\/+$/, '');
+
+      if (cleanPath.includes('/download/')) {
+        const key = cleanPath.split('/download/')[1] || '';
+        return `${base}/download/${key}`;
       }
-      // For legacy files or if needed, extract filename and create a download page URL
-      const filename = file.url.split('/').pop() || '';
-      return `${window.location.origin}/download/${filename}`;
-    });
+
+      if (cleanPath.includes('/d/')) {
+        const key = cleanPath.split('/d/')[1] || '';
+        return `${base}/download/${key}`;
+      }
+
+      const tail = cleanPath.split('/').filter(Boolean).pop() || '';
+      return `${base}/download/${tail}`;
+    } catch {
+      const tail = rawUrl.split('/').filter(Boolean).pop() || '';
+      return `${base}/download/${tail}`;
+    }
+  };
+
+  const getDownloadLinks = (): string[] => {
+    return uploadedFiles.map((file) => toDownloadPageUrl(file.url));
   };
 
   const copyAllUploadedLinks = () => {
@@ -1643,7 +1671,7 @@ export default function Home() {
   };
 
   const copyToClipboard = (url: string) => {
-    copyText(url, 'Copied to clipboard');
+    copyText(toDownloadPageUrl(url), 'Copied to clipboard');
   };
 
   const formatFileSize = (bytes: number) => {
@@ -2024,7 +2052,7 @@ export default function Home() {
             height={200}
                style={{
                  transform: 'translateY(-26px)',
-                 animation: 'slideSide 9s cubic-bezier(0.4, 0, 0.2, 1) infinite'
+                 animation: 'slideSide 12s cubic-bezier(0.4, 0, 0.2, 1) infinite'
                }}
           />
           <h1 style={{
@@ -2516,9 +2544,19 @@ export default function Home() {
                     className="queue-item"
                   >
                     <div className="queue-item__body">
-                      <div className="queue-item__name">
-                        {item.file.name}
-                      </div>
+                      {item.status === 'success' && item.downloadUrl ? (
+                        <a
+                          href={item.downloadUrl}
+                          className="queue-item__name queue-item__name--link"
+                          title="Open download page"
+                        >
+                          {item.file.name}
+                        </a>
+                      ) : (
+                        <div className="queue-item__name">
+                          {item.file.name}
+                        </div>
+                      )}
                       <div className="queue-item__meta">
                         <span>{formatFileSize(item.file.size)}</span>
                         <span className={`queue-status queue-status--${item.status}`}>

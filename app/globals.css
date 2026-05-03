@@ -311,6 +311,16 @@ body {
   word-break: break-all;
 }
 
+.queue-item__name--link {
+  text-decoration: none;
+  color: rgba(238, 241, 246, 0.98);
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.queue-item__name--link:hover {
+  color: #7ef4cb;
+}
+
 .queue-item__meta {
   margin-top: 0.25rem;
   display: flex;
