@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   cleanupAnalyticsData,
   loadAnalyticsData,
+  recordDownloadEvent,
+  recordPageViewEvent,
   saveAnalyticsData,
 } from '@/app/lib/data/analytics-store';
 
@@ -43,13 +45,12 @@ export async function GET(request: NextRequest) {
     const now = Date.now();
     const last24h = now - 24 * 60 * 60 * 1000;
     const last7days = now - 7 * 24 * 60 * 60 * 1000;
-    const last30days = now - 30 * 24 * 60 * 60 * 1000;
 
     if (filenameFilter) {
       const fileDownloads = data.downloads.filter((event) => event.filename === filenameFilter);
       return NextResponse.json({
         filename: filenameFilter,
-        totalDownloads: fileDownloads.length,
+        totalDownloads: data.downloadCounts[filenameFilter] || 0,
         last24h: fileDownloads.filter((event) => event.timestamp > last24h).length,
         last7days: fileDownloads.filter((event) => event.timestamp > last7days).length,
         uniqueUsers: new Set(fileDownloads.map((event) => event.ip)).size,
@@ -57,19 +58,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Calculate download statistics
-    const downloadStats = data.downloads.reduce((acc, event) => {
+    // Build per-file recent-window stats from bounded event history.
+    const recentDownloadStats = data.downloads.reduce((acc, event) => {
       if (!acc[event.filename]) {
         acc[event.filename] = {
-          filename: event.filename,
-          totalDownloads: 0,
           last24h: 0,
           last7days: 0,
           uniqueIPs: new Set<string>(),
         };
       }
 
-      acc[event.filename].totalDownloads += 1;
       acc[event.filename].uniqueIPs.add(event.ip);
 
       if (event.timestamp > last24h) {
@@ -82,23 +80,36 @@ export async function GET(request: NextRequest) {
 
       return acc;
     }, {} as Record<string, {
-      filename: string;
-      totalDownloads: number;
       last24h: number;
       last7days: number;
       uniqueIPs: Set<string>;
     }>);
 
-    // Convert to array and sort by total downloads
-    const topFiles = Object.values(downloadStats)
-      .map((stat) => ({
-        filename: stat.filename,
-        totalDownloads: stat.totalDownloads,
-        last24h: stat.last24h,
-        last7days: stat.last7days,
-        uniqueUsers: stat.uniqueIPs.size,
-      }))
+    // Use compact aggregate counts for all-time totals and combine with recent windows.
+    const topFiles = Object.entries(data.downloadCounts)
+      .map(([filename, totalDownloads]) => {
+        const recent = recentDownloadStats[filename];
+        return {
+          filename,
+          totalDownloads,
+          last24h: recent?.last24h || 0,
+          last7days: recent?.last7days || 0,
+          uniqueUsers: recent?.uniqueIPs.size || 0,
+        };
+      })
       .sort((a, b) => b.totalDownloads - a.totalDownloads);
+
+    // Include recently seen files even if legacy aggregates are missing.
+    for (const [filename, recent] of Object.entries(recentDownloadStats)) {
+      if (data.downloadCounts[filename]) continue;
+      topFiles.push({
+        filename,
+        totalDownloads: 0,
+        last24h: recent.last24h,
+        last7days: recent.last7days,
+        uniqueUsers: recent.uniqueIPs.size,
+      });
+    }
 
     // Page view statistics
     const totalPageViews = data.pageViews.length;
@@ -118,7 +129,7 @@ export async function GET(request: NextRequest) {
     ).size;
 
     // Total downloads
-    const totalDownloads = data.downloads.length;
+    const totalDownloads = data.totalDownloads || data.downloads.length;
     const downloads24h = data.downloads.filter((download) => download.timestamp > last24h).length;
     const downloads7days = data.downloads.filter((download) => download.timestamp > last7days).length;
 
@@ -232,12 +243,11 @@ export async function POST(request: NextRequest) {
     const referer = normalizeReferer(request.headers.get('referer'));
     const country = getCountry(request);
 
-    const data = cleanupAnalyticsData(await loadAnalyticsData());
+    let data = cleanupAnalyticsData(await loadAnalyticsData());
 
     if (type === 'download' && filename) {
-      data.downloads.push({
+      data = recordDownloadEvent(data, {
         filename,
-        timestamp: Date.now(),
         ip,
         userAgent,
         bytes: Number.isFinite(Number(bytes)) ? Number(bytes) : undefined,
@@ -245,9 +255,8 @@ export async function POST(request: NextRequest) {
         country,
       });
     } else if (type === 'pageview' && path) {
-      data.pageViews.push({
+      data = recordPageViewEvent(data, {
         path,
-        timestamp: Date.now(),
         ip,
         referer,
         country,

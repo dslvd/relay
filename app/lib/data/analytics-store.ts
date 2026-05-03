@@ -22,6 +22,8 @@ export interface PageView {
 export interface AnalyticsData {
   downloads: DownloadEvent[];
   pageViews: PageView[];
+  totalDownloads: number;
+  downloadCounts: Record<string, number>;
 }
 
 const ANALYTICS_KEY = 'analytics:data';
@@ -32,10 +34,33 @@ function getGlobalAnalyticsData(): AnalyticsData {
     global.analyticsData = {
       downloads: [],
       pageViews: [],
+      totalDownloads: 0,
+      downloadCounts: {},
     };
   }
 
   return global.analyticsData;
+}
+
+function normalizeAnalyticsData(data: Partial<AnalyticsData>): AnalyticsData {
+  const downloadCounts =
+    data.downloadCounts && typeof data.downloadCounts === 'object'
+      ? data.downloadCounts
+      : {};
+
+  const downloads = Array.isArray(data.downloads) ? data.downloads : [];
+  const pageViews = Array.isArray(data.pageViews) ? data.pageViews : [];
+  const totalDownloads =
+    typeof data.totalDownloads === 'number'
+      ? data.totalDownloads
+      : downloads.length;
+
+  return {
+    downloads,
+    pageViews,
+    totalDownloads,
+    downloadCounts,
+  };
 }
 
 export async function loadAnalyticsData(): Promise<AnalyticsData> {
@@ -43,16 +68,18 @@ export async function loadAnalyticsData(): Promise<AnalyticsData> {
     const client = await getRedisClient();
     const raw = await client.get(ANALYTICS_KEY);
     if (raw) {
-      return JSON.parse(raw) as AnalyticsData;
+      return normalizeAnalyticsData(JSON.parse(raw) as Partial<AnalyticsData>);
     }
 
-    return {
+    return normalizeAnalyticsData({
       downloads: [],
       pageViews: [],
-    };
+      totalDownloads: 0,
+      downloadCounts: {},
+    });
   }
 
-  return getGlobalAnalyticsData();
+  return normalizeAnalyticsData(getGlobalAnalyticsData());
 }
 
 export async function saveAnalyticsData(data: AnalyticsData): Promise<void> {
@@ -75,6 +102,55 @@ export function cleanupAnalyticsData(data: AnalyticsData, now = Date.now()): Ana
     pageViews: data.pageViews
       .filter((event) => event.timestamp > thirtyDaysAgo)
       .slice(-ANALYTICS_LIMIT),
+    totalDownloads: Number.isFinite(data.totalDownloads) ? data.totalDownloads : data.downloads.length,
+    downloadCounts:
+      data.downloadCounts && typeof data.downloadCounts === 'object'
+        ? data.downloadCounts
+        : {},
+  };
+}
+
+export function recordDownloadEvent(
+  data: AnalyticsData,
+  event: Omit<DownloadEvent, 'timestamp'> & { timestamp?: number }
+): AnalyticsData {
+  const timestamp = typeof event.timestamp === 'number' ? event.timestamp : Date.now();
+  const filename = event.filename;
+  const downloads = [
+    ...data.downloads,
+    {
+      ...event,
+      timestamp,
+    },
+  ].slice(-ANALYTICS_LIMIT);
+
+  return {
+    ...data,
+    downloads,
+    totalDownloads: (data.totalDownloads || 0) + 1,
+    downloadCounts: {
+      ...data.downloadCounts,
+      [filename]: (data.downloadCounts[filename] || 0) + 1,
+    },
+  };
+}
+
+export function recordPageViewEvent(
+  data: AnalyticsData,
+  event: Omit<PageView, 'timestamp'> & { timestamp?: number }
+): AnalyticsData {
+  const timestamp = typeof event.timestamp === 'number' ? event.timestamp : Date.now();
+  const pageViews = [
+    ...data.pageViews,
+    {
+      ...event,
+      timestamp,
+    },
+  ].slice(-ANALYTICS_LIMIT);
+
+  return {
+    ...data,
+    pageViews,
   };
 }
 

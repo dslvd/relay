@@ -4,6 +4,12 @@ import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage
 import { loadUploadHistory } from '@/app/lib/data/upload-history-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
+import {
+  cleanupAnalyticsData,
+  loadAnalyticsData,
+  recordDownloadEvent,
+  saveAnalyticsData,
+} from '@/app/lib/data/analytics-store';
 
 function getCountry(request: NextRequest): string | undefined {
   const fromVercel = request.headers.get('x-vercel-ip-country');
@@ -243,25 +249,25 @@ export async function GET(
     const filename = path[path.length - 1];
     await updateLastAccessTime(filename);
     
-    // Track download for analytics
+    // Track download before responding so increments are not lost on fast exits.
     try {
-      // Don't await - fire and forget to not slow down downloads
-      fetch(`${new URL(request.url).origin}/api/analytics`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-forwarded-for': request.headers.get('x-forwarded-for') || '',
-          'x-real-ip': request.headers.get('x-real-ip') || '',
-          'user-agent': request.headers.get('user-agent') || '',
-          'referer': request.headers.get('referer') || '',
-          'x-vercel-ip-country': getCountry(request) || '',
-        },
-        body: JSON.stringify({
-          type: 'download',
-          filename,
-          bytes: Number(response.headers.get('Content-Length')) || undefined,
-        })
-      }).catch(() => {}); // Silently fail if analytics fails
+      const ip =
+        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+        request.headers.get('x-real-ip') ||
+        'Unknown';
+      const userAgent = request.headers.get('user-agent') || 'Unknown';
+      const referer = request.headers.get('referer') || undefined;
+
+      let analyticsData = cleanupAnalyticsData(await loadAnalyticsData());
+      analyticsData = recordDownloadEvent(analyticsData, {
+        filename,
+        ip,
+        userAgent,
+        bytes: Number(response.headers.get('Content-Length')) || undefined,
+        referer,
+        country: getCountry(request),
+      });
+      await saveAnalyticsData(analyticsData);
     } catch {
       // Ignore analytics errors
     }
