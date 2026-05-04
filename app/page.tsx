@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, type SVGProps } from 'react';
+import { useMemo, useState, useRef, useEffect, type SVGProps } from 'react';
 import Image from 'next/image';
 // import AdBanner from './components/AdBanner';
 import logo from './logo.png';
@@ -167,6 +167,8 @@ export default function Home() {
   const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
   const PREMIUM_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
+  const [uploadedFilesSearch, setUploadedFilesSearch] = useState('');
+  const [uploadedFilesFilter, setUploadedFilesFilter] = useState<'all' | 'images' | 'videos' | 'documents'>('all');
   const [showUploadedFiles, setShowUploadedFiles] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -1727,6 +1729,28 @@ export default function Home() {
     return filename;
   };
 
+  const filteredUploadedFiles = useMemo(() => {
+    const query = uploadedFilesSearch.trim().toLowerCase();
+
+    return uploadedFiles.filter((file) => {
+      const matchesSearch =
+        !query ||
+        file.filename.toLowerCase().includes(query) ||
+        file.url.toLowerCase().includes(query);
+
+      if (!matchesSearch) return false;
+
+      if (uploadedFilesFilter === 'all') return true;
+
+      const ext = file.filename.split('.').pop()?.toLowerCase() || '';
+      if (uploadedFilesFilter === 'images') return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
+      if (uploadedFilesFilter === 'videos') return ['mp4', 'webm', 'mov', 'avi'].includes(ext);
+      if (uploadedFilesFilter === 'documents') return ['pdf', 'doc', 'docx', 'txt', 'md', 'json'].includes(ext);
+
+      return true;
+    });
+  }, [uploadedFiles, uploadedFilesSearch, uploadedFilesFilter]);
+
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
@@ -1897,168 +1921,6 @@ export default function Home() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#7ef4cb', fontSize: '0.74rem', fontWeight: 700 }}>
               <MonoIcon name="spark" className="monoIcon monoIcon--success" width={14} height={14} style={{ color: '#7ef4cb' }} />
               Saved
-            </div>
-          </div>
-        )}
-
-        {uploading && (
-          <div style={{
-            width: '100%',
-            maxWidth: '1200px',
-            marginBottom: '1.5rem',
-            padding: '0.75rem 1.2rem',
-            borderRadius: '0 0 18px 18px',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderTop: 'none',
-            background: 'rgba(17,19,24,0.65)',
-            backdropFilter: 'blur(24px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07)',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 30,
-            marginLeft: 'auto',
-            marginRight: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.75rem',
-            flexWrap: 'wrap'
-          }}>
-            <button
-              onClick={cancelUpload}
-              style={{
-                padding: '0.5rem 0.9rem',
-                borderRadius: '999px',
-                border: '1px solid rgba(255,255,255,0.13)',
-                background: 'rgba(255,255,255,0.07)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                color: '#eef1f6',
-                fontSize: '0.8rem',
-                fontWeight: 500,
-                letterSpacing: '0.02em',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-              }}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                <MonoIcon name="arrowLeft" className="monoIcon" width={14} height={14} />
-                Back
-              </span>
-            </button>
-            {uploadFilePreview && (
-              <img
-                src={uploadFilePreview}
-                alt="Upload preview"
-                style={{
-                  height: '32px',
-                  width: '32px',
-                  borderRadius: '6px',
-                  objectFit: 'cover',
-                  border: '1px solid rgba(255, 255, 255, 0.15)'
-                }}
-              />
-            )}
-            <div style={{
-              fontSize: '0.78rem',
-              color: '#c3cad6',
-              letterSpacing: '0.03em',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.2rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                <MonoIcon
-                  name={uploadProgress >= 100 ? 'check' : 'cloudUpload'}
-                  className={uploadProgress >= 100 ? 'monoIcon monoIcon--success' : 'monoIcon'}
-                  width={14}
-                  height={14}
-                  style={{ color: uploadProgress >= 100 ? '#7ef4cb' : '#eef1f6' }}
-                />
-                {currentUploadName ? `${currentUploadName} • ` : ''}
-                {uploadProgress > 0 ? `Uploading ${uploadProgress}%` : 'Preparing upload…'}
-                {uploadQueue.some((q) => q.status === 'queued') && (
-                  <span style={{ color: '#8a92a1' }}>
-                    {' '}
-                    • {uploadQueue.filter((q) => q.status === 'queued').length} queued
-                  </span>
-                )}
-              </div>
-              <div style={{ 
-                fontSize: '0.65rem', 
-                color: '#858d9d',
-                fontStyle: 'italic'
-              }}>
-                Keep this tab open during upload
-              </div>
-            </div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem'
-            }}>
-              <button
-                onClick={cancelUpload}
-                style={{
-                  padding: '0.5rem 0.9rem',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(255,255,255,0.13)',
-                  background: 'rgba(255,255,255,0.07)',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                  color: '#eef1f6',
-                  fontSize: '0.8rem',
-                  fontWeight: 500,
-                  letterSpacing: '0.02em',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={queuePaused ? resumeQueue : pauseQueue}
-                style={{
-                  padding: '0.5rem 0.9rem',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(255,255,255,0.13)',
-                  background: queuePaused ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                  color: '#eef1f6',
-                  fontSize: '0.8rem',
-                  fontWeight: 500,
-                  letterSpacing: '0.02em',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-                }}
-                title={queuePaused ? 'Resume queue' : 'Pause queue'}
-              >
-                {queuePaused ? 'Resume' : 'Pause'}
-              </button>
-              <button
-                onClick={copyAllUploadedLinks}
-                disabled={uploadedFiles.length === 0}
-                style={{
-                  padding: '0.5rem 0.95rem',
-                  borderRadius: '999px',
-                  border: uploadedFiles.length === 0 ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(233,236,242,0.5)',
-                  background: uploadedFiles.length === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(233,236,242,0.18)',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                  color: uploadedFiles.length === 0 ? '#8a92a1' : '#eef1f6',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.02em',
-                  cursor: uploadedFiles.length === 0 ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-                }}
-              >
-                Copy all links
-              </button>
             </div>
           </div>
         )}
@@ -2513,7 +2375,7 @@ export default function Home() {
         </p>
         )}
 
-        {!uploading && uploadQueue.length > 0 && (
+        {uploadQueue.length > 0 && (
           <div className="queue-panel">
             <div className="queue-panel__header">
               <div className="queue-panel__title">
@@ -2558,6 +2420,89 @@ export default function Home() {
                 </button>
               </div>
             </div>
+
+            {uploading && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.85rem',
+                marginBottom: '0.9rem',
+                padding: '0.85rem',
+                borderRadius: '16px',
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.03)',
+                backdropFilter: 'blur(14px)',
+                WebkitBackdropFilter: 'blur(14px)',
+                flexWrap: 'wrap'
+              }}>
+                {uploadFilePreview ? (
+                  <img
+                    src={uploadFilePreview}
+                    alt="Upload preview"
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '12px',
+                      objectFit: 'cover',
+                      border: '1px solid rgba(255,255,255,0.12)'
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: 'rgba(255,255,255,0.05)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: '#eef1f6'
+                  }}>
+                    <MonoIcon name={uploadProgress >= 100 ? 'check' : 'cloudUpload'} className="monoIcon" width={14} height={14} />
+                  </div>
+                )}
+
+                <div style={{ flex: '1 1 260px', minWidth: 0, textAlign: 'left' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: '0.78rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(238,241,246,0.55)' }}>
+                      Uploading now
+                    </div>
+                    <span className={`queue-status queue-status--uploading`} style={{ marginLeft: 0 }}>
+                      {uploadProgress >= 100 ? 'Finalizing' : 'Uploading'}
+                    </span>
+                  </div>
+                  <div style={{ marginTop: '0.3rem', fontSize: '0.92rem', fontWeight: 600, color: '#eef1f6', wordBreak: 'break-all' }}>
+                    {currentUploadName || 'Preparing upload…'}
+                  </div>
+                  <div style={{ marginTop: '0.25rem', fontSize: '0.72rem', color: 'rgba(238,241,246,0.64)' }}>
+                    {uploadTotalBytes > 0
+                      ? `${formatFileSize(uploadLoadedBytes)} / ${formatFileSize(uploadTotalBytes)}`
+                      : uploadStatus || 'Starting upload…'}
+                    {uploadQueue.some((q) => q.status === 'queued') && (
+                      <> • {uploadQueue.filter((q) => q.status === 'queued').length} queued</>
+                    )}
+                  </div>
+                  <div className="queue-progress" aria-hidden="true" style={{ marginTop: '0.55rem' }}>
+                    <div
+                      className="queue-progress__bar"
+                      style={{ width: `${Math.min(100, uploadProgress)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={cancelUpload}
+                    className="queue-pill queue-pill--soft"
+                    type="button"
+                    title="Cancel the active upload"
+                  >
+                    <MonoIcon name="close" className="monoIcon" width={12} height={12} />
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="queue-list">
               {uploadQueue
@@ -2646,70 +2591,6 @@ export default function Home() {
           </div>
         )}
 
-        
-
-
-        {activeView === 'upload' && uploading && (
-          <div style={{
-            marginTop: '1.5rem',
-            width: '100%',
-            maxWidth: '420px',
-            animation: 'fadeSlideIn 0.5s ease-out'
-          }}>
-            {currentUploadName && (
-              <div style={{
-                marginBottom: '0.35rem',
-                fontSize: '0.78rem',
-                color: '#b5bcc9',
-                textAlign: 'center'
-              }}>
-                {currentUploadName}
-              </div>
-            )}
-            <div style={{
-              height: '8px',
-              background: 'rgba(255,255,255,0.06)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              borderRadius: '999px',
-              overflow: 'hidden',
-              border: '1px solid rgba(255,255,255,0.1)',
-              position: 'relative'
-            }}>
-              <div style={{
-                height: '100%',
-                width: `${uploadProgress}%`,
-                background: uploadProgress >= 100
-                  ? 'linear-gradient(90deg, #7ef4cb 0%, #eef1f6 50%, #7ef4cb 100%)'
-                  : '#e9ecf2',
-                transition: 'width 0.2s ease-out'
-              }} />
-              {uploadProgress >= 100 && <div className="uploadSuccessSweep" />}
-            </div>
-            <p style={{
-              marginTop: '0.6rem',
-              fontSize: '0.85rem',
-              color: '#8a92a1',
-              fontStyle: 'italic',
-              textAlign: 'center'
-            }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'center' }}>
-                <MonoIcon
-                  name={uploadProgress >= 100 ? 'check' : 'cloudUpload'}
-                  className={uploadProgress >= 100 ? 'monoIcon monoIcon--success' : 'monoIcon'}
-                  width={13}
-                  height={13}
-                  style={{ color: uploadProgress >= 100 ? '#7ef4cb' : '#eef1f6' }}
-                />
-                {uploadStatus || 'Uploading…'}
-              </span>
-              {uploadTotalBytes > 0 && (
-                <span> • {formatFileSize(uploadLoadedBytes)} / {formatFileSize(uploadTotalBytes)}</span>
-              )}
-            </p>
-          </div>
-        )}
-
         {activeView === 'upload' && uploadedFiles.length > 0 && showUploadedFiles && (
           <div style={{
             marginTop: '2rem',
@@ -2717,15 +2598,62 @@ export default function Home() {
             width: '100%',
             maxWidth: '720px'
           }}>
-            <p style={{
-              fontSize: '1rem',
-              marginBottom: '1rem',
-              color: '#eef1f6',
-              fontWeight: 500,
-              textAlign: 'center'
+            <div style={{
+              display: 'flex',
+              gap: '0.75rem',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '1rem'
             }}>
-              Uploaded Files • {uploadedFiles.length}
-            </p>
+              <p style={{
+                fontSize: '1rem',
+                color: '#eef1f6',
+                fontWeight: 500,
+                textAlign: 'left',
+                margin: 0
+              }}>
+                Uploaded Files • {filteredUploadedFiles.length}/{uploadedFiles.length}
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  value={uploadedFilesSearch}
+                  onChange={(e) => setUploadedFilesSearch(e.target.value)}
+                  placeholder="Search files or links"
+                  aria-label="Search uploaded files"
+                  style={{
+                    minWidth: '220px',
+                    padding: '0.55rem 0.8rem',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(255,255,255,0.14)',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: '#eef1f6',
+                    fontSize: '0.82rem',
+                    outline: 'none',
+                  }}
+                />
+                <select
+                  value={uploadedFilesFilter}
+                  onChange={(e) => setUploadedFilesFilter(e.target.value as typeof uploadedFilesFilter)}
+                  aria-label="Filter uploaded files"
+                  style={{
+                    padding: '0.55rem 0.8rem',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(255,255,255,0.14)',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: '#eef1f6',
+                    fontSize: '0.82rem',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="all">All files</option>
+                  <option value="images">Images</option>
+                  <option value="videos">Videos</option>
+                  <option value="documents">Documents</option>
+                </select>
+              </div>
+            </div>
             
             <div
               id="uploaded-files-list"
@@ -2740,7 +2668,11 @@ export default function Home() {
               padding: '0.85rem',
               boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)'
             }}>
-              {uploadedFiles.map((fileItem, index) => {
+              {filteredUploadedFiles.length === 0 ? (
+                <div style={{ padding: '1rem', color: '#8a92a1', fontSize: '0.85rem' }}>
+                  No uploaded files match your search.
+                </div>
+              ) : filteredUploadedFiles.map((fileItem, index) => {
                 const filename = fileItem.filename;
                 const url = fileItem.url;
                 const lowerExt = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
@@ -2759,7 +2691,7 @@ export default function Home() {
                   <div
                     key={index}
                     style={{
-                      marginBottom: index < uploadedFiles.length - 1 ? '0.85rem' : '0',
+                      marginBottom: index < filteredUploadedFiles.length - 1 ? '0.85rem' : '0',
                       padding: '0.95rem 1.1rem',
                       background: 'rgba(255,255,255,0.04)',
                       backdropFilter: 'blur(12px)',

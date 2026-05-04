@@ -11,6 +11,8 @@ interface UploadRecord {
   ip?: string;
   quarantined?: boolean;
   quarantineReason?: string | null;
+  lastAccessTime?: number;
+  expiresAt?: number;
 }
 
 interface AnalyticsData {
@@ -609,16 +611,20 @@ export default function AdminDashboard() {
     
     return true;
   }).sort((a, b) => {
-    let aVal: any = a[sortKey];
-    let bVal: any = b[sortKey];
+    type SortableValue = string | number | undefined;
+    let aVal = a[sortKey] as SortableValue;
+    let bVal = b[sortKey] as SortableValue;
     
     if (sortKey === 'filename' || sortKey === 'ip') {
-      aVal = (aVal || '').toLowerCase();
-      bVal = (bVal || '').toLowerCase();
+      aVal = typeof aVal === 'string' ? aVal.toLowerCase() : '';
+      bVal = typeof bVal === 'string' ? bVal.toLowerCase() : '';
     }
+
+    const left = aVal ?? '';
+    const right = bVal ?? '';
     
-    if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+    if (left < right) return sortOrder === 'asc' ? -1 : 1;
+    if (left > right) return sortOrder === 'asc' ? 1 : -1;
     return 0;
   });
 
@@ -629,6 +635,31 @@ export default function AdminDashboard() {
     return uploadDate.toDateString() === today.toDateString();
   }).length;
   const uniqueIPs = new Set(files.map(f => f.ip).filter(Boolean)).size;
+  const now = Date.now();
+  const soonThreshold = 48 * 60 * 60 * 1000;
+  const expiringSoonFiles = files
+    .filter((file) => {
+      const expiresAt = file.expiresAt || (file.lastAccessTime ? file.lastAccessTime + 15 * 24 * 60 * 60 * 1000 : undefined);
+      return typeof expiresAt === 'number' && expiresAt > now && expiresAt - now <= soonThreshold;
+    })
+    .sort((a, b) => (a.expiresAt || 0) - (b.expiresAt || 0))
+    .slice(0, 8);
+  const notificationAlerts = [
+    ...analytics?.recentDownloads.slice(0, 6).map((download) => ({
+      kind: 'download' as const,
+      title: download.filename,
+      detail: `${download.ip} • ${formatTimeAgo(download.timestamp)}`,
+      timestamp: download.timestamp,
+    })) || [],
+    ...expiringSoonFiles.map((file) => ({
+      kind: 'expiry' as const,
+      title: file.filename,
+      detail: `Expires ${file.expiresAt ? new Date(file.expiresAt).toLocaleString() : 'soon'}`,
+      timestamp: file.expiresAt || file.lastAccessTime || file.timestamp,
+    })),
+  ]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 10);
 
   return (
     <div style={{
@@ -1058,6 +1089,74 @@ export default function AdminDashboard() {
 
             {showAnalytics && (
               <>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '1rem',
+                  marginBottom: '1.1rem'
+                }}>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>⬇️ Download Alerts</div>
+                    <div style={{ fontSize: '1.45rem', fontWeight: 700 }}>{analytics.recentDownloads.length}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Recent tracked events</div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>⏳ Expiring Soon</div>
+                    <div style={{ fontSize: '1.45rem', fontWeight: 700 }}>{expiringSoonFiles.length}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Within 48 hours</div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>✉️ Email Alerts</div>
+                    <div style={{ fontSize: '1.0rem', fontWeight: 700 }}>Ready to wire</div>
+                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Connect SMTP/Resend to notify owners</div>
+                  </div>
+                </div>
+
+                <div style={{
+                  marginBottom: '1.5rem',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                  gap: '1rem'
+                }}>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.75rem' }}>🔔 Notification feed</div>
+                    <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
+                      {notificationAlerts.length === 0 ? (
+                        <div style={{ color: '#666666', fontSize: '0.8rem' }}>No notifications yet.</div>
+                      ) : notificationAlerts.map((alert, index) => (
+                        <div key={`${alert.kind}-${alert.title}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '0.82rem', color: '#f5f5f5', wordBreak: 'break-all' }}>{alert.title}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>{alert.detail}</div>
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: alert.kind === 'download' ? '#7ef4cb' : '#ffd1a3', whiteSpace: 'nowrap' }}>
+                            {alert.kind === 'download' ? 'downloaded' : 'expiring'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.75rem' }}>⌛ Files expiring soon</div>
+                    <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
+                      {expiringSoonFiles.length === 0 ? (
+                        <div style={{ color: '#666666', fontSize: '0.8rem' }}>No files are close to expiring.</div>
+                      ) : expiringSoonFiles.map((file) => (
+                        <div key={file.url} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '0.82rem', color: '#f5f5f5', wordBreak: 'break-all' }}>{file.filename}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>{file.expiresAt ? new Date(file.expiresAt).toLocaleString() : 'Based on last access time'}</div>
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: '#ffd1a3', whiteSpace: 'nowrap' }}>
+                            soon
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Analytics Stats Grid */}
                 <div style={{
                   display: 'grid',
