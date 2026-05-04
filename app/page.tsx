@@ -2375,7 +2375,7 @@ export default function Home() {
         </p>
         )}
 
-        {uploadQueue.length > 0 && (
+        {(uploadQueue.some(q => q.status === 'queued') || uploadQueue.some(q => q.status === 'uploading') || uploadQueue.some(q => q.status === 'error')) && (
           <div className="queue-panel">
             <div className="queue-panel__header">
               <div className="queue-panel__title">

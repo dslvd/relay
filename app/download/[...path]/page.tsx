@@ -613,13 +613,20 @@ export default function DownloadPage() {
                     download
                     onClick={(e) => {
                       e.preventDefault();
-                      setDownloadCount((prev) => (typeof prev === 'number' ? prev + 1 : 1));
                       const link = document.createElement('a');
                       link.href = `${downloadUrl}?dl=${Date.now()}`;
                       link.setAttribute('download', fileData.filename || 'download');
                       document.body.appendChild(link);
                       link.click();
                       document.body.removeChild(link);
+                      
+                      // Refresh download count from server after a short delay
+                      setTimeout(() => {
+                        fetch(`/api/analytics?key=${encodeURIComponent(pathKey)}&filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
+                          .then(res => res.json())
+                          .then(data => setDownloadCount(Number(data?.totalDownloads) || 0))
+                          .catch(() => {});
+                      }, 500);
                     }}
                     style={{
                       flex: 1,
@@ -748,7 +755,7 @@ export default function DownloadPage() {
                 </div>
 
                 {/* Share extras */}
-                <div style={{ marginTop: '0.8rem' }}>
+                <div style={{ marginTop: '0.25rem' }}>
                   <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                     {embedSnippet && (
                       <button

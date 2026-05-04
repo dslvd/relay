@@ -49,15 +49,25 @@ export async function GET(request: NextRequest) {
 
     const selectedKey = fileKeyFilter || filenameFilter;
     if (selectedKey) {
+      // Try to find downloads by fileKey first, then by filename
       const fileDownloads = data.downloads.filter(
-        (event) => (event.fileKey || event.filename) === selectedKey || event.filename === selectedKey
+        (event) => event.fileKey === selectedKey || event.filename === selectedKey || (event.fileKey || event.filename) === selectedKey
       );
+      
+      // Get the total count - try fileKey first, then filename, then count from filtered events
+      let totalDownloads = data.downloadCounts[selectedKey];
+      if (totalDownloads === undefined && filenameFilter) {
+        totalDownloads = data.downloadCounts[filenameFilter];
+      }
+      // Fallback: count from the downloads array if aggregate count not found
+      if (totalDownloads === undefined) {
+        totalDownloads = fileDownloads.length;
+      }
+      
       return NextResponse.json({
         key: selectedKey,
         filename: filenameFilter || selectedKey,
-        totalDownloads:
-          data.downloadCounts[selectedKey] ||
-          (filenameFilter ? data.downloadCounts[filenameFilter] || 0 : 0),
+        totalDownloads: totalDownloads || 0,
         last24h: fileDownloads.filter((event) => event.timestamp > last24h).length,
         last7days: fileDownloads.filter((event) => event.timestamp > last7days).length,
         uniqueUsers: new Set(fileDownloads.map((event) => event.ip)).size,
