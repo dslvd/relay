@@ -278,6 +278,62 @@ export default function Home() {
     }
   }, [uploadedFiles.length, showUploadedFiles]);
 
+  // Validate uploaded files exist in R2 storage when showing them
+  useEffect(() => {
+    if (!showUploadedFiles || uploadedFiles.length === 0) return;
+
+    let cancelled = false;
+
+    const validateFiles = async () => {
+      try {
+        // Check each file exists in R2 by making a HEAD request
+        const validationResults = await Promise.allSettled(
+          uploadedFiles.map(async (file) => {
+            try {
+              const response = await fetch(file.url, {
+                method: 'HEAD',
+                cache: 'no-store'
+              });
+              return {
+                url: file.url,
+                exists: response.ok
+              };
+            } catch {
+              return {
+                url: file.url,
+                exists: false
+              };
+            }
+          })
+        );
+
+        if (cancelled) return;
+
+        // Filter out files that don't exist in R2
+        const existingUrls = validationResults
+          .filter((result): result is PromiseFulfilledResult<{url: string; exists: boolean}> => 
+            result.status === 'fulfilled' && result.value.exists
+          )
+          .map((result) => result.value.url);
+
+        // If some files were removed, update the state
+        if (existingUrls.length < uploadedFiles.length) {
+          const validFiles = uploadedFiles.filter(f => existingUrls.includes(f.url));
+          setUploadedFiles(validFiles);
+        }
+      } catch (err) {
+        // Silently fail if validation fails
+        console.error('Failed to validate uploaded files:', err);
+      }
+    };
+
+    validateFiles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showUploadedFiles]);
+
   const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
   const IDB_NAME = 'relay_uploads_v1';
   const IDB_STORE = 'files';

@@ -410,7 +410,7 @@ export default function DownloadPage() {
                 marginBottom: '1.2rem'
               }}
             >
-              The file you're looking for doesn't exist or has expired.
+              The file you're looking for doesn't exist, has expired, or may have been deleted.
             </p>
               <a
               href="/"

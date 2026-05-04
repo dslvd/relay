@@ -260,7 +260,7 @@ export async function GET(
       const referer = request.headers.get('referer') || undefined;
 
       let analyticsData = cleanupAnalyticsData(await loadAnalyticsData());
-      analyticsData = recordDownloadEvent(analyticsData, {
+      analyticsData = await recordDownloadEvent(analyticsData, {
         filename,
         fileKey: key,
         ip,

@@ -1,4 +1,5 @@
 import { getRedisClient, hasRedisConfigured } from '@/app/lib/data/redis-client';
+import { incrementDownloadCount, getDownloadCount, getAllDownloadCounts, hasD1Configured } from '@/app/lib/data/d1-downloads';
 
 export interface DownloadEvent {
   filename: string;
@@ -65,22 +66,43 @@ function normalizeAnalyticsData(data: Partial<AnalyticsData>): AnalyticsData {
 }
 
 export async function loadAnalyticsData(): Promise<AnalyticsData> {
+  // Load download counts from D1 if configured, otherwise from Redis/memory
+  let downloadCounts: Record<string, number> = {};
+  
+  if (hasD1Configured()) {
+    try {
+      downloadCounts = await getAllDownloadCounts();
+    } catch (error) {
+      console.error('Failed to load download counts from D1:', error);
+      downloadCounts = {};
+    }
+  }
+
   if (hasRedisConfigured()) {
     const client = await getRedisClient();
     const raw = await client.get(ANALYTICS_KEY);
     if (raw) {
-      return normalizeAnalyticsData(JSON.parse(raw) as Partial<AnalyticsData>);
+      const data = normalizeAnalyticsData(JSON.parse(raw) as Partial<AnalyticsData>);
+      // Merge D1 counts with Redis data
+      return {
+        ...data,
+        downloadCounts: { ...data.downloadCounts, ...downloadCounts },
+      };
     }
 
     return normalizeAnalyticsData({
       downloads: [],
       pageViews: [],
       totalDownloads: 0,
-      downloadCounts: {},
+      downloadCounts,
     });
   }
 
-  return normalizeAnalyticsData(getGlobalAnalyticsData());
+  const data = getGlobalAnalyticsData();
+  return normalizeAnalyticsData({
+    ...data,
+    downloadCounts: { ...data.downloadCounts, ...downloadCounts },
+  });
 }
 
 export async function saveAnalyticsData(data: AnalyticsData): Promise<void> {
@@ -111,10 +133,10 @@ export function cleanupAnalyticsData(data: AnalyticsData, now = Date.now()): Ana
   };
 }
 
-export function recordDownloadEvent(
+export async function recordDownloadEvent(
   data: AnalyticsData,
   event: Omit<DownloadEvent, 'timestamp'> & { timestamp?: number }
-): AnalyticsData {
+): Promise<AnalyticsData> {
   const timestamp = typeof event.timestamp === 'number' ? event.timestamp : Date.now();
   const fileKey = event.fileKey?.trim() || '';
   const filename = event.filename?.trim() || '';
@@ -138,6 +160,15 @@ export function recordDownloadEvent(
   // Also store under filename alone for queries that only have filename
   if (filename && filename !== primaryKey) {
     newDownloadCounts[filename] = (newDownloadCounts[filename] || 0) + 1;
+  }
+
+  // Also increment count in D1 for persistent storage
+  if (hasD1Configured() && primaryKey) {
+    try {
+      await incrementDownloadCount(primaryKey, filename);
+    } catch (error) {
+      console.error('Failed to update D1 download count:', error);
+    }
   }
 
   return {

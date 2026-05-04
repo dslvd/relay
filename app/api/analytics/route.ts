@@ -296,7 +296,7 @@ export async function POST(request: NextRequest) {
     let data = cleanupAnalyticsData(await loadAnalyticsData());
 
     if (type === 'download' && filename) {
-      data = recordDownloadEvent(data, {
+      data = await recordDownloadEvent(data, {
         filename,
         fileKey: typeof body?.fileKey === 'string' && body.fileKey.trim() ? body.fileKey.trim() : undefined,
         ip,
