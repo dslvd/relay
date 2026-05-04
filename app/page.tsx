@@ -284,24 +284,55 @@ export default function Home() {
 
     let cancelled = false;
 
+    const extractKeyFromUploadedUrl = (rawUrl: string): string => {
+      try {
+        const parsed = new URL(rawUrl, window.location.origin);
+        const cleanPath = parsed.pathname.replace(/\/+$/, '');
+        if (cleanPath.includes('/download/')) {
+          return decodeURIComponent((cleanPath.split('/download/')[1] || '').split('?')[0] || '').trim();
+        }
+        if (cleanPath.includes('/d/')) {
+          return decodeURIComponent((cleanPath.split('/d/')[1] || '').split('?')[0] || '').trim();
+        }
+        return decodeURIComponent((cleanPath.split('/').filter(Boolean).pop() || '').split('?')[0] || '').trim();
+      } catch {
+        const tail = rawUrl.split('/').filter(Boolean).pop() || '';
+        return decodeURIComponent((tail.split('?')[0] || '').trim());
+      }
+    };
+
     const validateFiles = async () => {
       try {
-        // Check each file exists in R2 by making a HEAD request
+        // Probe direct object route and only prune on confirmed 404.
         const validationResults = await Promise.allSettled(
           uploadedFiles.map(async (file) => {
+            const key = extractKeyFromUploadedUrl(file.url);
+            if (!key) {
+              return { url: file.url, deleted: false };
+            }
+
             try {
-              const response = await fetch(file.url, {
+              const response = await fetch(`/d/${encodeURIComponent(key)}`, {
                 method: 'HEAD',
                 cache: 'no-store'
               });
+
+              if (response.ok) {
+                return { url: file.url, deleted: false };
+              }
+
+              if (response.status === 404) {
+                return { url: file.url, deleted: true };
+              }
+
               return {
                 url: file.url,
-                exists: response.ok
+                deleted: false
               };
             } catch {
               return {
                 url: file.url,
-                exists: false
+                deleted: false
               };
             }
           })
@@ -309,16 +340,16 @@ export default function Home() {
 
         if (cancelled) return;
 
-        // Filter out files that don't exist in R2
-        const existingUrls = validationResults
-          .filter((result): result is PromiseFulfilledResult<{url: string; exists: boolean}> => 
-            result.status === 'fulfilled' && result.value.exists
+        const deletedUrls = validationResults
+          .filter((result): result is PromiseFulfilledResult<{ url: string; deleted: boolean }> =>
+            result.status === 'fulfilled' && result.value.deleted
           )
           .map((result) => result.value.url);
 
-        // If some files were removed, update the state
-        if (existingUrls.length < uploadedFiles.length) {
-          const validFiles = uploadedFiles.filter(f => existingUrls.includes(f.url));
+        // Only remove files that are confirmed gone from object storage.
+        if (deletedUrls.length > 0) {
+          const deletedSet = new Set(deletedUrls);
+          const validFiles = uploadedFiles.filter((f) => !deletedSet.has(f.url));
           setUploadedFiles(validFiles);
         }
       } catch (err) {
@@ -332,7 +363,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [showUploadedFiles]);
+  }, [showUploadedFiles, uploadedFiles]);
 
   const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
   const IDB_NAME = 'relay_uploads_v1';
