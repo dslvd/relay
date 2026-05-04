@@ -182,10 +182,12 @@ export default function Home() {
   const [publicHistory, setPublicHistory] = useState<UploadRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [verifyingFiles, setVerifyingFiles] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'error' | 'info' }>>([]);
+  const [toastsExpanded, setToastsExpanded] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [premiumEmail, setPremiumEmail] = useState('');
-  const toastTimeoutRef = useRef<number | null>(null);
+  const toastTimeoutRefs = useRef<Record<number, number>>({});
+  const toastIdRef = useRef(0);
   const cancelUploadRef = useRef(false);
   const cancelTokenRef = useRef(0);
   const activeUploadRequestRef = useRef<XMLHttpRequest | null>(null);
@@ -538,11 +540,17 @@ export default function Home() {
   };
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ message, type });
-    if (toastTimeoutRef.current) {
-      window.clearTimeout(toastTimeoutRef.current);
+    const id = toastIdRef.current++;
+    setToasts(prev => [...prev, { id, message, type }]);
+    
+    // Auto-remove toast after 2200ms
+    if (toastTimeoutRefs.current[id]) {
+      window.clearTimeout(toastTimeoutRefs.current[id]);
     }
-    toastTimeoutRef.current = window.setTimeout(() => setToast(null), 2200);
+    toastTimeoutRefs.current[id] = window.setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+      delete toastTimeoutRefs.current[id];
+    }, 2200);
   };
 
   const showUploadSuccessCue = (filename: string, label = 'Upload complete') => {
@@ -3157,36 +3165,63 @@ export default function Home() {
         </div>
         )}
 
-        {/* Toast Notifications */}
-        {toast && (
-          <div style={{
-            position: 'fixed',
-            bottom: '1.25rem',
-            right: '1.25rem',
-            background: 'rgba(20,22,27,0.7)',
-            backdropFilter: 'blur(24px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-            color: '#eef1f6',
-            padding: '0.65rem 0.95rem',
-            borderRadius: '10px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            animation: 'fadeSlideIn 0.25s ease-out',
-            zIndex: 1000,
-            fontSize: '0.75rem',
-            fontWeight: 500,
-            letterSpacing: '0.02em'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <MonoIcon
-                name={toast.type === 'success' ? 'check' : toast.type === 'error' ? 'warning' : 'spark'}
-                className={toast.type === 'success' ? 'monoIcon monoIcon--success' : 'monoIcon'}
-                width={14}
-                height={14}
-                style={{ color: toast.type === 'success' ? '#7ef4cb' : toast.type === 'error' ? '#f2c6c6' : '#eef1f6' }}
-              />
-              <span>{toast.message}</span>
-            </div>
+        {/* Toast Notifications Stack */}
+        {toasts.length > 0 && (
+          <div
+            onMouseEnter={() => setToastsExpanded(true)}
+            onMouseLeave={() => setToastsExpanded(false)}
+            style={{
+              position: 'fixed',
+              bottom: '1.25rem',
+              right: '1.25rem',
+              zIndex: 1000,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: toastsExpanded ? '0.5rem' : '0',
+              width: toastsExpanded ? 'auto' : '320px',
+              transition: 'gap 0.2s ease',
+              cursor: toasts.length > 1 ? 'pointer' : 'default'
+            }}
+          >
+            {toasts.slice(Math.max(0, toasts.length - 3)).map((toast, idx) => {
+              const isHidden = !toastsExpanded && idx < Math.max(0, toasts.length - 3);
+              const stackOffset = idx * (toastsExpanded ? 0 : 6);
+              return (
+                <div
+                  key={toast.id}
+                  style={{
+                    background: 'rgba(20,22,27,0.7)',
+                    backdropFilter: 'blur(24px) saturate(180%)',
+                    WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+                    color: '#eef1f6',
+                    padding: '0.65rem 0.95rem',
+                    borderRadius: '10px',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    animation: 'fadeSlideIn 0.25s ease-out',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    letterSpacing: '0.02em',
+                    display: isHidden && !toastsExpanded ? 'none' : 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    opacity: toastsExpanded ? 1 : 0.95,
+                    transform: toastsExpanded ? 'translateX(0)' : `translateX(${stackOffset}px) translateY(${stackOffset}px)`,
+                    transition: 'all 0.2s ease',
+                    minWidth: '280px'
+                  }}
+                >
+                  <MonoIcon
+                    name={toast.type === 'success' ? 'check' : toast.type === 'error' ? 'warning' : 'spark'}
+                    className={toast.type === 'success' ? 'monoIcon monoIcon--success' : 'monoIcon'}
+                    width={14}
+                    height={14}
+                    style={{ color: toast.type === 'success' ? '#7ef4cb' : toast.type === 'error' ? '#f2c6c6' : '#eef1f6', flexShrink: 0 }}
+                  />
+                  <span>{toast.message}</span>
+                </div>
+              );
+            })}
           </div>
         )}
 
