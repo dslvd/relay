@@ -51,15 +51,32 @@ export async function GET(request: NextRequest) {
     if (selectedKey) {
       // Try to find downloads by fileKey first, then by filename
       const fileDownloads = data.downloads.filter(
-        (event) => event.fileKey === selectedKey || event.filename === selectedKey || (event.fileKey || event.filename) === selectedKey
+        (event) => {
+          const eventFileKey = event.fileKey?.trim() || '';
+          const eventFilename = event.filename?.trim() || '';
+          return eventFileKey === selectedKey || eventFilename === selectedKey || eventFileKey === fileKeyFilter || eventFilename === filenameFilter;
+        }
       );
       
-      // Get the total count - try fileKey first, then filename, then count from filtered events
-      let totalDownloads = data.downloadCounts[selectedKey];
-      if (totalDownloads === undefined && filenameFilter) {
+      // Get the total count with multiple fallbacks
+      let totalDownloads: number | undefined = undefined;
+      
+      // First try exact key match
+      if (data.downloadCounts[selectedKey] !== undefined) {
+        totalDownloads = data.downloadCounts[selectedKey];
+      }
+      
+      // Try fileKey filter
+      if (totalDownloads === undefined && fileKeyFilter && data.downloadCounts[fileKeyFilter] !== undefined) {
+        totalDownloads = data.downloadCounts[fileKeyFilter];
+      }
+      
+      // Try filename filter
+      if (totalDownloads === undefined && filenameFilter && data.downloadCounts[filenameFilter] !== undefined) {
         totalDownloads = data.downloadCounts[filenameFilter];
       }
-      // Fallback: count from the downloads array if aggregate count not found
+      
+      // Fallback: count from the downloads array
       if (totalDownloads === undefined) {
         totalDownloads = fileDownloads.length;
       }
@@ -72,6 +89,11 @@ export async function GET(request: NextRequest) {
         last7days: fileDownloads.filter((event) => event.timestamp > last7days).length,
         uniqueUsers: new Set(fileDownloads.map((event) => event.ip)).size,
         bytesTotal: fileDownloads.reduce((acc, e) => acc + (e.bytes || 0), 0),
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+        }
       });
     }
 
@@ -242,10 +264,21 @@ export async function GET(request: NextRequest) {
           timestamp: download.timestamp,
           ip: download.ip,
         })),
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+      }
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);
-    return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch analytics' }, { 
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+      }
+    });
   }
 }
 
@@ -284,9 +317,20 @@ export async function POST(request: NextRequest) {
 
     await saveAnalyticsData(data);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+      }
+    });
   } catch (error) {
     console.error('Error tracking event:', error);
-    return NextResponse.json({ error: 'Failed to track event' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to track event' }, { 
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+      }
+    });
   }
 }

@@ -116,8 +116,12 @@ export function recordDownloadEvent(
   event: Omit<DownloadEvent, 'timestamp'> & { timestamp?: number }
 ): AnalyticsData {
   const timestamp = typeof event.timestamp === 'number' ? event.timestamp : Date.now();
-  const filename = event.filename;
-  const aggregationKey = (event.fileKey || filename).trim();
+  const fileKey = event.fileKey?.trim() || '';
+  const filename = event.filename?.trim() || '';
+  
+  // Use fileKey as primary aggregation key, fall back to filename
+  const primaryKey = fileKey || filename;
+  
   const downloads = [
     ...data.downloads,
     {
@@ -126,14 +130,21 @@ export function recordDownloadEvent(
     },
   ].slice(-ANALYTICS_LIMIT);
 
+  // Store count under both fileKey and filename for flexible querying
+  const newDownloadCounts = { ...data.downloadCounts };
+  if (primaryKey) {
+    newDownloadCounts[primaryKey] = (newDownloadCounts[primaryKey] || 0) + 1;
+  }
+  // Also store under filename alone for queries that only have filename
+  if (filename && filename !== primaryKey) {
+    newDownloadCounts[filename] = (newDownloadCounts[filename] || 0) + 1;
+  }
+
   return {
     ...data,
     downloads,
     totalDownloads: (data.totalDownloads || 0) + 1,
-    downloadCounts: {
-      ...data.downloadCounts,
-      [aggregationKey]: (data.downloadCounts[aggregationKey] || 0) + 1,
-    },
+    downloadCounts: newDownloadCounts,
   };
 }
 
