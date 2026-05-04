@@ -185,7 +185,7 @@ export default function DownloadPage() {
         
         const [fileInfoResponse, analyticsResponse] = await Promise.all([
           fetch(`/api/file-info?key=${encodeURIComponent(pathKey)}`, { cache: 'no-store' }),
-          fetch(`/api/analytics?filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
+          fetch(`/api/analytics?key=${encodeURIComponent(pathKey)}&filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
         ]);
 
         if (analyticsResponse.ok) {

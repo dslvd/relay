@@ -39,18 +39,25 @@ export async function GET(request: NextRequest) {
     const data = cleanupAnalyticsData(await loadAnalyticsData());
     await saveAnalyticsData(data);
 
-    const filenameFilter = request.nextUrl.searchParams.get('filename');
+    const fileKeyFilter = request.nextUrl.searchParams.get('key')?.trim() || '';
+    const filenameFilter = request.nextUrl.searchParams.get('filename')?.trim() || '';
     const detail = request.nextUrl.searchParams.get('detail') === '1';
 
     const now = Date.now();
     const last24h = now - 24 * 60 * 60 * 1000;
     const last7days = now - 7 * 24 * 60 * 60 * 1000;
 
-    if (filenameFilter) {
-      const fileDownloads = data.downloads.filter((event) => event.filename === filenameFilter);
+    const selectedKey = fileKeyFilter || filenameFilter;
+    if (selectedKey) {
+      const fileDownloads = data.downloads.filter(
+        (event) => (event.fileKey || event.filename) === selectedKey || event.filename === selectedKey
+      );
       return NextResponse.json({
-        filename: filenameFilter,
-        totalDownloads: data.downloadCounts[filenameFilter] || 0,
+        key: selectedKey,
+        filename: filenameFilter || selectedKey,
+        totalDownloads:
+          data.downloadCounts[selectedKey] ||
+          (filenameFilter ? data.downloadCounts[filenameFilter] || 0 : 0),
         last24h: fileDownloads.filter((event) => event.timestamp > last24h).length,
         last7days: fileDownloads.filter((event) => event.timestamp > last7days).length,
         uniqueUsers: new Set(fileDownloads.map((event) => event.ip)).size,
@@ -248,6 +255,7 @@ export async function POST(request: NextRequest) {
     if (type === 'download' && filename) {
       data = recordDownloadEvent(data, {
         filename,
+        fileKey: typeof body?.fileKey === 'string' && body.fileKey.trim() ? body.fileKey.trim() : undefined,
         ip,
         userAgent,
         bytes: Number.isFinite(Number(bytes)) ? Number(bytes) : undefined,

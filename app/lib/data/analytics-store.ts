@@ -2,6 +2,7 @@ import { getRedisClient, hasRedisConfigured } from '@/app/lib/data/redis-client'
 
 export interface DownloadEvent {
   filename: string;
+  fileKey?: string;
   timestamp: number;
   ip: string;
   userAgent: string;
@@ -116,6 +117,7 @@ export function recordDownloadEvent(
 ): AnalyticsData {
   const timestamp = typeof event.timestamp === 'number' ? event.timestamp : Date.now();
   const filename = event.filename;
+  const aggregationKey = (event.fileKey || filename).trim();
   const downloads = [
     ...data.downloads,
     {
@@ -130,7 +132,7 @@ export function recordDownloadEvent(
     totalDownloads: (data.totalDownloads || 0) + 1,
     downloadCounts: {
       ...data.downloadCounts,
-      [filename]: (data.downloadCounts[filename] || 0) + 1,
+      [aggregationKey]: (data.downloadCounts[aggregationKey] || 0) + 1,
     },
   };
 }

@@ -246,6 +246,7 @@ export async function GET(
     }
     
     // Update last access time to reset the deletion timer
+    const key = path.join('/');
     const filename = path[path.length - 1];
     await updateLastAccessTime(filename);
     
@@ -261,6 +262,7 @@ export async function GET(
       let analyticsData = cleanupAnalyticsData(await loadAnalyticsData());
       analyticsData = recordDownloadEvent(analyticsData, {
         filename,
+        fileKey: key,
         ip,
         userAgent,
         bytes: Number(response.headers.get('Content-Length')) || undefined,
@@ -274,7 +276,6 @@ export async function GET(
     
     // Return the file with proper headers
     const shouldDownload = request.nextUrl.searchParams.has('dl');
-    const key = path.join('/');
     const originalFilename = shouldDownload ? await findOriginalFilenameByKey(key) : null;
 
     return new NextResponse(response.body, {

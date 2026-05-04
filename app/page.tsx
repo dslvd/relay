@@ -292,7 +292,9 @@ export default function Home() {
     });
   };
 
-  const idbPut = async (key: string, value: any) => {
+  type IndexedDbValue = Parameters<IDBObjectStore['put']>[0];
+
+  const idbPut = async (key: string, value: IndexedDbValue) => {
     const db = await openUploadsDb();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite');
@@ -1561,7 +1563,31 @@ export default function Home() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let donePayload: any = null;
+      type RemoteUploadDonePayload = {
+        data?: {
+          url?: string;
+          filename?: string;
+          size?: number;
+        };
+      };
+
+      type RemoteUploadStreamEvent =
+        | {
+            type: 'progress';
+            loaded?: number;
+            total?: number;
+            stage?: 'upload' | 'download';
+          }
+        | {
+            type: 'done';
+            data?: RemoteUploadDonePayload['data'];
+          }
+        | {
+            type: 'error';
+            error?: string;
+          };
+
+      let donePayload: RemoteUploadDonePayload | null = null;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -1572,7 +1598,7 @@ export default function Home() {
           const line = buffer.slice(0, idx).trim();
           buffer = buffer.slice(idx + 1);
           if (!line) continue;
-          let evt: any;
+          let evt: RemoteUploadStreamEvent;
           try {
             evt = JSON.parse(line);
           } catch {
@@ -2546,7 +2572,7 @@ export default function Home() {
                     <div className="queue-item__body">
                       {item.status === 'success' && item.downloadUrl ? (
                         <a
-                          href={item.downloadUrl}
+                          href={toDownloadPageUrl(item.downloadUrl)}
                           className="queue-item__name queue-item__name--link"
                           title="Open download page"
                         >
@@ -2862,8 +2888,8 @@ export default function Home() {
                       }}>
                         Link
                       </div>
-                      <a 
-                        href={url.includes('/d/') || url.includes('/download/') ? url : `${window.location.origin}/download/${url.split('/').pop()}`} 
+                        <a 
+                          href={toDownloadPageUrl(url)} 
                         target="_blank" 
                         rel="noreferrer"
                         style={{
