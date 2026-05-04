@@ -2402,28 +2402,6 @@ export default function Home() {
               Upload URL
             </button>
 
-            {remoteUploading && (
-              <div
-                style={{
-                  width: '100%',
-                  marginTop: '0.35rem',
-                  fontSize: '0.72rem',
-                  color: '#8a92a1',
-                  textAlign: 'center',
-                }}
-              >
-                {remoteStage === 'download' && (
-                  <>
-                    Downloading remote…{' '}
-                    {remoteTotalBytes
-                      ? `${Math.min(100, Math.round((remoteDownloadedBytes / remoteTotalBytes) * 100))}% (${formatFileSize(remoteDownloadedBytes)} / ${formatFileSize(remoteTotalBytes)})`
-                      : `${formatFileSize(remoteDownloadedBytes)}`}
-                  </>
-                )}
-                {remoteStage === 'server' && <>Fetching server-side…</>}
-                {remoteStage === 'enqueue' && <>Queued for upload…</>}
-              </div>
-            )}
           </div>
         )}
 
@@ -3198,6 +3176,77 @@ export default function Home() {
                   </div>
                 );
               })}
+                  {remoteUploading && (
+                    <div
+                      style={{
+                        position: 'fixed',
+                        bottom: '2rem',
+                        right: '2rem',
+                        width: '320px',
+                        borderRadius: '16px',
+                        background: 'rgba(255,255,255,0.08)',
+                        backdropFilter: 'blur(20px)',
+                        WebkitBackdropFilter: 'blur(20px)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        padding: '1.2rem',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)',
+                        zIndex: 1000,
+                        animation: 'fadeSlideIn 0.3s ease-out'
+                      }}
+                    >
+                      <div style={{ marginBottom: '0.8rem' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.4rem' }}>
+                          Remote Upload
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'rgba(245,245,245,0.7)' }}>
+                          {remoteStage === 'download' && 'Downloading file…'}
+                          {remoteStage === 'server' && 'Fetching server-side…'}
+                          {remoteStage === 'enqueue' && 'Queued for upload…'}
+                        </div>
+                      </div>
+
+                      {remoteStage === 'download' && (
+                        <div style={{ marginBottom: '0.8rem' }}>
+                          <div style={{
+                            width: '100%',
+                            height: '4px',
+                            background: 'rgba(255,255,255,0.1)',
+                            borderRadius: '999px',
+                            overflow: 'hidden',
+                            marginBottom: '0.5rem'
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              background: 'linear-gradient(90deg, #4ff8c0 0%, #5ee7f4 100%)',
+                              width: `${remoteTotalBytes ? Math.min(100, Math.round((remoteDownloadedBytes / remoteTotalBytes) * 100)) : 0}%`,
+                              transition: 'width 0.2s ease'
+                            }}/>
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'rgba(245,245,245,0.65)', textAlign: 'center' }}>
+                            {remoteTotalBytes
+                              ? `${Math.min(100, Math.round((remoteDownloadedBytes / remoteTotalBytes) * 100))}% • ${formatFileSize(remoteDownloadedBytes)} / ${formatFileSize(remoteTotalBytes)}`
+                              : `${formatFileSize(remoteDownloadedBytes)}`}
+                          </div>
+                        </div>
+                      )}
+
+                      {(remoteStage === 'server' || remoteStage === 'enqueue') && (
+                        <div style={{
+                          fontSize: '0.72rem',
+                          color: 'rgba(245,245,245,0.65)',
+                          textAlign: 'center',
+                          padding: '0.4rem 0'
+                        }}>
+                          <span style={{
+                            display: 'inline-block',
+                            animation: 'spin 0.8s linear infinite',
+                            animationDelay: '0s'
+                          }}>⟳</span>
+                          <span style={{ marginLeft: '0.3rem' }}>Processing…</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
             </div>
           )}
           
