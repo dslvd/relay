@@ -134,7 +134,7 @@ export default function PremiumPage() {
           onMouseEnter={(e) => (e.currentTarget.style.color = '#f5f5f5')}
           onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(245,245,245,0.55)')}
         >
-          ← Back to home
+          ← Back
         </a>
 
         <h1

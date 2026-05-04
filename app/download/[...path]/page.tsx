@@ -173,6 +173,18 @@ export default function DownloadPage() {
     };
   }, [showPreview, fileData, downloadUrl]);
 
+  const fetchDownloadCount = async () => {
+    try {
+      const response = await fetch(`/api/analytics?key=${encodeURIComponent(pathKey)}&filename=${encodeURIComponent(filename)}`, { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        setDownloadCount(Number(data?.totalDownloads) || 0);
+      }
+    } catch (err) {
+      // Silently fail
+    }
+  };
+
   useEffect(() => {
     const fetchFileData = async () => {
       try {
@@ -229,6 +241,18 @@ export default function DownloadPage() {
 
     fetchFileData();
   }, [pathKey, filename, downloadUrl]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Page became visible - refetch download count
+        fetchDownloadCount();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [pathKey, filename]);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -313,7 +337,7 @@ export default function DownloadPage() {
           e.currentTarget.style.background = 'transparent';
         }}
       >
-        ← Home
+        ← Back
       </a>
 
       <style>{`
@@ -696,13 +720,13 @@ export default function DownloadPage() {
                       onClick={copyShortLink}
                     style={{
                       flex: 1,
-                      padding: '0.6rem 1rem',
+                      padding: '0.55rem 0.9rem',
                       borderRadius: '6px',
                       background: isCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.08)',
                       border: `1px solid ${isCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.16)'}`,
                       color: isCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
                       fontWeight: 600,
-                      fontSize: '0.8rem',
+                      fontSize: '0.78rem',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease'
                     }}
@@ -730,13 +754,13 @@ export default function DownloadPage() {
                     }}
                     style={{
                       flex: 1,
-                      padding: '0.6rem 1rem',
+                      padding: '0.55rem 0.9rem',
                       borderRadius: '6px',
                       background: 'rgba(255, 255, 255, 0.08)',
                       border: '1px solid rgba(255, 255, 255, 0.16)',
                       color: '#f5f5f5',
                       fontWeight: 600,
-                      fontSize: '0.8rem',
+                      fontSize: '0.78rem',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease'
                     }}
