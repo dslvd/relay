@@ -160,12 +160,12 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
       const [filesResponse, analyticsResponse, premiumResponse, statsResponse, abuseResponse, auditResponse] = await Promise.all([
-        fetch('/api/admin/files', { cache: 'no-store' }),
-        fetch('/api/analytics', { cache: 'no-store' }),
-        fetch('/api/admin/premium', { cache: 'no-store' }),
-        fetch('/api/admin/stats', { cache: 'no-store' }),
-        fetch('/api/admin/abuse', { cache: 'no-store' }),
-        fetch('/api/admin/audit?limit=200', { cache: 'no-store' }),
+        fetch('/api/admin/files', { cache: 'no-store', credentials: 'include' }),
+        fetch('/api/analytics', { cache: 'no-store', credentials: 'include' }),
+        fetch('/api/admin/premium', { cache: 'no-store', credentials: 'include' }),
+        fetch('/api/admin/stats', { cache: 'no-store', credentials: 'include' }),
+        fetch('/api/admin/abuse', { cache: 'no-store', credentials: 'include' }),
+        fetch('/api/admin/audit?limit=200', { cache: 'no-store', credentials: 'include' }),
       ]);
 
       const responses = [filesResponse, analyticsResponse, premiumResponse, statsResponse, abuseResponse, auditResponse];
@@ -219,6 +219,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/premium', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ action: 'create_invite', ttlHours: inviteTtlHours })
       });
 
@@ -242,6 +243,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/premium', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ type: 'invite', id: inviteId })
       });
 
@@ -263,6 +265,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/premium', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ type: 'user', id: userId })
       });
 
@@ -284,6 +287,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ url })
       });
       if (response.ok) {
@@ -311,10 +315,11 @@ export default function AdminDashboard() {
     await Promise.all(urls.map(async url => {
       try {
         const res = await fetch('/api/admin', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
-        });
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ url })
+      })
         if (res.ok) {
           setFiles(current => current.filter(f => f.url !== url));
         }
@@ -333,6 +338,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ url })
       });
 
@@ -358,6 +364,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ action: 'clear_all' })
       });
 
@@ -480,6 +487,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ action, urls: targets, reason }),
       });
 
@@ -513,6 +521,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/abuse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ type, pattern }),
       });
 
@@ -536,6 +545,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/abuse', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ id }),
       });
 
