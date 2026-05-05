@@ -18,9 +18,7 @@ export default function ClickRipple() {
       burst.style.left = `${event.clientX}px`;
       burst.style.top = `${event.clientY}px`;
 
-      const wave = document.createElement('span');
-      wave.className = 'click-burst__wave';
-      burst.appendChild(wave);
+      // ring/wave removed — keep burst glow + sparks only
 
       const glow = document.createElement('span');
       glow.className = 'click-burst__glow';

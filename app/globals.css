@@ -114,27 +114,50 @@ body {
   }
 }
 
-.click-ripple {
+.click-burst {
   position: fixed;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(233, 236, 242, 0.6);
-  transform: translate(-50%, -50%) scale(0.2);
+  left: 0;
+  top: 0;
   pointer-events: none;
   z-index: 9999;
-  animation: clickRipple 520ms ease-out forwards;
 }
 
-@keyframes clickRipple {
-  0% {
-    opacity: 0.9;
-    transform: translate(-50%, -50%) scale(0.2);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(2.2);
-  }
+.click-burst__glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0.7);
+  background: radial-gradient(circle, rgba(230,220,255,0.18) 0%, rgba(230,220,255,0.04) 40%, transparent 60%);
+  filter: blur(6px);
+  opacity: 1;
+  animation: burstGlow 760ms ease-out forwards;
+}
+
+.click-burst__spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #efe6ff 0%, #d6b8ff 100%);
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  animation: sparkMove 760ms cubic-bezier(.2,.9,.2,1) forwards;
+  animation-delay: var(--spark-delay, 0s);
+}
+
+@keyframes burstGlow {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.7); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); }
+}
+
+@keyframes sparkMove {
+  0% { opacity: 1; transform: translate(-50%, -50%) translate(0,0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate(var(--spark-x, 0px), var(--spark-y, 0px)) scale(0.6); }
 }
 
 .footer-link {
