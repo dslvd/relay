@@ -36,17 +36,16 @@ export default function AdminAnalyticsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const isAuth = sessionStorage.getItem('admin_authenticated');
-    if (!isAuth) {
-      router.push('/admin');
-      return;
-    }
-
     const fetchIt = async () => {
       try {
         setLoading(true);
-        const res = await fetch('/api/analytics?detail=1', { cache: 'no-store' });
+        const res = await fetch('/api/analytics?detail=1', { cache: 'no-store', credentials: 'include' });
         const payload = await res.json().catch(() => null);
+        if (res.status === 401) {
+          sessionStorage.removeItem('admin_authenticated');
+          router.push('/admin');
+          return;
+        }
         if (res.ok && payload) setData(payload as AnalyticsDetail);
       } finally {
         setLoading(false);

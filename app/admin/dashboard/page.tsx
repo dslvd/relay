@@ -139,13 +139,6 @@ export default function AdminDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check authentication
-    const isAuth = sessionStorage.getItem('admin_authenticated');
-    if (!isAuth) {
-      router.push('/admin');
-      return;
-    }
-
     fetchFiles();
     
     // Auto-refresh analytics every 30 seconds
@@ -154,6 +147,8 @@ export default function AdminDashboard() {
     }, 30000);
     
     return () => clearInterval(interval);
+  // fetchFiles is intentionally not in deps to avoid recreating the polling loop on state updates.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   const fetchFiles = async () => {
@@ -383,8 +378,10 @@ export default function AdminDashboard() {
   };
 
   const logout = () => {
-    sessionStorage.removeItem('admin_authenticated');
-    router.push('/admin');
+    fetch('/api/admin/auth', { method: 'DELETE', credentials: 'include' }).finally(() => {
+      sessionStorage.removeItem('admin_authenticated');
+      router.push('/admin');
+    });
   };
 
   const formatFileSize = (bytes: number) => {
@@ -451,6 +448,7 @@ export default function AdminDashboard() {
         fetch('/api/admin', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ url })
         })
       );

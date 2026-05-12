@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function AdminLogin() {
   const [password, setPassword] = useState('');
@@ -65,7 +66,7 @@ export default function AdminLogin() {
           padding: '1.2rem'
         }}
       >
-        <a
+        <Link
           href="/"
           style={{
             display: 'inline-flex',
@@ -81,7 +82,7 @@ export default function AdminLogin() {
           onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(245,245,245,0.55)')}
         >
           ← Back
-        </a>
+        </Link>
 
         <h1 style={{ margin: '0 0 0.7rem', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
           Admin login
@@ -91,7 +92,7 @@ export default function AdminLogin() {
           Login to access the admin dashboard. Failed attempts are logged.
         </p>
 
-        <div style={{ display: 'grid', gap: '0.6rem' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.6rem' }}>
           <input
             type="password"
             value={password}
@@ -115,7 +116,7 @@ export default function AdminLogin() {
           {error && <div style={{ fontSize: '0.78rem', color: '#ffb4b4' }}>{error}</div>}
 
           <button
-            onClick={handleSubmit as any}
+            type="submit"
             disabled={loading}
             style={{
               marginTop: '0.3rem',
@@ -135,7 +136,7 @@ export default function AdminLogin() {
           >
             {loading ? 'Please wait...' : 'Login'}
           </button>
-        </div>
+        </form>
       </section>
     </main>
   );

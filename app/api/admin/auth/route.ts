@@ -58,3 +58,30 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function DELETE() {
+  try {
+    const response = NextResponse.json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+
+    response.cookies.set({
+      name: 'admin_auth',
+      value: '',
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 0,
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Logout error:', error);
+    return NextResponse.json(
+      { success: false, message: 'Logout failed' },
+      { status: 500 }
+    );
+  }
+}
