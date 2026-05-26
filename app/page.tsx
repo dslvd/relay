@@ -1976,48 +1976,56 @@ export default function Home() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: uploadSuccessCue && !uploading ? 'flex-start' : 'center',
+        justifyContent: 'center',
         textAlign: 'center',
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
         {uploadSuccessCue && !uploading && (
-          <div className={`uploadSuccessCard${uploadSuccessCue.exiting ? ' uploadSuccessCard--exiting' : ''}`} style={{
-            width: '100%',
-            maxWidth: '1200px',
-            marginBottom: '1rem',
-            position: 'sticky',
-            top: '1rem',
-            zIndex: 20,
-            padding: '0.85rem 1.05rem',
-            borderRadius: '16px',
-            border: '1px solid rgba(79,248,192,0.35)',
-            background: 'linear-gradient(135deg, rgba(79,248,192,0.16), rgba(255,255,255,0.05))',
-            backdropFilter: 'blur(24px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-            boxShadow: '0 12px 36px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08)',
+          <div style={{
+            position: 'fixed',
+            inset: 0,
             display: 'flex',
             alignItems: 'center',
-            gap: '0.8rem',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            overflow: 'hidden'
+            justifyContent: 'center',
+            padding: '1.5rem',
+            zIndex: 60,
+            pointerEvents: 'none'
           }}>
-            <div className="uploadSuccessSweep" />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', minWidth: 0 }}>
-              <MonoIcon name="check" className="monoIcon monoIcon--success" width={22} height={22} style={{ color: '#7ef4cb', flex: '0 0 auto' }} />
-              <div style={{ minWidth: 0, textAlign: 'left' }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#eef1f6' }}>
-                  {uploadSuccessCue.label}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: '#a9b2c1', wordBreak: 'break-all' }}>
-                  {uploadSuccessCue.filename}
+            <div className={`uploadSuccessCard${uploadSuccessCue.exiting ? ' uploadSuccessCard--exiting' : ''}`} style={{
+              width: 'min(100%, 720px)',
+              padding: '0.85rem 1.05rem',
+              borderRadius: '16px',
+              border: '1px solid rgba(79,248,192,0.35)',
+              background: 'linear-gradient(135deg, rgba(79,248,192,0.16), rgba(255,255,255,0.05))',
+              backdropFilter: 'blur(24px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+              boxShadow: '0 12px 36px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.8rem',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              overflow: 'hidden',
+              pointerEvents: 'auto',
+              position: 'relative'
+            }}>
+              <div className="uploadSuccessSweep" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', minWidth: 0 }}>
+                <MonoIcon name="check" className="monoIcon monoIcon--success" width={22} height={22} style={{ color: '#7ef4cb', flex: '0 0 auto' }} />
+                <div style={{ minWidth: 0, textAlign: 'left' }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#eef1f6' }}>
+                    {uploadSuccessCue.label}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#a9b2c1', wordBreak: 'break-all' }}>
+                    {uploadSuccessCue.filename}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#7ef4cb', fontSize: '0.74rem', fontWeight: 700 }}>
-              <MonoIcon name="spark" className="monoIcon monoIcon--success" width={14} height={14} style={{ color: '#7ef4cb' }} />
-              Saved
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#7ef4cb', fontSize: '0.74rem', fontWeight: 700 }}>
+                <MonoIcon name="spark" className="monoIcon monoIcon--success" width={14} height={14} style={{ color: '#7ef4cb' }} />
+                Saved
+              </div>
             </div>
           </div>
         )}
