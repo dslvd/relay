@@ -1976,7 +1976,7 @@ export default function Home() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: uploadSuccessCue && !uploading ? 'flex-start' : 'center',
         textAlign: 'center',
         maxWidth: '1200px',
         margin: '0 auto'
@@ -1986,6 +1986,9 @@ export default function Home() {
             width: '100%',
             maxWidth: '1200px',
             marginBottom: '1rem',
+            position: 'sticky',
+            top: '1rem',
+            zIndex: 20,
             padding: '0.85rem 1.05rem',
             borderRadius: '16px',
             border: '1px solid rgba(79,248,192,0.35)',
@@ -1998,7 +2001,6 @@ export default function Home() {
             gap: '0.8rem',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            position: 'relative',
             overflow: 'hidden'
           }}>
             <div className="uploadSuccessSweep" />
