@@ -13,6 +13,11 @@ interface UploadRecord {
   quarantineReason?: string | null;
   lastAccessTime?: number;
   expiresAt?: number;
+  folder?: string;
+  tags?: string[];
+  favorite?: boolean;
+  displayName?: string;
+  updatedAt?: number | null;
 }
 
 interface AnalyticsData {
@@ -109,7 +114,7 @@ interface AuditLogEntry {
   meta?: Record<string, unknown>;
 }
 
-type SortKey = 'filename' | 'size' | 'timestamp' | 'ip';
+type SortKey = 'filename' | 'size' | 'timestamp' | 'ip' | 'folder' | 'favorite' | 'tags' | 'updatedAt';
 type SortOrder = 'asc' | 'desc';
 
 export default function AdminDashboard() {
@@ -122,6 +127,10 @@ export default function AdminDashboard() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [filterType, setFilterType] = useState<string>('all');
+  const [folderFilter, setFolderFilter] = useState('all');
+  const [favoriteFilter, setFavoriteFilter] = useState<'all' | 'favorites' | 'unstarred'>('all');
+  const [bulkMoveFolder, setBulkMoveFolder] = useState('');
+  const [bulkTags, setBulkTags] = useState('');
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [premiumInvites, setPremiumInvites] = useState<PremiumInvite[]>([]);
   const [premiumUsers, setPremiumUsers] = useState<PremiumUser[]>([]);
@@ -136,6 +145,8 @@ export default function AdminDashboard() {
   const [blacklistType, setBlacklistType] = useState<'ip' | 'filename'>('ip');
   const [blacklistPattern, setBlacklistPattern] = useState('');
   const [addingRule, setAddingRule] = useState(false);
+  const [organizingFiles, setOrganizingFiles] = useState(false);
+  const [runningCleanup, setRunningCleanup] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -411,6 +422,124 @@ export default function AdminDashboard() {
     return `$${Math.round(value * 100) / 100}`;
   };
 
+  const normalizeTags = (value: string) =>
+    Array.from(
+      new Set(
+        value
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+      )
+    );
+
+  const getFileDisplayName = (file: UploadRecord) => file.displayName || file.filename;
+
+  const getFileFolder = (file: UploadRecord) => file.folder?.trim() || 'Unsorted';
+
+  const formatTags = (tags?: string[]) => (tags && tags.length ? tags.join(', ') : 'No tags');
+
+  const updateFileMetadata = async (payload: {
+    urls: string[];
+    filename?: string;
+    folder?: string;
+    tags?: string[];
+    favorite?: boolean;
+    displayName?: string;
+  }) => {
+    setOrganizingFiles(true);
+    try {
+      const response = await fetch('/api/admin/files', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || 'Failed to update file metadata');
+      }
+
+      await fetchFiles();
+    } catch (error) {
+      console.error('Failed to update file metadata:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update file metadata');
+    } finally {
+      setOrganizingFiles(false);
+    }
+  };
+
+  const renameFile = async (file: UploadRecord) => {
+    const nextName = window.prompt('Rename file', getFileDisplayName(file));
+    if (nextName === null) return;
+    const trimmed = nextName.trim();
+    if (!trimmed) return;
+
+    await updateFileMetadata({ urls: [file.url], filename: trimmed, displayName: trimmed });
+  };
+
+  const moveFile = async (file: UploadRecord) => {
+    const nextFolder = window.prompt('Move file to folder', file.folder || '');
+    if (nextFolder === null) return;
+
+    await updateFileMetadata({ urls: [file.url], folder: nextFolder.trim() });
+    setFolderFilter('all');
+  };
+
+  const editTags = async (file: UploadRecord) => {
+    const nextTags = window.prompt('Tags for this file, comma separated', formatTags(file.tags));
+    if (nextTags === null) return;
+
+    await updateFileMetadata({ urls: [file.url], tags: normalizeTags(nextTags) });
+  };
+
+  const toggleFavoriteFile = async (file: UploadRecord) => {
+    await updateFileMetadata({ urls: [file.url], favorite: !file.favorite });
+  };
+
+  const applyBulkMove = async () => {
+    const urls = Array.from(selectedFiles);
+    if (urls.length === 0) return;
+    const folder = bulkMoveFolder.trim();
+    if (!folder) return;
+
+    await updateFileMetadata({ urls, folder });
+    setBulkMoveFolder('');
+    setSelectedFiles(new Set());
+  };
+
+  const applyBulkTags = async () => {
+    const urls = Array.from(selectedFiles);
+    if (urls.length === 0) return;
+
+    await updateFileMetadata({ urls, tags: normalizeTags(bulkTags) });
+    setBulkTags('');
+    setSelectedFiles(new Set());
+  };
+
+  const runCleanup = async () => {
+    try {
+      setRunningCleanup(true);
+      const response = await fetch('/api/cleanup', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        alert('Cleanup failed');
+        return;
+      }
+
+      await fetchFiles();
+      alert('Cleanup completed');
+    } catch (error) {
+      console.error('Cleanup failed:', error);
+      alert('Cleanup failed');
+    } finally {
+      setRunningCleanup(false);
+    }
+  };
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -603,36 +732,82 @@ export default function AdminDashboard() {
     return ext || 'unknown';
   };
 
+  const folderOptions = Array.from(new Set(files.map((file) => file.folder?.trim()).filter((folder): folder is string => Boolean(folder)))).sort();
+
   const filteredFiles = files.filter(file => {
-    const matchesSearch = file.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         file.url.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (file.ip && file.ip.includes(searchQuery));
-    
+    const searchTarget = [
+      file.filename,
+      file.displayName,
+      file.url,
+      file.ip,
+      file.folder,
+      ...(file.tags || []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    const matchesSearch = searchQuery.trim() === '' || searchTarget.includes(searchQuery.toLowerCase());
+
     if (!matchesSearch) return false;
-    
+
+    if (folderFilter !== 'all' && getFileFolder(file) !== folderFilter) return false;
+    if (favoriteFilter === 'favorites' && !file.favorite) return false;
+    if (favoriteFilter === 'unstarred' && file.favorite) return false;
+
     if (filterType === 'all') return true;
-    
+
     const ext = getFileExtension(file.filename);
     if (filterType === 'images') return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
     if (filterType === 'videos') return ['mp4', 'webm', 'mov', 'avi'].includes(ext);
     if (filterType === 'documents') return ['pdf', 'doc', 'docx', 'txt', 'md'].includes(ext);
-    
+
     return true;
   }).sort((a, b) => {
-    type SortableValue = string | number | undefined;
-    let aVal = a[sortKey] as SortableValue;
-    let bVal = b[sortKey] as SortableValue;
-    
-    if (sortKey === 'filename' || sortKey === 'ip') {
-      aVal = typeof aVal === 'string' ? aVal.toLowerCase() : '';
-      bVal = typeof bVal === 'string' ? bVal.toLowerCase() : '';
+    const normalizeString = (value: string | undefined) => (value || '').toLowerCase();
+    const leftValue = (() => {
+      switch (sortKey) {
+        case 'favorite':
+          return Number(Boolean(a.favorite));
+        case 'folder':
+          return normalizeString(a.folder);
+        case 'tags':
+          return a.tags?.length || 0;
+        case 'updatedAt':
+          return a.updatedAt || 0;
+        case 'filename':
+          return normalizeString(getFileDisplayName(a));
+        case 'ip':
+          return normalizeString(a.ip);
+        default:
+          return (a[sortKey] as string | number | undefined) ?? '';
+      }
+    })();
+    const rightValue = (() => {
+      switch (sortKey) {
+        case 'favorite':
+          return Number(Boolean(b.favorite));
+        case 'folder':
+          return normalizeString(b.folder);
+        case 'tags':
+          return b.tags?.length || 0;
+        case 'updatedAt':
+          return b.updatedAt || 0;
+        case 'filename':
+          return normalizeString(getFileDisplayName(b));
+        case 'ip':
+          return normalizeString(b.ip);
+        default:
+          return (b[sortKey] as string | number | undefined) ?? '';
+      }
+    })();
+
+    if (leftValue < rightValue) return sortOrder === 'asc' ? -1 : 1;
+    if (leftValue > rightValue) return sortOrder === 'asc' ? 1 : -1;
+
+    if (sortKey !== 'timestamp') {
+      return sortOrder === 'asc' ? a.timestamp - b.timestamp : b.timestamp - a.timestamp;
     }
 
-    const left = aVal ?? '';
-    const right = bVal ?? '';
-    
-    if (left < right) return sortOrder === 'asc' ? -1 : 1;
-    if (left > right) return sortOrder === 'asc' ? 1 : -1;
     return 0;
   });
 
@@ -1424,6 +1599,89 @@ export default function AdminDashboard() {
               <option value="documents">Documents</option>
             </select>
 
+            <select
+              value={folderFilter}
+              onChange={(e) => setFolderFilter(e.target.value)}
+              style={{
+                padding: '0.75rem 1rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '10px',
+                color: '#f5f5f5',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                fontFamily: "'Open Sans', sans-serif"
+              }}
+            >
+              <option value="all">All folders</option>
+              {folderOptions.map((folder) => (
+                <option key={folder} value={folder}>{folder}</option>
+              ))}
+            </select>
+
+            <select
+              value={favoriteFilter}
+              onChange={(e) => setFavoriteFilter(e.target.value as typeof favoriteFilter)}
+              style={{
+                padding: '0.75rem 1rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '10px',
+                color: '#f5f5f5',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                fontFamily: "'Open Sans', sans-serif"
+              }}
+            >
+              <option value="all">All files</option>
+              <option value="favorites">Favorites</option>
+              <option value="unstarred">Unstarred</option>
+            </select>
+
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
+              style={{
+                padding: '0.75rem 1rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '10px',
+                color: '#f5f5f5',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                fontFamily: "'Open Sans', sans-serif"
+              }}
+            >
+              <option value="timestamp">Newest</option>
+              <option value="updatedAt">Recently edited</option>
+              <option value="favorite">Favorite</option>
+              <option value="folder">Folder</option>
+              <option value="tags">Tag count</option>
+              <option value="filename">Name</option>
+              <option value="size">Size</option>
+              <option value="ip">IP</option>
+            </select>
+
+            <button
+              onClick={runCleanup}
+              disabled={runningCleanup}
+              style={{
+                padding: '0.75rem 1rem',
+                background: 'rgba(255,255,255,0.07)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '10px',
+                color: '#f5f5f5',
+                fontSize: '0.875rem',
+                cursor: runningCleanup ? 'not-allowed' : 'pointer',
+                fontFamily: "'Open Sans', sans-serif",
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+              }}
+            >
+              {runningCleanup ? '🧹 Cleaning...' : '🧹 Cleanup'}
+            </button>
+
             <button
               onClick={() => exportData('json')}
               style={{
@@ -1464,10 +1722,76 @@ export default function AdminDashboard() {
           </div>
 
           {selectedFiles.size > 0 && (
-            <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ color: '#666666', fontSize: '0.875rem' }}>
                 {selectedFiles.size} selected
               </span>
+              <input
+                value={bulkMoveFolder}
+                onChange={(e) => setBulkMoveFolder(e.target.value)}
+                placeholder="Target folder"
+                style={{
+                  padding: '0.5rem 0.7rem',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '10px',
+                  color: '#f5f5f5',
+                  fontSize: '0.875rem',
+                  minWidth: '180px'
+                }}
+              />
+              <button
+                onClick={applyBulkMove}
+                disabled={organizingFiles || !bulkMoveFolder.trim()}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'rgba(255,255,255,0.07)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '10px',
+                  color: '#f5f5f5',
+                  fontSize: '0.875rem',
+                  cursor: organizingFiles || !bulkMoveFolder.trim() ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Open Sans', sans-serif",
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                }}
+              >
+                📁 Move Selected
+              </button>
+              <input
+                value={bulkTags}
+                onChange={(e) => setBulkTags(e.target.value)}
+                placeholder="Tags, comma separated"
+                style={{
+                  padding: '0.5rem 0.7rem',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '10px',
+                  color: '#f5f5f5',
+                  fontSize: '0.875rem',
+                  minWidth: '220px'
+                }}
+              />
+              <button
+                onClick={applyBulkTags}
+                disabled={organizingFiles}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'rgba(255,255,255,0.07)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '10px',
+                  color: '#f5f5f5',
+                  fontSize: '0.875rem',
+                  cursor: organizingFiles ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Open Sans', sans-serif",
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                }}
+              >
+                🏷️ Apply Tags
+              </button>
               <button
                 onClick={deleteSelected}
                 style={{
@@ -1770,7 +2094,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* File Manager — dedicated delete panel */}
+        {/* File Manager — organization and delete panel */}
         <div style={{
           background: 'rgba(255,255,255,0.04)',
           backdropFilter: 'blur(20px) saturate(180%)',
@@ -1788,7 +2112,7 @@ export default function AdminDashboard() {
                 🗂️ File Manager
               </h3>
               <p style={{ fontSize: '0.78rem', color: '#666666', margin: 0, lineHeight: 1.5 }}>
-                Select files below and delete them — this <strong style={{ color: '#a0a0a0' }}>permanently removes them from Cloudflare R2</strong> and invalidates their public URL immediately.
+                Organize files with folders, tags, favorites, and bulk moves. Delete actions still <strong style={{ color: '#a0a0a0' }}>permanently remove files from Cloudflare R2</strong> and invalidate their public URL immediately.
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1895,7 +2219,58 @@ export default function AdminDashboard() {
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#f5f5f5', wordBreak: 'break-all', lineHeight: 1.35 }}>
-                        {file.filename}
+                        {getFileDisplayName(file)}
+                      </div>
+                      <div style={{ marginTop: '0.35rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {file.favorite && (
+                          <span style={{
+                            padding: '0.16rem 0.45rem',
+                            borderRadius: '999px',
+                            border: '1px solid rgba(255, 220, 120, 0.4)',
+                            background: 'rgba(255, 205, 80, 0.14)',
+                            color: '#ffe39c',
+                            fontSize: '0.65rem',
+                            letterSpacing: '0.04em'
+                          }}>
+                            Favorite
+                          </span>
+                        )}
+                        <span style={{
+                          padding: '0.16rem 0.45rem',
+                          borderRadius: '999px',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          background: 'rgba(255,255,255,0.05)',
+                          color: '#d0d6e0',
+                          fontSize: '0.65rem',
+                          letterSpacing: '0.04em'
+                        }}>
+                          {getFileFolder(file)}
+                        </span>
+                        {(file.tags || []).slice(0, 4).map((tag) => (
+                          <span key={tag} style={{
+                            padding: '0.16rem 0.45rem',
+                            borderRadius: '999px',
+                            border: '1px solid rgba(200, 220, 255, 0.18)',
+                            background: 'rgba(120, 140, 255, 0.12)',
+                            color: '#dce2ff',
+                            fontSize: '0.65rem',
+                            letterSpacing: '0.03em'
+                          }}>
+                            {tag}
+                          </span>
+                        ))}
+                        {(file.tags || []).length > 4 && (
+                          <span style={{
+                            padding: '0.16rem 0.45rem',
+                            borderRadius: '999px',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            background: 'rgba(255,255,255,0.04)',
+                            color: '#8a92a1',
+                            fontSize: '0.65rem'
+                          }}>
+                            +{(file.tags || []).length - 4}
+                          </span>
+                        )}
                       </div>
                       {file.quarantined && (
                         <div style={{
@@ -1918,13 +2293,90 @@ export default function AdminDashboard() {
                         {formatFileSize(file.size)} &bull; {formatTimestamp(file.timestamp)}{file.ip ? ` · ${file.ip}` : ''}
                       </div>
                     </div>
-                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                       {feedback === 'ok' && (
                         <span style={{ fontSize: '0.75rem', color: '#4ff8c0' }}>✓ Deleted</span>
                       )}
                       {feedback === 'err' && (
                         <span style={{ fontSize: '0.75rem', color: '#f5a5a5' }}>✗ Failed</span>
                       )}
+                      <button
+                        onClick={() => toggleFavoriteFile(file)}
+                        disabled={organizingFiles}
+                        title={file.favorite ? 'Remove favorite' : 'Mark as favorite'}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '8px',
+                          background: file.favorite ? 'rgba(255,205,80,0.18)' : 'rgba(255,255,255,0.05)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          border: file.favorite ? '1px solid rgba(255,220,120,0.35)' : '1px solid rgba(255,255,255,0.1)',
+                          color: file.favorite ? '#ffe39c' : '#c3cad6',
+                          fontSize: '0.72rem',
+                          cursor: organizingFiles ? 'not-allowed' : 'pointer',
+                          fontFamily: "'Open Sans', sans-serif",
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {file.favorite ? '★' : '☆'}
+                      </button>
+                      <button
+                        onClick={() => renameFile(file)}
+                        disabled={organizingFiles}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255,255,255,0.05)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#d0d6e0',
+                          fontSize: '0.75rem',
+                          cursor: organizingFiles ? 'not-allowed' : 'pointer',
+                          fontFamily: "'Open Sans', sans-serif",
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        onClick={() => moveFile(file)}
+                        disabled={organizingFiles}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255,255,255,0.05)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#d0d6e0',
+                          fontSize: '0.75rem',
+                          cursor: organizingFiles ? 'not-allowed' : 'pointer',
+                          fontFamily: "'Open Sans', sans-serif",
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Move
+                      </button>
+                      <button
+                        onClick={() => editTags(file)}
+                        disabled={organizingFiles}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255,255,255,0.05)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#d0d6e0',
+                          fontSize: '0.75rem',
+                          cursor: organizingFiles ? 'not-allowed' : 'pointer',
+                          fontFamily: "'Open Sans', sans-serif",
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Tags
+                      </button>
                       <button
                         onClick={() => deleteFileDirect(file.url)}
                         disabled={isDeleting}

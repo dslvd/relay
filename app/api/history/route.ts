@@ -28,6 +28,11 @@ function stripOwnershipFields(record: UploadRecord) {
     expiresAt,
     size,
     ip,
+    folder,
+    tags,
+    favorite,
+    displayName,
+    updatedAt,
   } = record;
 
   return {
@@ -38,6 +43,11 @@ function stripOwnershipFields(record: UploadRecord) {
     expiresAt,
     size,
     ip,
+    folder,
+    tags,
+    favorite,
+    displayName,
+    updatedAt,
   };
 }
 

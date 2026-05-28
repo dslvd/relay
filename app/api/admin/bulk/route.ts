@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
-import { loadUploadHistory, saveUploadHistory, type UploadRecord } from '@/app/lib/data/upload-history-store';
+import { loadUploadHistory, saveUploadHistory, updateUploadRecordsByUrls, type UploadRecord } from '@/app/lib/data/upload-history-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
 import { removeQuarantineRecord, upsertQuarantineRecord } from '@/app/lib/data/abuse-store';
 
 const ADMIN_COOKIE_NAME = 'admin_auth';
 
-type BulkAction = 'delete' | 'expire' | 'quarantine' | 'unquarantine';
+type BulkAction = 'delete' | 'expire' | 'quarantine' | 'unquarantine' | 'move';
 
 function requireAdmin(request: NextRequest): NextResponse | null {
   const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
       ? (body.urls as unknown[]).filter((u: unknown): u is string => typeof u === 'string')
       : [];
     const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
+    const folder = typeof body?.folder === 'string' ? body.folder.trim() : '';
 
     if (!action || urls.length === 0) {
       return NextResponse.json({ error: 'action and urls are required' }, { status: 400 });
@@ -71,6 +72,35 @@ export async function POST(request: NextRequest) {
       urls.map(async (url) => ({ url, objectKey: await resolveObjectKeyFromUrl(url) }))
     );
     const objectKeys = new Set(resolvedPairs.map((p) => p.objectKey).filter((k): k is string => Boolean(k)));
+
+    if (action === 'move') {
+      if (!folder) {
+        return NextResponse.json({ error: 'folder is required for move' }, { status: 400 });
+      }
+
+      const nextTimestamp = Date.now();
+      const publicMoved = await updateUploadRecordsByUrls(urls, (record) => ({
+        ...record,
+        folder,
+        updatedAt: nextTimestamp,
+      }), 'public');
+      const premiumMoved = await updateUploadRecordsByUrls(urls, (record) => ({
+        ...record,
+        folder,
+        updatedAt: nextTimestamp,
+      }), 'premium');
+
+      await appendAuditLog({
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        action: 'bulk.move',
+        actorIp: getClientIp(request),
+        userAgent: getUserAgent(request),
+        meta: { count: publicMoved + premiumMoved, folder },
+      });
+
+      return NextResponse.json({ success: true, moved: publicMoved + premiumMoved, folder });
+    }
 
     if (action === 'delete' || action === 'expire') {
       for (const objectKey of objectKeys) {

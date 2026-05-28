@@ -10,6 +10,11 @@ export interface UploadRecord {
   ip?: string;
   ownerId?: string;
   ownerEmail?: string;
+  folder?: string;
+  tags?: string[];
+  favorite?: boolean;
+  displayName?: string;
+  updatedAt?: number;
 }
 
 export type UploadHistoryScope = 'public' | 'premium';
@@ -95,6 +100,69 @@ export async function removeUploadUrls(
     await saveUploadHistory(filtered, scope);
   }
   return history.length - filtered.length;
+}
+
+export async function updateUploadRecordByUrl(
+  url: string,
+  update: (record: UploadRecord) => UploadRecord | null,
+  scope: UploadHistoryScope = 'public'
+): Promise<UploadRecord | null> {
+  const history = await loadUploadHistory(scope);
+  let updatedRecord: UploadRecord | null = null;
+
+  const updatedHistory = history
+    .map((record) => {
+      if (record.url !== url) {
+        return record;
+      }
+
+      const nextRecord = update(record);
+      if (!nextRecord) {
+        return record;
+      }
+
+      updatedRecord = nextRecord;
+      return nextRecord;
+    })
+    .filter(Boolean) as UploadRecord[];
+
+  if (updatedRecord) {
+    await saveUploadHistory(updatedHistory, scope);
+  }
+
+  return updatedRecord;
+}
+
+export async function updateUploadRecordsByUrls(
+  urls: string[],
+  update: (record: UploadRecord) => UploadRecord | null,
+  scope: UploadHistoryScope = 'public'
+): Promise<number> {
+  const history = await loadUploadHistory(scope);
+  const targetUrls = new Set(urls);
+  let updatedCount = 0;
+
+  const updatedHistory = history
+    .map((record) => {
+      if (!targetUrls.has(record.url)) {
+        return record;
+      }
+
+      const nextRecord = update(record);
+      if (!nextRecord) {
+        return record;
+      }
+
+      updatedCount += 1;
+      return nextRecord;
+    })
+    .filter(Boolean) as UploadRecord[];
+
+  if (updatedCount > 0) {
+    await saveUploadHistory(updatedHistory, scope);
+  }
+
+  return updatedCount;
 }
 
 export async function updateUploadHistory(
