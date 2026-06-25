@@ -622,248 +622,250 @@ export default function DownloadPage() {
                   </div>
                 </div>
 
-                {/* Primary Actions */}
-                <div
+                {/* ── Primary action ── */}
+                <a
+                  href={downloadUrl}
+                  download
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const link = document.createElement('a');
+                    link.href = `${downloadUrl}?dl=${Date.now()}`;
+                    link.setAttribute('download', fileData.filename || 'download');
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => {
+                      fetch(`/api/analytics?key=${encodeURIComponent(pathKey)}&filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
+                        .then(res => res.json())
+                        .then(data => setDownloadCount(Number(data?.totalDownloads) || 0))
+                        .catch(() => {});
+                    }, 500);
+                  }}
                   style={{
                     display: 'flex',
-                    gap: '0.5rem',
-                    marginBottom: '0.8rem'
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    width: '100%',
+                    padding: '0.72rem 1rem',
+                    borderRadius: '10px',
+                    background: 'rgba(126,244,203,0.14)',
+                    border: '1px solid rgba(126,244,203,0.32)',
+                    color: '#7ef4cb',
+                    textDecoration: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    letterSpacing: '0.01em',
+                    cursor: 'pointer',
+                    transition: 'background 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease',
+                    boxShadow: '0 0 0 0 rgba(126,244,203,0)',
+                    marginBottom: '0.6rem',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(126,244,203,0.22)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 18px rgba(126,244,203,0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(126,244,203,0.14)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 0 0 0 rgba(126,244,203,0)';
                   }}
                 >
-                  <a
-                    href={downloadUrl}
-                    download
-                    onClick={(e) => {
-                      e.preventDefault();
-                      const link = document.createElement('a');
-                      link.href = `${downloadUrl}?dl=${Date.now()}`;
-                      link.setAttribute('download', fileData.filename || 'download');
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      
-                      // Refresh download count from server after a short delay
-                      setTimeout(() => {
-                        fetch(`/api/analytics?key=${encodeURIComponent(pathKey)}&filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
-                          .then(res => res.json())
-                          .then(data => setDownloadCount(Number(data?.totalDownloads) || 0))
-                          .catch(() => {});
-                      }, 500);
-                    }}
-                    style={{
-                      flex: 1,
-                      display: 'block',
-                      padding: '0.45rem 0.8rem',
-                      borderRadius: '6px',
-                      background: 'rgba(128,128,128,0.15)',
-                      backdropFilter: 'blur(10px)',
-                      WebkitBackdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(128,128,128,0.28)',
-                      color: 'var(--c-text)',
-                      textDecoration: 'none',
-                      fontWeight: 700,
-                      textAlign: 'center',
-                      fontSize: '0.78rem',
-                      cursor: 'pointer',
-                      transition: 'transform 0.2s ease, opacity 0.2s ease',
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.opacity = '0.9';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.opacity = '1';
-                    }}
-                  >
-                    Download
-                  </a>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download
+                </a>
 
+                {/* ── Secondary row ── */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <button
-                    onClick={() => {
-                      if (!isPreviewable(fileData.filename)) return;
-                      setPreviewLoading(true);
-                      setShowPreview(true);
-                    }}
-                    disabled={!isPreviewable(fileData.filename)}
+                    onClick={copyShortLink}
                     style={{
                       flex: 1,
-                      padding: '0.45rem 0.8rem',
-                      borderRadius: '6px',
-                      background: 'transparent',
-                      border: '1px solid rgba(128,128,128,0.22)',
-                      color: 'var(--c-text)',
-                      fontWeight: 600,
-                      fontSize: '0.78rem',
-                      cursor: !isPreviewable(fileData.filename) ? 'not-allowed' : 'pointer',
-                      opacity: !isPreviewable(fileData.filename) ? 0.5 : 1,
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isPreviewable(fileData.filename)) return;
-                      e.currentTarget.style.background = 'rgba(128,128,128,0.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isPreviewable(fileData.filename)) return;
-                      e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    Preview
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.5rem' }}>
-                  <button
-                      onClick={copyShortLink}
-                    style={{
-                      flex: 1,
-                      padding: '0.55rem 0.9rem',
-                      borderRadius: '6px',
-                      background: isCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(128,128,128,0.08)',
-                      border: `1px solid ${isCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(128,128,128,0.18)'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.38rem',
+                      padding: '0.6rem 0.8rem',
+                      borderRadius: '8px',
+                      background: isCopied ? 'rgba(79,248,192,0.12)' : 'rgba(128,128,128,0.07)',
+                      border: `1px solid ${isCopied ? 'rgba(79,248,192,0.35)' : 'rgba(128,128,128,0.18)'}`,
                       color: isCopied ? '#4ff8c0' : 'var(--c-text)',
                       fontWeight: 600,
                       fontSize: '0.78rem',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.18s ease',
                     }}
                     onMouseEnter={(e) => {
-                      if (!isCopied) {
-                        e.currentTarget.style.background = 'rgba(128,128,128,0.14)';
-                        e.currentTarget.style.borderColor = 'rgba(128,128,128,0.28)';
-                      }
+                      if (!isCopied) e.currentTarget.style.background = 'rgba(128,128,128,0.13)';
                     }}
                     onMouseLeave={(e) => {
-                      if (!isCopied) {
-                        e.currentTarget.style.background = 'rgba(128,128,128,0.08)';
-                        e.currentTarget.style.borderColor = 'rgba(128,128,128,0.18)';
-                      }
+                      if (!isCopied) e.currentTarget.style.background = 'rgba(128,128,128,0.07)';
                     }}
                   >
-                    {isCopied ? '✓ Copied' : 'Copy link'}
+                    {isCopied ? (
+                      <>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                        Copy link
+                      </>
+                    )}
                   </button>
 
+                  {isPreviewable(fileData.filename) && (
+                    <button
+                      onClick={() => { setPreviewLoading(true); setShowPreview(true); }}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.38rem',
+                        padding: '0.6rem 0.8rem',
+                        borderRadius: '8px',
+                        background: 'rgba(128,128,128,0.07)',
+                        border: '1px solid rgba(128,128,128,0.18)',
+                        color: 'var(--c-text)',
+                        fontWeight: 600,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.18s ease',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(128,128,128,0.13)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(128,128,128,0.07)'; }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      Preview
+                    </button>
+                  )}
+                </div>
+
+                {/* ── Tertiary icon strip ── */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.15rem' }}>
                   <button
-                    onClick={async () => {
-                      const qr = await ensureQr();
-                      if (!qr) return;
-                      setIsQrOpen((v) => !v);
-                    }}
+                    onClick={async () => { const qr = await ensureQr(); if (!qr) return; setIsQrOpen((v) => !v); }}
+                    title="QR code"
                     style={{
                       flex: 1,
-                      padding: '0.55rem 0.9rem',
-                      borderRadius: '6px',
-                      background: 'rgba(128,128,128,0.08)',
-                      border: '1px solid rgba(128,128,128,0.18)',
-                      color: 'var(--c-text)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.38rem',
+                      padding: '0.5rem 0.7rem',
+                      borderRadius: '8px',
+                      background: isQrOpen ? 'rgba(128,128,128,0.13)' : 'rgba(128,128,128,0.05)',
+                      border: `1px solid ${isQrOpen ? 'rgba(128,128,128,0.28)' : 'rgba(128,128,128,0.14)'}`,
+                      color: 'var(--c-dim)',
+                      fontSize: '0.73rem',
                       fontWeight: 600,
-                      fontSize: '0.78rem',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.18s ease',
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(128,128,128,0.14)';
-                      e.currentTarget.style.borderColor = 'rgba(128,128,128,0.28)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(128,128,128,0.08)';
-                      e.currentTarget.style.borderColor = 'rgba(128,128,128,0.18)';
-                    }}
-                    title="Show QR code"
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(128,128,128,0.11)'; e.currentTarget.style.color = 'var(--c-text)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = isQrOpen ? 'rgba(128,128,128,0.13)' : 'rgba(128,128,128,0.05)'; e.currentTarget.style.color = 'var(--c-dim)'; }}
                   >
-                    {isQrOpen ? 'Hide QR' : 'Show QR'}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="4" height="4"/></svg>
+                    QR code
                   </button>
+
+                  {embedSnippet && (
+                    <button
+                      onClick={() => setShowEmbed((prev) => !prev)}
+                      title="Embed snippet"
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.38rem',
+                        padding: '0.5rem 0.7rem',
+                        borderRadius: '8px',
+                        background: showEmbed ? 'rgba(128,128,128,0.13)' : 'rgba(128,128,128,0.05)',
+                        border: `1px solid ${showEmbed ? 'rgba(128,128,128,0.28)' : 'rgba(128,128,128,0.14)'}`,
+                        color: 'var(--c-dim)',
+                        fontSize: '0.73rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.18s ease',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(128,128,128,0.11)'; e.currentTarget.style.color = 'var(--c-text)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = showEmbed ? 'rgba(128,128,128,0.13)' : 'rgba(128,128,128,0.05)'; e.currentTarget.style.color = 'var(--c-dim)'; }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                      Embed
+                    </button>
+                  )}
                 </div>
 
-                {/* Share extras */}
-                <div style={{ marginTop: '0.25rem' }}>
-                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                    {embedSnippet && (
-                      <button
-                        onClick={() => setShowEmbed((prev) => !prev)}
-                        style={{
-                          flex: 1,
-                          minWidth: '150px',
-                          padding: '0.55rem 0.9rem',
-                          borderRadius: '6px',
-                          background: showEmbed ? 'rgba(128,128,128,0.12)' : 'rgba(128,128,128,0.06)',
-                          border: '1px solid rgba(128,128,128,0.16)',
-                          color: 'var(--c-text)',
-                          fontWeight: 600,
-                          fontSize: '0.78rem',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {showEmbed ? 'Hide embed' : 'Show embed'}
-                      </button>
-                    )}
+                {/* ── Expanded panels ── */}
+                {isQrOpen && qrDataUrl && (
+                  <div style={{ marginTop: '0.65rem', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{
+                      padding: '0.85rem',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(128,128,128,0.16)',
+                      background: 'rgba(128,128,128,0.06)',
+                    }}>
+                      <img src={qrDataUrl} alt="QR code" style={{ width: '200px', height: '200px', display: 'block' }} />
+                    </div>
                   </div>
+                )}
 
-                  {showEmbed && embedSnippet && (
-                    <div style={{ marginTop: '0.6rem' }}>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(embedSnippet);
-                          setIsEmbedCopied(true);
-                          setTimeout(() => setIsEmbedCopied(false), 2000);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '0.55rem 0.9rem',
-                          borderRadius: '6px',
-                          background: isEmbedCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(128,128,128,0.06)',
-                          border: `1px solid ${isEmbedCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(128,128,128,0.14)'}`,
-                          color: isEmbedCopied ? '#4ff8c0' : 'var(--c-text)',
-                          fontWeight: 600,
-                          fontSize: '0.78rem',
-                          cursor: 'pointer',
-                        }}
-                        title="Copy an HTML embed snippet"
-                      >
-                        {isEmbedCopied ? '✓ Embed copied' : 'Copy embed snippet'}
-                      </button>
-                    </div>
-                  )}
-
-                  {isQrOpen && qrDataUrl && (
-                    <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'center' }}>
-                      <div
-                        style={{
-                          padding: '0.9rem',
-                          borderRadius: '14px',
-                          border: '1px solid rgba(128,128,128,0.18)',
-                          background: 'rgba(128,128,128,0.08)',
-                          boxShadow: '0 12px 38px rgba(0,0,0,0.2)'
-                        }}
-                      >
-                        <img src={qrDataUrl} alt="QR code" style={{ width: '240px', height: '240px' }} />
-                      </div>
-                    </div>
-                  )}
-                  {showEmbed && embedSnippet && (
-                    <div
+                {showEmbed && embedSnippet && (
+                  <div style={{ marginTop: '0.65rem' }}>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(embedSnippet);
+                        setIsEmbedCopied(true);
+                        setTimeout(() => setIsEmbedCopied(false), 2000);
+                      }}
                       style={{
-                        marginTop: '0.6rem',
-                        fontSize: '0.72rem',
-                        color: 'var(--c-dim)',
-                        lineHeight: 1.35,
-                        wordBreak: 'break-word',
-                        padding: '0.6rem 0.75rem',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(128,128,128,0.14)',
-                        background: 'rgba(128,128,128,0.06)',
+                        width: '100%',
+                        padding: '0.52rem 0.9rem',
+                        borderRadius: '8px',
+                        background: isEmbedCopied ? 'rgba(79,248,192,0.12)' : 'rgba(128,128,128,0.07)',
+                        border: `1px solid ${isEmbedCopied ? 'rgba(79,248,192,0.35)' : 'rgba(128,128,128,0.16)'}`,
+                        color: isEmbedCopied ? '#4ff8c0' : 'var(--c-text)',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.18s ease',
+                        marginBottom: '0.45rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.38rem',
                       }}
                     >
-                      <div style={{ marginBottom: '0.35rem', letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: '0.62rem' }}>
-                        Embed
-                      </div>
-                      <code style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
-                        {embedSnippet}
-                      </code>
+                      {isEmbedCopied ? (
+                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Copied</>
+                      ) : (
+                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy embed snippet</>
+                      )}
+                    </button>
+                    <div style={{
+                      padding: '0.6rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(128,128,128,0.13)',
+                      background: 'rgba(128,128,128,0.05)',
+                      fontSize: '0.7rem',
+                      color: 'var(--c-dim)',
+                      lineHeight: 1.45,
+                      wordBreak: 'break-all',
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    }}>
+                      {embedSnippet}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Ad Banner */}
                 {!isPremium && (
