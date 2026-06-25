@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect, type SVGProps } from 'react';
 import Image from 'next/image';
+import QRCode from 'qrcode';
 // import AdBanner from './components/AdBanner';
 import logo from './logo.png';
 
@@ -29,6 +30,7 @@ type UploadQueueItem = {
   loadedBytes?: number;
   totalBytes?: number;
   contentHash?: string;
+  startedAt?: number;
   // Multipart state for true resume across refresh.
   multipart?: {
     objectKey: string;
@@ -51,7 +53,10 @@ type MonoIconName =
   | 'folder'
   | 'pause'
   | 'play'
-  | 'share';
+  | 'share'
+  | 'sun'
+  | 'moon'
+  | 'qrCode';
 
 function MonoIcon({
   name,
@@ -154,6 +159,28 @@ function MonoIcon({
           <path {...common} d="M3.5 7.5h6.1l1.8 2.2h8.1v8.8a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5V7.5Z" />
         </svg>
       );
+    case 'sun':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <circle {...common} cx="12" cy="12" r="4" />
+          <path {...common} d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+        </svg>
+      );
+    case 'moon':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <path {...common} d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      );
+    case 'qrCode':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <rect {...common} x="3" y="3" width="7" height="7" rx="1" />
+          <rect {...common} x="14" y="3" width="7" height="7" rx="1" />
+          <rect {...common} x="3" y="14" width="7" height="7" rx="1" />
+          <path {...common} d="M14 14h3v3h-3zM17 17h3v3h-3zM14 17h.01M17 14h.01" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -167,6 +194,27 @@ const IDB_NAME = 'relay_uploads_v1';
 const IDB_STORE = 'files';
 const MAX_CONCURRENT_UPLOADS = 3;
 const PARALLEL_PARTS = 6;
+
+const DARK_T = {
+  card: 'rgba(255,255,255,0.04)',
+  surface: 'rgba(255,255,255,0.06)',
+  border: 'rgba(255,255,255,0.1)',
+  borderSub: 'rgba(255,255,255,0.08)',
+  input: 'rgba(255,255,255,0.06)',
+  inputBorder: 'rgba(255,255,255,0.12)',
+  dragBorder: 'rgba(255,255,255,0.22)',
+  progressBg: 'rgba(255,255,255,0.03)',
+} as const;
+const LIGHT_T = {
+  card: 'rgba(0,0,0,0.025)',
+  surface: 'rgba(0,0,0,0.04)',
+  border: 'rgba(0,0,0,0.1)',
+  borderSub: 'rgba(0,0,0,0.07)',
+  input: 'rgba(0,0,0,0.045)',
+  inputBorder: 'rgba(0,0,0,0.12)',
+  dragBorder: 'rgba(0,0,0,0.18)',
+  progressBg: 'rgba(0,0,0,0.025)',
+} as const;
 
 const emptyMessages = [
   { icon: 'cloudUpload' as const, title: 'No uploads yet', detail: 'Drop a file to start building your vault.' },
@@ -415,6 +463,15 @@ export default function Home() {
   const [remoteDownloadedBytes, setRemoteDownloadedBytes] = useState(0);
   const [remoteTotalBytes, setRemoteTotalBytes] = useState<number | null>(null);
 
+  // Feature state
+  const [isDark, setIsDark] = useState(true);
+  const [dragFileCount, setDragFileCount] = useState(0);
+  const [qrPopoverUrl, setQrPopoverUrl] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const lastSuccessUrlRef = useRef<string | null>(null);
+
+  const t = isDark ? DARK_T : LIGHT_T;
+
   useEffect(() => {
     // Persist uploaded links across reloads for a more seamless feel.
     try {
@@ -460,6 +517,79 @@ export default function Home() {
   useEffect(() => {
     queuePausedRef.current = queuePaused;
   }, [queuePaused]);
+
+  // Feature 7: dark/light theme — load from localStorage and keep data-theme in sync.
+  useEffect(() => {
+    const stored = localStorage.getItem('relay:theme');
+    const dark = stored ? stored === 'dark' : true;
+    setIsDark(dark);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    localStorage.setItem('relay:theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
+
+  // Feature 5: generate QR data URL whenever a popover URL is set.
+  useEffect(() => {
+    if (!qrPopoverUrl) { setQrDataUrl(''); return; }
+    let cancelled = false;
+    QRCode.toDataURL(qrPopoverUrl, { width: 200, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+      .then((url) => { if (!cancelled) setQrDataUrl(url); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [qrPopoverUrl]);
+
+  // Feature 3: Ctrl/Cmd+C copies the last uploaded link while the success cue is visible.
+  useEffect(() => {
+    if (!uploadSuccessCue) return;
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key !== 'c') return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const url = lastSuccessUrlRef.current;
+      if (!url) return;
+      e.preventDefault();
+      navigator.clipboard.writeText(url).then(() => showToast('Link copied!', 'success')).catch(() => {});
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [uploadSuccessCue]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Feature 1 & 6: paste files → enqueue; paste URL → pre-fill remote upload panel.
+  useEffect(() => {
+    const handler = (e: ClipboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file') {
+          const f = item.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        enqueueFiles(files);
+        return;
+      }
+      const text = e.clipboardData?.getData('text/plain')?.trim() ?? '';
+      if (!text) return;
+      try {
+        const parsed = new URL(text);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          e.preventDefault();
+          setRemoteUrl(text);
+          setShowRemoteUpload(true);
+          setActiveView('upload');
+          showToast('URL detected — hit "Upload URL" to fetch it', 'info');
+        }
+      } catch { /* not a URL */ }
+    };
+    document.addEventListener('paste', handler);
+    return () => document.removeEventListener('paste', handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (uploadedFiles.length === 0 && showUploadedFiles) {
@@ -631,18 +761,25 @@ export default function Home() {
     const handleWindowDragEnter = (event: DragEvent) => {
       if (event.dataTransfer?.types?.includes('Files')) {
         setIsDragging(true);
+        // Count files being dragged (available via items before drop).
+        const count = event.dataTransfer.items
+          ? Array.from(event.dataTransfer.items).filter((i) => i.kind === 'file').length
+          : 0;
+        setDragFileCount(count || 1);
       }
     };
 
     const handleWindowDragLeave = (event: DragEvent) => {
       if (event.target === document || event.target === document.body) {
         setIsDragging(false);
+        setDragFileCount(0);
       }
     };
 
     const handleWindowDrop = (event: DragEvent) => {
       event.preventDefault();
       setIsDragging(false);
+      setDragFileCount(0);
       handleFileDrop(event.dataTransfer);
     };
 
@@ -906,6 +1043,7 @@ export default function Home() {
         await fetchPublicHistory();
       }
 
+      lastSuccessUrlRef.current = downloadPageUrl;
       return;
     }
 
@@ -1120,6 +1258,7 @@ export default function Home() {
     }
 
     await commitFileHash(contentHash, multipart.objectKey, file);
+    lastSuccessUrlRef.current = newUrl;
   };
 
   useEffect(() => {
@@ -1137,7 +1276,7 @@ export default function Home() {
     const ids = new Set(toStart.map((t) => t.id));
     setUploadQueue((prev) =>
       prev.map((it) =>
-        ids.has(it.id) ? { ...it, status: 'uploading', error: undefined, loadedBytes: 0, totalBytes: it.file.size } : it
+        ids.has(it.id) ? { ...it, status: 'uploading', error: undefined, loadedBytes: 0, totalBytes: it.file.size, startedAt: Date.now() } : it
       )
     );
 
@@ -1638,7 +1777,7 @@ export default function Home() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
                   <MonoIcon name="check" className="monoIcon monoIcon--success" width={18} height={18} style={{ color: '#7ef4cb', flex: '0 0 auto' }} />
                   <div style={{ minWidth: 0, textAlign: 'left' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#eef1f6' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--c-text)' }}>
                       {uploadSuccessCue.label}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: '#a9b2c1', wordBreak: 'break-all' }}>
@@ -1646,9 +1785,14 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#7ef4cb', fontSize: '0.72rem', fontWeight: 700 }}>
-                  <MonoIcon name="spark" className="monoIcon monoIcon--success" width={12} height={12} style={{ color: '#7ef4cb' }} />
-                  Saved
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#7ef4cb', fontSize: '0.72rem', fontWeight: 700 }}>
+                    <MonoIcon name="spark" className="monoIcon monoIcon--success" width={12} height={12} style={{ color: '#7ef4cb' }} />
+                    Saved
+                  </div>
+                  <div style={{ fontSize: '0.6rem', color: 'rgba(126,244,203,0.6)', letterSpacing: '0.04em' }}>
+                    {typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘C' : 'Ctrl+C'} to copy
+                  </div>
                 </div>
               </div>
             </div>
@@ -1669,7 +1813,7 @@ export default function Home() {
           fontWeight: 700,
           lineHeight: 1.42,
           letterSpacing: '-0.03em',
-          color: 'rgba(238, 241, 246, 0.98)',
+          color: 'var(--c-text)',
           animation: 'fadeSlideIn 1s ease-out',
           marginTop: '0.1rem',
           textAlign: 'center'
@@ -1701,11 +1845,11 @@ export default function Home() {
               }}
             >
               {isPremium ? (
-                <span style={{ color: 'rgba(138, 146, 161, 0.95)' }}>
+                <span style={{ color: 'var(--c-dim)' }}>
                   {premiumEmail || 'Active'}
                 </span>
               ) : (
-                <span style={{ color: 'rgba(138, 146, 161, 0.95)' }}>
+                <span style={{ color: 'var(--c-dim)' }}>
                   Premium = Higher limits + no ads
                 </span>
               )}
@@ -1722,7 +1866,7 @@ export default function Home() {
                     background: 'rgba(255,255,255,0.045)',
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
-                    color: 'rgba(223, 228, 237, 0.95)',
+                    color: 'var(--c-text)',
                     fontSize: '0.68rem',
                     cursor: 'pointer',
                     textDecoration: 'none',
@@ -1740,7 +1884,7 @@ export default function Home() {
                     background: 'rgba(255,255,255,0.045)',
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
-                    color: 'rgba(223, 228, 237, 0.95)',
+                    color: 'var(--c-text)',
                     fontSize: '0.68rem',
                     cursor: 'pointer',
                     boxShadow: '0 3px 12px rgba(0,0,0,0.16)'
@@ -1759,7 +1903,7 @@ export default function Home() {
                   background: 'linear-gradient(180deg, rgba(233,236,242,0.16), rgba(233,236,242,0.11))',
                   backdropFilter: 'blur(14px)',
                   WebkitBackdropFilter: 'blur(14px)',
-                  color: 'rgba(238, 241, 246, 0.98)',
+                  color: 'var(--c-text)',
                   fontSize: '0.7rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -1780,7 +1924,7 @@ export default function Home() {
               marginTop: '0.4rem',
               marginBottom: '0.2rem',
               fontSize: '0.7rem',
-              color: '#8a92a1',
+              color: 'var(--c-dim)',
               textAlign: 'center',
               letterSpacing: '0.03em'
             }}
@@ -1806,30 +1950,34 @@ export default function Home() {
               maxWidth: '520px',
               padding: '1.6rem 1.5rem',
               borderRadius: '18px',
-              border: '1px dashed rgba(255,255,255,0.2)',
-              background: 'rgba(255,255,255,0.06)',
+              border: `1px dashed ${t.dragBorder}`,
+              background: t.surface,
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
-              color: '#eef1f6',
+              color: 'var(--c-text)',
               cursor: 'default',
-              transition: 'border-color 0.2s ease',
+              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
               boxShadow: '0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)'
             }}
+            className="drag-active"
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
           >
-            <div style={{
-              fontSize: '0.95rem',
-              letterSpacing: '0.02em',
-              fontWeight: 400
-            }}>
-              Drop the file to upload
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}>
+              <MonoIcon name="cloudUpload" className="monoIcon" width={20} height={20} />
+              <span style={{ fontSize: '0.95rem', letterSpacing: '0.02em', fontWeight: 400 }}>
+                {dragFileCount > 1 ? `Drop ${dragFileCount} files` : 'Drop to upload'}
+              </span>
+              {dragFileCount > 0 && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center',
+                  padding: '0.15rem 0.5rem', borderRadius: '999px',
+                  background: 'rgba(126,244,203,0.15)', border: '1px solid rgba(126,244,203,0.3)',
+                  color: '#7ef4cb', fontSize: '0.7rem', fontWeight: 700
+                }}>{dragFileCount}</span>
+              )}
             </div>
-            <div style={{
-              marginTop: '0.35rem',
-              fontSize: '0.75rem',
-              color: '#8a92a1'
-            }}>
+            <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--c-dim)' }}>
               Release to start uploading
             </div>
           </div>
@@ -1854,7 +2002,7 @@ export default function Home() {
                 fontSize: '0.82rem',
                 fontWeight: 400,
                 letterSpacing: '0.02em',
-                color: '#eef1f6',
+                color: 'var(--c-text)',
                 background: activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
                 backdropFilter: 'blur(14px)',
                 WebkitBackdropFilter: 'blur(14px)',
@@ -1888,7 +2036,7 @@ export default function Home() {
               fontSize: '0.82rem',
               fontWeight: 400,
               letterSpacing: '0.02em',
-              color: '#eef1f6',
+              color: 'var(--c-text)',
               background: showRemoteUpload ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
               backdropFilter: 'blur(14px)',
               WebkitBackdropFilter: 'blur(14px)',
@@ -1922,7 +2070,7 @@ export default function Home() {
               fontSize: '0.82rem',
               fontWeight: 600,
               letterSpacing: '0.02em',
-              color: uploading ? 'rgba(255,255,255,0.35)' : '#eef1f6',
+              color: uploading ? 'rgba(255,255,255,0.35)' : 'var(--c-text)',
               background: uploading ? 'rgba(255,255,255,0.04)' : 'rgba(233,236,242,0.18)',
               backdropFilter: 'blur(14px)',
               WebkitBackdropFilter: 'blur(14px)',
@@ -1949,6 +2097,27 @@ export default function Home() {
             }}
           >
             {uploading ? 'Uploading...' : 'Choose File'}
+          </button>
+
+          {/* Theme toggle */}
+          <button
+            onClick={() => setIsDark((d) => !d)}
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            style={{
+              width: '36px', height: '36px', borderRadius: '999px',
+              border: `1px solid ${t.border}`,
+              background: t.surface,
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+              color: 'var(--c-text)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0,
+              boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <MonoIcon name={isDark ? 'sun' : 'moon'} width={14} height={14} />
           </button>
         </div>
         )}
@@ -1980,9 +2149,9 @@ export default function Home() {
                 padding: '0.55rem 0.9rem',
                 fontSize: '0.82rem',
                 fontFamily: "'Sora', sans-serif",
-                color: '#eef1f6',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.12)',
+                color: 'var(--c-text)',
+                background: t.input,
+                border: `1px solid ${t.inputBorder}`,
                 borderRadius: '12px',
                 outline: 'none',
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
@@ -2008,9 +2177,9 @@ export default function Home() {
                 padding: '0.55rem 0.9rem',
                 fontSize: '0.82rem',
                 fontFamily: "'Sora', sans-serif",
-                color: '#eef1f6',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.12)',
+                color: 'var(--c-text)',
+                background: t.input,
+                border: `1px solid ${t.inputBorder}`,
                 borderRadius: '12px',
                 outline: 'none',
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
@@ -2030,9 +2199,9 @@ export default function Home() {
                 padding: '0.55rem 0.9rem',
                 fontSize: '0.82rem',
                 fontFamily: "'Sora', sans-serif",
-                color: '#eef1f6',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.12)',
+                color: 'var(--c-text)',
+                background: t.input,
+                border: `1px solid ${t.inputBorder}`,
                 borderRadius: '12px',
                 outline: 'none',
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
@@ -2065,7 +2234,7 @@ export default function Home() {
         <p style={{
           marginTop: '0.85rem',
           fontSize: '0.6rem',
-          color: '#8a92a1',
+          color: 'var(--c-dim)',
           textAlign: 'center',
           letterSpacing: '0.02em'
         }}>
@@ -2127,8 +2296,8 @@ export default function Home() {
                 marginBottom: '0.9rem',
                 padding: '0.85rem',
                 borderRadius: '16px',
-                border: '1px solid rgba(255,255,255,0.08)',
-                background: 'rgba(255,255,255,0.03)',
+                border: `1px solid ${t.borderSub}`,
+                background: t.progressBg,
                 backdropFilter: 'blur(14px)',
                 WebkitBackdropFilter: 'blur(14px)',
                 flexWrap: 'wrap'
@@ -2137,28 +2306,28 @@ export default function Home() {
                     width: '44px',
                     height: '44px',
                     borderRadius: '12px',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    background: 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${t.inputBorder}`,
+                    background: t.card,
                     display: 'grid',
                     placeItems: 'center',
-                    color: '#eef1f6'
+                    color: 'var(--c-text)'
                   }}>
                     <MonoIcon name={uploadProgress >= 100 ? 'check' : 'cloudUpload'} className="monoIcon" width={14} height={14} />
                   </div>
 
                 <div style={{ flex: '1 1 260px', minWidth: 0, textAlign: 'left' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <div style={{ fontSize: '0.78rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(238,241,246,0.55)' }}>
+                    <div style={{ fontSize: '0.78rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(var(--c-text-ch),0.55)' }}>
                       Uploading now
                     </div>
                     <span className={`queue-status queue-status--uploading`} style={{ marginLeft: 0 }}>
                       {uploadProgress >= 100 ? 'Finalizing' : 'Uploading'}
                     </span>
                   </div>
-                  <div style={{ marginTop: '0.3rem', fontSize: '0.92rem', fontWeight: 600, color: '#eef1f6', wordBreak: 'break-all' }}>
+                  <div style={{ marginTop: '0.3rem', fontSize: '0.92rem', fontWeight: 600, color: 'var(--c-text)', wordBreak: 'break-all' }}>
                     {currentUploadName || 'Preparing upload…'}
                   </div>
-                  <div style={{ marginTop: '0.25rem', fontSize: '0.72rem', color: 'rgba(238,241,246,0.64)' }}>
+                  <div style={{ marginTop: '0.25rem', fontSize: '0.72rem', color: 'rgba(var(--c-text-ch),0.64)' }}>
                     {uploadTotalBytes > 0
                       ? `${formatFileSize(uploadLoadedBytes)} / ${formatFileSize(uploadTotalBytes)}`
                       : uploadStatus || 'Starting upload…'}
@@ -2218,9 +2387,20 @@ export default function Home() {
                           {item.status === 'queued' ? (queuePaused ? 'Paused' : 'Queued') : item.status === 'success' ? 'Done' : item.status === 'error' ? 'Failed' : 'Uploading'}
                         </span>
                         {item.status === 'uploading' && typeof item.loadedBytes === 'number' && typeof item.totalBytes === 'number' && item.totalBytes > 0 && (
-                          <span>
-                            {Math.min(100, Math.round((item.loadedBytes / item.totalBytes) * 100))}%
-                          </span>
+                          <>
+                            <span>{Math.min(100, Math.round((item.loadedBytes / item.totalBytes) * 100))}%</span>
+                            {(() => {
+                              if (!item.startedAt || item.loadedBytes <= 0) return null;
+                              const elapsed = Date.now() - item.startedAt;
+                              if (elapsed < 3000) return null;
+                              const bps = item.loadedBytes / elapsed;
+                              if (bps <= 0) return null;
+                              const remMs = (item.totalBytes - item.loadedBytes) / bps;
+                              if (!isFinite(remMs) || remMs <= 0) return null;
+                              const secs = Math.ceil(remMs / 1000);
+                              return <span style={{ color: 'var(--c-dim)' }}>~{secs < 60 ? `${secs}s` : `${Math.ceil(secs / 60)}m`}</span>;
+                            })()}
+                          </>
                         )}
                         {item.status === 'error' && item.error && <span>{item.error}</span>}
                       </div>
@@ -2253,7 +2433,7 @@ export default function Home() {
                         disabled={item.status === 'uploading'}
                         className="queue-icon-btn"
                         style={{
-                          color: item.status === 'uploading' ? 'rgba(245,245,245,0.35)' : '#eef1f6',
+                          color: item.status === 'uploading' ? 'rgba(var(--c-text-ch),0.35)' : 'var(--c-text)',
                           cursor: item.status === 'uploading' ? 'not-allowed' : 'pointer',
                         }}
                         title={item.status === 'uploading' ? 'Cannot remove while uploading' : 'Remove'}
@@ -2292,7 +2472,7 @@ export default function Home() {
             }}>
               <p style={{
                 fontSize: '1rem',
-                color: '#eef1f6',
+                color: 'var(--c-text)',
                 fontWeight: 500,
                 textAlign: 'left',
                 margin: 0
@@ -2309,9 +2489,9 @@ export default function Home() {
                     minWidth: '220px',
                     padding: '0.55rem 0.8rem',
                     borderRadius: '10px',
-                    border: '1px solid rgba(255,255,255,0.14)',
-                    background: 'rgba(255,255,255,0.06)',
-                    color: '#eef1f6',
+                    border: `1px solid ${t.inputBorder}`,
+                    background: t.input,
+                    color: 'var(--c-text)',
                     fontSize: '0.82rem',
                     outline: 'none',
                   }}
@@ -2323,9 +2503,9 @@ export default function Home() {
                   style={{
                     padding: '0.55rem 0.8rem',
                     borderRadius: '10px',
-                    border: '1px solid rgba(255,255,255,0.14)',
-                    background: 'rgba(255,255,255,0.06)',
-                    color: '#eef1f6',
+                    border: `1px solid ${t.inputBorder}`,
+                    background: t.input,
+                    color: 'var(--c-text)',
                     fontSize: '0.82rem',
                     outline: 'none',
                     cursor: 'pointer',
@@ -2344,16 +2524,16 @@ export default function Home() {
               style={{
               maxHeight: '320px',
               overflowY: 'auto',
-              background: 'rgba(255,255,255,0.05)',
+              background: t.card,
               backdropFilter: 'blur(20px) saturate(180%)',
               WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              border: `1px solid ${t.border}`,
               borderRadius: '16px',
               padding: '0.85rem',
               boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)'
             }}>
               {filteredUploadedFiles.length === 0 ? (
-                <div style={{ padding: '1rem', color: '#8a92a1', fontSize: '0.85rem' }}>
+                <div style={{ padding: '1rem', color: 'var(--c-dim)', fontSize: '0.85rem' }}>
                   No uploaded files match your search.
                 </div>
               ) : filteredUploadedFiles.map((fileItem, index) => {
@@ -2377,10 +2557,10 @@ export default function Home() {
                     style={{
                       marginBottom: index < filteredUploadedFiles.length - 1 ? '0.85rem' : '0',
                       padding: '0.95rem 1.1rem',
-                      background: 'rgba(255,255,255,0.04)',
+                      background: t.card,
                       backdropFilter: 'blur(12px)',
                       WebkitBackdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(255,255,255,0.09)',
+                      border: `1px solid ${t.border}`,
                       borderRadius: '16px',
                       transition: 'border-color 0.2s ease',
                       cursor: 'default',
@@ -2409,8 +2589,8 @@ export default function Home() {
                               height: '40px',
                               borderRadius: '12px',
                               objectFit: 'cover',
-                              border: '1px solid rgba(255,255,255,0.12)',
-                              background: 'rgba(255,255,255,0.04)'
+                              border: `1px solid ${t.inputBorder}`,
+                              background: t.card
                             }}
                           />
                         )}
@@ -2424,7 +2604,7 @@ export default function Home() {
                         <div style={{ textAlign: 'left', minWidth: 0 }}>
                           <div style={{
                             fontSize: '0.95rem',
-                            color: '#eef1f6',
+                            color: 'var(--c-text)',
                             fontWeight: 500,
                             wordBreak: 'break-all'
                           }}>
@@ -2432,7 +2612,7 @@ export default function Home() {
                           </div>
                           <div style={{
                             fontSize: '0.75rem',
-                            color: '#8a92a1'
+                            color: 'var(--c-dim)'
                           }}>
                             Uploaded {formatTimestamp(fileItem.timestamp)}
                           </div>
@@ -2446,11 +2626,11 @@ export default function Home() {
                       }}>
                         <div style={{
                           fontSize: '0.7rem',
-                          color: '#eef1f6',
-                          background: 'rgba(255,255,255,0.08)',
+                          color: 'var(--c-text)',
+                          background: t.surface,
                           backdropFilter: 'blur(10px)',
                           WebkitBackdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255,255,255,0.13)',
+                          border: `1px solid ${t.border}`,
                           padding: '0.25rem 0.6rem',
                           borderRadius: '999px',
                           letterSpacing: '0.08em',
@@ -2459,31 +2639,38 @@ export default function Home() {
                           {extension}
                         </div>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(url);
-                          }}
+                          onClick={(e) => { e.stopPropagation(); copyToClipboard(url); }}
                           aria-label="Share link"
                           title="Share link"
                           style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '999px',
-                            border: '1px solid rgba(255,255,255,0.13)',
-                            background: 'rgba(255,255,255,0.07)',
+                            width: '28px', height: '28px', borderRadius: '999px',
+                            border: `1px solid ${t.border}`,
+                            background: t.surface,
                             backdropFilter: 'blur(10px)',
                             WebkitBackdropFilter: 'blur(10px)',
-                            color: '#e9ecf2',
-                            fontSize: '0.9rem',
-                            lineHeight: '1',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                            color: 'var(--c-text)', fontSize: '0.9rem', lineHeight: '1',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                           }}
                         >
                           <MonoIcon name="share" className="monoIcon" width={12} height={12} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setQrPopoverUrl(toDownloadPageUrl(url)); }}
+                          aria-label="Show QR code"
+                          title="QR code"
+                          style={{
+                            width: '28px', height: '28px', borderRadius: '999px',
+                            border: `1px solid ${t.border}`,
+                            background: t.surface,
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            color: 'var(--c-text)', fontSize: '0.9rem', lineHeight: '1',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                          }}
+                        >
+                          <MonoIcon name="qrCode" className="monoIcon" width={12} height={12} />
                         </button>
                       </div>
                     </div>
@@ -2498,7 +2685,7 @@ export default function Home() {
                     }}>
                       <div style={{
                         fontSize: '0.7rem',
-                        color: '#8a92a1',
+                        color: 'var(--c-dim)',
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em'
                       }}>
@@ -2509,7 +2696,7 @@ export default function Home() {
                         target="_blank" 
                         rel="noreferrer"
                         style={{
-                          color: '#b5bcc9',
+                          color: 'var(--c-sub)',
                           fontSize: '0.8rem',
                           textDecoration: 'none',
                           wordBreak: 'break-all'
@@ -2548,7 +2735,7 @@ export default function Home() {
               fontSize: '1rem',
               fontWeight: 500,
               textAlign: 'center',
-              color: '#eef1f6'
+              color: 'var(--c-text)'
             }}>
               Public Upload History
             </h2>
@@ -2615,7 +2802,7 @@ export default function Home() {
             <div style={{
               textAlign: 'center',
               padding: '2rem',
-              color: '#8a92a1',
+              color: 'var(--c-dim)',
               animation: 'pulse 1.5s ease-in-out infinite'
             }}>
               Loading history...
@@ -2629,7 +2816,7 @@ export default function Home() {
               WebkitBackdropFilter: 'blur(16px)',
               border: '1px solid rgba(255,255,255,0.09)',
               borderRadius: '12px',
-              color: '#8a92a1',
+              color: 'var(--c-dim)',
               boxShadow: '0 4px 24px rgba(0,0,0,0.35)'
             }}>
               <div style={{ display: 'grid', justifyItems: 'center', gap: '0.75rem' }}>
@@ -2638,12 +2825,12 @@ export default function Home() {
                   className="monoIcon"
                   width={28}
                   height={28}
-                  style={{ color: '#eef1f6' }}
+                  style={{ color: 'var(--c-text)' }}
                 />
-                <div style={{ color: '#eef1f6', fontSize: '0.9rem', fontWeight: 600 }}>
+                <div style={{ color: 'var(--c-text)', fontSize: '0.9rem', fontWeight: 600 }}>
                   {emptyMessages[emptyMessageIndex].title}
                 </div>
-                <div style={{ maxWidth: '28rem', lineHeight: 1.5, fontSize: '0.78rem', color: '#8a92a1' }}>
+                <div style={{ maxWidth: '28rem', lineHeight: 1.5, fontSize: '0.78rem', color: 'var(--c-dim)' }}>
                   {emptyMessages[emptyMessageIndex].detail}
                 </div>
               </div>
@@ -2703,7 +2890,7 @@ export default function Home() {
                         <div style={{ textAlign: 'left', minWidth: 0 }}>
                           <div style={{
                             fontSize: '0.95rem',
-                            color: '#eef1f6',
+                            color: 'var(--c-text)',
                             fontWeight: 500,
                             wordBreak: 'break-all'
                           }}>
@@ -2711,7 +2898,7 @@ export default function Home() {
                           </div>
                           <div style={{
                             fontSize: '0.75rem',
-                            color: '#8a92a1'
+                            color: 'var(--c-dim)'
                           }}>
                             Uploaded {formatTimestamp(record.timestamp)}
                           </div>
@@ -2725,7 +2912,7 @@ export default function Home() {
                       }}>
                         <div style={{
                           fontSize: '0.7rem',
-                          color: '#eef1f6',
+                          color: 'var(--c-text)',
                           background: 'rgba(255,255,255,0.08)',
                           backdropFilter: 'blur(10px)',
                           WebkitBackdropFilter: 'blur(10px)',
@@ -2777,7 +2964,7 @@ export default function Home() {
                     }}>
                       <div style={{
                         fontSize: '0.7rem',
-                        color: '#8a92a1',
+                        color: 'var(--c-dim)',
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em'
                       }}>
@@ -2785,7 +2972,7 @@ export default function Home() {
                       </div>
                       <div style={{
                         fontSize: '0.8rem',
-                        color: '#b5bcc9'
+                        color: 'var(--c-sub)'
                       }}>
                         {formatFileSize(record.size)}
                       </div>
@@ -2793,7 +2980,7 @@ export default function Home() {
 
                       <div style={{
                         fontSize: '0.7rem',
-                        color: '#8a92a1',
+                        color: 'var(--c-dim)',
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em'
                       }}>
@@ -2804,7 +2991,7 @@ export default function Home() {
                         target="_blank" 
                         rel="noreferrer"
                         style={{
-                          color: '#b5bcc9',
+                          color: 'var(--c-sub)',
                           fontSize: '0.8rem',
                           textDecoration: 'none',
                           wordBreak: 'break-all'
@@ -2840,7 +3027,7 @@ export default function Home() {
                         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.4rem' }}>
                           Remote Upload
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'rgba(245,245,245,0.7)' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)' }}>
                           {remoteStage === 'download' && 'Downloading file…'}
                           {remoteStage === 'server' && 'Fetching server-side…'}
                           {remoteStage === 'enqueue' && 'Queued for upload…'}
@@ -2864,7 +3051,7 @@ export default function Home() {
                               transition: 'width 0.2s ease'
                             }}/>
                           </div>
-                          <div style={{ fontSize: '0.72rem', color: 'rgba(245,245,245,0.65)', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.72rem', color: 'rgba(var(--c-dim-ch),0.75)', textAlign: 'center' }}>
                             {remoteTotalBytes
                               ? `${Math.min(100, Math.round((remoteDownloadedBytes / remoteTotalBytes) * 100))}% • ${formatFileSize(remoteDownloadedBytes)} / ${formatFileSize(remoteTotalBytes)}`
                               : `${formatFileSize(remoteDownloadedBytes)}`}
@@ -2875,7 +3062,7 @@ export default function Home() {
                       {(remoteStage === 'server' || remoteStage === 'enqueue') && (
                         <div style={{
                           fontSize: '0.72rem',
-                          color: 'rgba(245,245,245,0.65)',
+                          color: 'rgba(var(--c-dim-ch),0.75)',
                           textAlign: 'center',
                           padding: '0.4rem 0'
                         }}>
@@ -2903,7 +3090,7 @@ export default function Home() {
             <p style={{
               opacity: 0.7,
               fontSize: '0.8rem',
-              color: '#8a92a1',
+              color: 'var(--c-dim)',
               margin: 0
             }}>
               Showing {publicHistory.length} recent uploads {verifyingFiles ? '• Verifying files...' : ''}
@@ -2940,7 +3127,7 @@ export default function Home() {
                     background: 'rgba(20,22,27,0.7)',
                     backdropFilter: 'blur(24px) saturate(180%)',
                     WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-                    color: '#eef1f6',
+                    color: 'var(--c-text)',
                     padding: '0.65rem 0.95rem',
                     borderRadius: '10px',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)',
@@ -2963,7 +3150,7 @@ export default function Home() {
                     className={toast.type === 'success' ? 'monoIcon monoIcon--success' : 'monoIcon'}
                     width={14}
                     height={14}
-                    style={{ color: toast.type === 'success' ? '#7ef4cb' : toast.type === 'error' ? '#f2c6c6' : '#eef1f6', flexShrink: 0 }}
+                    style={{ color: toast.type === 'success' ? '#7ef4cb' : toast.type === 'error' ? '#f2c6c6' : 'var(--c-text)', flexShrink: 0 }}
                   />
                   <span>{toast.message}</span>
                 </div>
@@ -2990,6 +3177,55 @@ export default function Home() {
           </button>
         )}
       </main>
+
+      {/* Feature 5: QR code popover */}
+      {qrPopoverUrl && (
+        <div
+          className="qr-popover-backdrop"
+          onClick={() => setQrPopoverUrl(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="QR code"
+        >
+          <div className="qr-popover" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--c-text)', textAlign: 'center' }}>
+              Scan to open
+            </div>
+            {qrDataUrl ? (
+              <img
+                src={qrDataUrl}
+                alt="QR code"
+                width={200}
+                height={200}
+                style={{ borderRadius: '10px', display: 'block' }}
+              />
+            ) : (
+              <div style={{
+                width: '200px', height: '200px', display: 'grid', placeItems: 'center',
+                borderRadius: '10px', background: 'rgba(255,255,255,0.05)'
+              }}>
+                <span style={{ animation: 'spin 0.8s linear infinite', display: 'inline-block', fontSize: '1.5rem' }}>⟳</span>
+              </div>
+            )}
+            <div style={{
+              fontSize: '0.65rem', color: 'var(--c-dim)', wordBreak: 'break-all',
+              textAlign: 'center', maxWidth: '200px'
+            }}>
+              {qrPopoverUrl}
+            </div>
+            <button
+              onClick={() => setQrPopoverUrl(null)}
+              style={{
+                padding: '0.4rem 1.2rem', borderRadius: '999px', fontSize: '0.75rem',
+                border: `1px solid ${t.border}`, background: t.surface,
+                color: 'var(--c-text)', cursor: 'pointer',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
