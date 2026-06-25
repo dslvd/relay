@@ -12,12 +12,17 @@ html {
 
 body {
   background:
-    radial-gradient(ellipse at 22% 18%, rgba(67, 49, 120, 0.26) 0%, rgba(10, 10, 10, 0) 45%),
-    radial-gradient(ellipse at 78% 82%, rgba(18, 64, 94, 0.22) 0%, rgba(10, 10, 10, 0) 44%),
-    linear-gradient(180deg, #0b0b10 0%, #09090d 100%);
+    radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%),
+    radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%);
   background-attachment: fixed;
-  color: var(--foreground);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #eef1f6;
+  font-family: var(--font-sora), sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
 }
 
 .route-fade {
@@ -431,4 +436,92 @@ body {
   margin-top: 0.6rem;
   font-size: 0.7rem;
   color: rgba(138, 146, 161, 0.98);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.04); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.35); }
+
+/* Keyframes */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes iconFloat {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.9; }
+  50% { transform: translateY(-1px) scale(1.03); opacity: 1; }
+}
+
+@keyframes successPop {
+  0% { transform: scale(0.72); opacity: 0; }
+  55% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes successSweep {
+  0% { transform: translateX(-120%) skewX(-16deg); opacity: 0; }
+  35% { opacity: 1; }
+  100% { transform: translateX(120%) skewX(-16deg); opacity: 0; }
+}
+
+@keyframes successGlow {
+  0%, 100% { box-shadow: 0 0 0 rgba(79, 248, 192, 0); }
+  50% { box-shadow: 0 0 24px rgba(79, 248, 192, 0.28); }
+}
+
+@keyframes successExit {
+  0% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-8px) scale(0.985); filter: blur(1px); }
+}
+
+@keyframes slideSide {
+  0%   { transform: translateX(0) scaleX(1); opacity: 1; }
+  35%  { transform: translateX(0) scaleX(1); opacity: 1; }
+  48%  { transform: translateX(600px) scaleX(1.3); opacity: 0; }
+  49%  { transform: translateX(-600px) scaleX(1.3); opacity: 0; }
+  62%  { transform: translateX(0) scaleX(1); opacity: 1; }
+  100% { transform: translateX(0) scaleX(1); opacity: 1; }
+}
+
+/* Icon components */
+.monoIcon {
+  display: inline-flex;
+  vertical-align: middle;
+  animation: iconFloat 2.8s ease-in-out infinite;
+  color: #eef1f6;
+}
+
+.monoIcon--success {
+  animation: successPop 420ms ease-out, iconFloat 2.8s ease-in-out infinite 420ms;
+}
+
+/* Upload success card */
+.uploadSuccessCard {
+  animation: fadeSlideIn 260ms ease-out, successGlow 1.5s ease-in-out infinite;
+}
+
+.uploadSuccessCard--exiting {
+  animation: successExit 420ms ease-in forwards;
+  pointer-events: none;
+}
+
+.uploadSuccessSweep {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(79, 248, 192, 0), rgba(79, 248, 192, 0.28), rgba(79, 248, 192, 0));
+  animation: successSweep 1.2s ease-in-out infinite;
+  pointer-events: none;
 }

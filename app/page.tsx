@@ -159,13 +159,214 @@ function MonoIcon({
   }
 }
 
-export default function Home() {
-  // Feature flag: keep the public history UI code around, but hide it from the UI for now.
-  // Flip this to `true` anytime to bring the "Uploads" button + history view back.
-  const ENABLE_PUBLIC_UPLOAD_HISTORY_UI = false;
+const ENABLE_PUBLIC_UPLOAD_HISTORY_UI = false;
+const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+const PREMIUM_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
+const IDB_NAME = 'relay_uploads_v1';
+const IDB_STORE = 'files';
+const MAX_CONCURRENT_UPLOADS = 3;
 
-  const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
-  const PREMIUM_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+const emptyMessages = [
+  { icon: 'cloudUpload' as const, title: 'No uploads yet', detail: 'Drop a file to start building your vault.' },
+  { icon: 'spark' as const, title: 'Empty for now', detail: 'Your latest upload will show up here.' },
+  { icon: 'folder' as const, title: 'Nothing here yet', detail: 'Upload a file and it will appear automatically.' },
+  { icon: 'cloudUpload' as const, title: 'Ready when you are', detail: 'Choose a file or drag one into the window.' },
+  { icon: 'spark' as const, title: 'Fresh start', detail: 'A clean space for your next upload.' },
+];
+
+function formatFileSize(bytes: number) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function formatTimestamp(timestamp: number) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+function formatDisplayName(filename: string) {
+  return filename;
+}
+
+function makeQueueId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function generateRandomFilename(originalFilename: string): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let randomName = '';
+  for (let i = 0; i < 6; i++) {
+    randomName += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const extension = originalFilename.includes('.')
+    ? '.' + originalFilename.split('.').pop()
+    : '';
+  return randomName + extension;
+}
+
+const fetchWithRetry = async (
+  input: RequestInfo | URL,
+  init: RequestInit,
+  attempts = 3
+): Promise<Response> => {
+  let lastError: unknown = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(input, init);
+      if (res.ok) return res;
+      if (res.status >= 500 || res.status === 429) {
+        const backoff = 350 * Math.pow(2, i) + Math.floor(Math.random() * 180);
+        await sleep(backoff);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastError = err;
+      const backoff = 350 * Math.pow(2, i) + Math.floor(Math.random() * 180);
+      await sleep(backoff);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Network error');
+};
+
+const openUploadsDb = () => {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+};
+
+type IndexedDbValue = Parameters<IDBObjectStore['put']>[0];
+
+const idbPut = async (key: string, value: IndexedDbValue) => {
+  const db = await openUploadsDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
+const idbGet = async <T,>(key: string): Promise<T | null> => {
+  const db = await openUploadsDb();
+  return new Promise<T | null>((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess = () => resolve((req.result as T) ?? null);
+    req.onerror = () => reject(req.error);
+  });
+};
+
+const idbDel = async (key: string) => {
+  const db = await openUploadsDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
+type QueueMeta = Array<{
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  lastModified: number;
+  status: UploadQueueItem['status'];
+  addedAt: number;
+  error?: string;
+  downloadUrl?: string;
+  loadedBytes?: number;
+  totalBytes?: number;
+  contentHash?: string;
+  multipart?: UploadQueueItem['multipart'];
+}>;
+
+const persistQueueMeta = (next: UploadQueueItem[]) => {
+  const meta: QueueMeta = next.map((it) => ({
+    id: it.id,
+    name: it.file.name,
+    type: it.file.type,
+    size: it.file.size,
+    lastModified: it.file.lastModified,
+    status: it.status,
+    downloadUrl: it.downloadUrl,
+    error: it.error,
+    addedAt: it.addedAt,
+    loadedBytes: it.loadedBytes,
+    totalBytes: it.totalBytes,
+    contentHash: it.contentHash,
+    multipart: it.multipart,
+  }));
+  try {
+    window.localStorage.setItem(QUEUE_META_KEY, JSON.stringify(meta));
+  } catch {
+    // ignore
+  }
+};
+
+const verifyFileExistence = async (records: UploadRecord[]): Promise<UploadRecord[]> => {
+  const verifiedRecords: UploadRecord[] = [];
+  const deletedUrls: string[] = [];
+  for (const record of records) {
+    try {
+      const parsed = new URL(record.url);
+      const filename = parsed.pathname.split('/').pop();
+      const probeUrl = filename ? `/d/${filename}` : parsed.pathname;
+      const response = await fetch(probeUrl, { method: 'HEAD', cache: 'no-store' });
+      if (response.ok) {
+        verifiedRecords.push(record);
+      } else if (response.status === 404) {
+        deletedUrls.push(record.url);
+      } else {
+        verifiedRecords.push(record);
+      }
+    } catch {
+      verifiedRecords.push(record);
+    }
+  }
+  if (deletedUrls.length > 0) {
+    await fetch('/api/history/cleanup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: deletedUrls })
+    });
+  }
+  return verifiedRecords;
+};
+
+const computeFileHash = async (file: File): Promise<string> => {
+  const buffer = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', buffer);
+  const bytes = new Uint8Array(digest);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
   const [uploadedFilesSearch, setUploadedFilesSearch] = useState('');
   const [uploadedFilesFilter, setUploadedFilesFilter] = useState<'all' | 'images' | 'videos' | 'documents'>('all');
@@ -176,7 +377,6 @@ export default function Home() {
   const [uploadLoadedBytes, setUploadLoadedBytes] = useState(0);
   const [uploadTotalBytes, setUploadTotalBytes] = useState(0);
   const [currentUploadName, setCurrentUploadName] = useState('');
-  const [uploadFilePreview, setUploadFilePreview] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const [activeView, setActiveView] = useState<'upload' | 'history'>('upload');
   const [publicHistory, setPublicHistory] = useState<UploadRecord[]>([]);
@@ -195,19 +395,10 @@ export default function Home() {
   const [queuePaused, setQueuePaused] = useState(false);
   const queuePausedRef = useRef(false);
   const queueXhrsRef = useRef<Record<string, XMLHttpRequest | null>>({});
-  const emptyMessages = [
-    { icon: 'cloudUpload' as const, title: 'No uploads yet', detail: 'Drop a file to start building your vault.' },
-    { icon: 'spark' as const, title: 'Empty for now', detail: 'Your latest upload will show up here.' },
-    { icon: 'folder' as const, title: 'Nothing here yet', detail: 'Upload a file and it will appear automatically.' },
-    { icon: 'cloudUpload' as const, title: 'Ready when you are', detail: 'Choose a file or drag one into the window.' },
-    { icon: 'spark' as const, title: 'Fresh start', detail: 'A clean space for your next upload.' },
-  ];
   const [emptyMessageIndex] = useState(() => Math.floor(Math.random() * emptyMessages.length));
   const [uploadSuccessCue, setUploadSuccessCue] = useState<{ filename: string; label: string; exiting?: boolean } | null>(null);
   const uploadSuccessTimeoutRef = useRef<number | null>(null);
   const uploadSuccessExitTimeoutRef = useRef<number | null>(null);
-  const topProgressRafRef = useRef<number | null>(null);
-  const topProgressPendingRef = useRef<{ loaded: number; total: number; status: string } | null>(null);
   const queueProgressRafRef = useRef<Record<string, number | null>>({});
   const queueProgressPendingRef = useRef<Record<string, { loaded: number; total: number }>>({});
   const remoteProgressRafRef = useRef<number | null>(null);
@@ -254,9 +445,6 @@ export default function Home() {
       if (uploadSuccessExitTimeoutRef.current) {
         window.clearTimeout(uploadSuccessExitTimeoutRef.current);
       }
-      if (topProgressRafRef.current) {
-        window.cancelAnimationFrame(topProgressRafRef.current);
-      }
       if (remoteProgressRafRef.current) {
         window.cancelAnimationFrame(remoteProgressRafRef.current);
       }
@@ -278,182 +466,62 @@ export default function Home() {
     }
   }, [uploadedFiles.length, showUploadedFiles]);
 
-  // Validate uploaded files exist in R2 storage when showing them
+  // Validate uploaded files exist in R2 storage when first showing them.
+  // Runs once per showUploadedFiles=true toggle; uses a snapshot to avoid
+  // re-triggering itself when setUploadedFiles removes stale entries.
+  const uploadedFilesRef = useRef(uploadedFiles);
+  uploadedFilesRef.current = uploadedFiles;
+
   useEffect(() => {
-    if (!showUploadedFiles || uploadedFiles.length === 0) return;
+    if (!showUploadedFiles || uploadedFilesRef.current.length === 0) return;
 
     let cancelled = false;
+    const snapshot = uploadedFilesRef.current;
 
-    const extractKeyFromUploadedUrl = (rawUrl: string): string => {
+    const extractKey = (rawUrl: string): string => {
       try {
-        const parsed = new URL(rawUrl, window.location.origin);
-        const cleanPath = parsed.pathname.replace(/\/+$/, '');
-        if (cleanPath.includes('/download/')) {
-          return decodeURIComponent((cleanPath.split('/download/')[1] || '').split('?')[0] || '').trim();
-        }
-        if (cleanPath.includes('/d/')) {
-          return decodeURIComponent((cleanPath.split('/d/')[1] || '').split('?')[0] || '').trim();
-        }
+        const cleanPath = new URL(rawUrl, window.location.origin).pathname.replace(/\/+$/, '');
+        if (cleanPath.includes('/download/')) return decodeURIComponent((cleanPath.split('/download/')[1] || '').split('?')[0] || '').trim();
+        if (cleanPath.includes('/d/')) return decodeURIComponent((cleanPath.split('/d/')[1] || '').split('?')[0] || '').trim();
         return decodeURIComponent((cleanPath.split('/').filter(Boolean).pop() || '').split('?')[0] || '').trim();
       } catch {
-        const tail = rawUrl.split('/').filter(Boolean).pop() || '';
-        return decodeURIComponent((tail.split('?')[0] || '').trim());
+        return decodeURIComponent(((rawUrl.split('/').filter(Boolean).pop() || '').split('?')[0] || '').trim());
       }
     };
 
-    const validateFiles = async () => {
+    (async () => {
       try {
-        // Probe direct object route and only prune on confirmed 404.
-        const validationResults = await Promise.allSettled(
-          uploadedFiles.map(async (file) => {
-            const key = extractKeyFromUploadedUrl(file.url);
-            if (!key) {
-              return { url: file.url, deleted: false };
-            }
-
+        const results = await Promise.allSettled(
+          snapshot.map(async (file) => {
+            const key = extractKey(file.url);
+            if (!key) return { url: file.url, deleted: false };
             try {
-              const response = await fetch(`/d/${encodeURIComponent(key)}`, {
-                method: 'HEAD',
-                cache: 'no-store'
-              });
-
-              if (response.ok) {
-                return { url: file.url, deleted: false };
-              }
-
-              if (response.status === 404) {
-                return { url: file.url, deleted: true };
-              }
-
-              return {
-                url: file.url,
-                deleted: false
-              };
+              const res = await fetch(`/d/${encodeURIComponent(key)}`, { method: 'HEAD', cache: 'no-store' });
+              return { url: file.url, deleted: res.status === 404 };
             } catch {
-              return {
-                url: file.url,
-                deleted: false
-              };
+              return { url: file.url, deleted: false };
             }
           })
         );
 
         if (cancelled) return;
 
-        const deletedUrls = validationResults
-          .filter((result): result is PromiseFulfilledResult<{ url: string; deleted: boolean }> =>
-            result.status === 'fulfilled' && result.value.deleted
-          )
-          .map((result) => result.value.url);
+        const deletedSet = new Set(
+          results
+            .filter((r): r is PromiseFulfilledResult<{ url: string; deleted: boolean }> => r.status === 'fulfilled' && r.value.deleted)
+            .map((r) => r.value.url)
+        );
 
-        // Only remove files that are confirmed gone from object storage.
-        if (deletedUrls.length > 0) {
-          const deletedSet = new Set(deletedUrls);
-          const validFiles = uploadedFiles.filter((f) => !deletedSet.has(f.url));
-          setUploadedFiles(validFiles);
+        if (deletedSet.size > 0) {
+          setUploadedFiles((prev) => prev.filter((f) => !deletedSet.has(f.url)));
         }
       } catch (err) {
-        // Silently fail if validation fails
         console.error('Failed to validate uploaded files:', err);
       }
-    };
+    })();
 
-    validateFiles();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showUploadedFiles, uploadedFiles]);
-
-  const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
-  const IDB_NAME = 'relay_uploads_v1';
-  const IDB_STORE = 'files';
-
-  const openUploadsDb = () => {
-    return new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open(IDB_NAME, 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(IDB_STORE)) {
-          db.createObjectStore(IDB_STORE);
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  };
-
-  type IndexedDbValue = Parameters<IDBObjectStore['put']>[0];
-
-  const idbPut = async (key: string, value: IndexedDbValue) => {
-    const db = await openUploadsDb();
-    return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).put(value, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  };
-
-  const idbGet = async <T,>(key: string): Promise<T | null> => {
-    const db = await openUploadsDb();
-    return new Promise<T | null>((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, 'readonly');
-      const req = tx.objectStore(IDB_STORE).get(key);
-      req.onsuccess = () => resolve((req.result as T) ?? null);
-      req.onerror = () => reject(req.error);
-    });
-  };
-
-  const idbDel = async (key: string) => {
-    const db = await openUploadsDb();
-    return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).delete(key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  };
-
-  type QueueMeta = Array<{
-    id: string;
-    name: string;
-    type: string;
-    size: number;
-    lastModified: number;
-    status: UploadQueueItem['status'];
-    addedAt: number;
-    error?: string;
-    downloadUrl?: string;
-    loadedBytes?: number;
-    totalBytes?: number;
-    contentHash?: string;
-    multipart?: UploadQueueItem['multipart'];
-  }>;
-
-  const persistQueueMeta = (next: UploadQueueItem[]) => {
-    const meta: QueueMeta = next.map((it) => ({
-      id: it.id,
-      name: it.file.name,
-      type: it.file.type,
-      size: it.file.size,
-      lastModified: it.file.lastModified,
-      status: it.status,
-      downloadUrl: it.downloadUrl,
-      error: it.error,
-      addedAt: it.addedAt,
-      loadedBytes: it.loadedBytes,
-      totalBytes: it.totalBytes,
-      contentHash: it.contentHash,
-      multipart: it.multipart,
-    }));
-
-    try {
-      window.localStorage.setItem(QUEUE_META_KEY, JSON.stringify(meta));
-    } catch {
-      // ignore
-    }
-  };
+    return () => { cancelled = true; };
+  }, [showUploadedFiles]); // dep is only showUploadedFiles — snapshot via ref prevents re-run loop
 
   // Restore queue after refresh (files are stored in IndexedDB).
   useEffect(() => {
@@ -656,29 +724,6 @@ export default function Home() {
     }, 2600);
   };
 
-  const scheduleTopUploadProgress = (loaded: number, total: number, status?: string) => {
-    topProgressPendingRef.current = {
-      loaded,
-      total,
-      status: status ?? uploadStatus,
-    };
-
-    if (topProgressRafRef.current !== null) return;
-    topProgressRafRef.current = window.requestAnimationFrame(() => {
-      topProgressRafRef.current = null;
-      const pending = topProgressPendingRef.current;
-      if (!pending) return;
-      topProgressPendingRef.current = null;
-      setUploadLoadedBytes(pending.loaded);
-      setUploadTotalBytes(pending.total);
-      const pct = pending.total > 0 ? Math.round((pending.loaded / pending.total) * 100) : 0;
-      setUploadProgress(Math.min(100, Math.max(0, pct)));
-      if (pending.status) {
-        setUploadStatus(pending.status);
-      }
-    });
-  };
-
   const scheduleQueueUploadProgress = (itemId: string, loaded: number, total: number) => {
     queueProgressPendingRef.current[itemId] = { loaded, total };
     if (queueProgressRafRef.current[itemId] != null) return;
@@ -707,21 +752,6 @@ export default function Home() {
       setUploadStatus(pending.status);
       setRemoteTotalBytes(pending.total);
     });
-  };
-
-  const makeQueueId = () => {
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  };
-
-  const MAX_CONCURRENT_UPLOADS = 3;
-
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const computeFileHash = async (file: File): Promise<string> => {
-    const buffer = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest('SHA-256', buffer);
-    const bytes = new Uint8Array(digest);
-    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   };
 
   const ensureContentHash = async (item: UploadQueueItem): Promise<string> => {
@@ -776,32 +806,6 @@ export default function Home() {
     }
   };
 
-  const fetchWithRetry = async (
-    input: RequestInfo | URL,
-    init: RequestInit,
-    attempts = 3
-  ): Promise<Response> => {
-    let lastError: unknown = null;
-    for (let i = 0; i < attempts; i++) {
-      try {
-        const res = await fetch(input, init);
-        if (res.ok) return res;
-        // Retry on transient server errors / throttling.
-        if (res.status >= 500 || res.status === 429) {
-          const backoff = 350 * Math.pow(2, i) + Math.floor(Math.random() * 180);
-          await sleep(backoff);
-          continue;
-        }
-        return res;
-      } catch (err) {
-        lastError = err;
-        const backoff = 350 * Math.pow(2, i) + Math.floor(Math.random() * 180);
-        await sleep(backoff);
-      }
-    }
-    throw lastError instanceof Error ? lastError : new Error('Network error');
-  };
-
   const enqueueFiles = (files: File[]) => {
     const now = Date.now();
     const items: UploadQueueItem[] = files.map((file) => ({
@@ -827,265 +831,6 @@ export default function Home() {
         type: item.file.type,
         lastModified: item.file.lastModified,
       }).catch(() => {});
-    }
-  };
-
-  const generateRandomFilename = (originalFilename: string): string => {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let randomName = '';
-    for (let i = 0; i < 6; i++) {
-      randomName += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    const extension = originalFilename.includes('.') 
-      ? '.' + originalFilename.split('.').pop() 
-      : '';
-    return randomName + extension;
-  };
-
-  const verifyFileExistence = async (records: UploadRecord[]): Promise<UploadRecord[]> => {
-    const verifiedRecords: UploadRecord[] = [];
-    const deletedUrls: string[] = [];
-    // Check each file and only remove records on confirmed 404 responses.
-    for (const record of records) {
-      try {
-        const parsed = new URL(record.url);
-        const filename = parsed.pathname.split('/').pop();
-        const probeUrl = filename ? `/d/${filename}` : parsed.pathname;
-        const response = await fetch(probeUrl, { method: 'HEAD', cache: 'no-store' });
-        if (response.ok) {
-          verifiedRecords.push(record);
-        } else if (response.status === 404) {
-          deletedUrls.push(record.url);
-        } else {
-          // Keep record on transient errors (403/429/5xx/etc).
-          verifiedRecords.push(record);
-        }
-      } catch {
-        // Keep record when network checks fail; don't wipe history on transient issues.
-        verifiedRecords.push(record);
-      }
-    }
-    // Remove deleted files from history
-    if (deletedUrls.length > 0) {
-      await fetch('/api/history/cleanup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: deletedUrls })
-      });
-    }
-    return verifiedRecords;
-  };
-
-  const uploadToPresignedUrl = (
-    uploadUrl: string,
-    file: File,
-    onProgress: (loaded: number, total: number) => void
-  ): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      activeUploadRequestRef.current = xhr;
-
-      xhr.open('PUT', uploadUrl, true);
-      if (file.type) {
-        xhr.setRequestHeader('Content-Type', file.type);
-      }
-
-      xhr.upload.onprogress = (event) => {
-        const total = event.total || file.size;
-        onProgress(event.loaded, total);
-      };
-
-      xhr.onload = () => {
-        activeUploadRequestRef.current = null;
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
-          return;
-        }
-        reject(new Error(`Upload failed with status ${xhr.status}`));
-      };
-
-      xhr.onerror = () => {
-        activeUploadRequestRef.current = null;
-        reject(new Error('Upload request failed'));
-      };
-
-      xhr.onabort = () => {
-        activeUploadRequestRef.current = null;
-        reject(new Error('Upload cancelled'));
-      };
-
-      xhr.send(file);
-    });
-  };
-
-  const uploadFile = async (file: File, notify: boolean = true) => {
-    cancelUploadRef.current = false;
-    setCurrentUploadName(file.name);
-    if (file.size > maxUploadBytes) {
-      showToast(`File is too large (max ${formatFileSize(maxUploadBytes)})`, 'error');
-      throw new Error('File too large');
-    }
-
-    // Generate preview for images and videos
-    if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (file.type.startsWith('video/')) {
-          // For videos, extract a frame (use the video element)
-          const video = document.createElement('video');
-          video.onloadedmetadata = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(video, 0, 0);
-              setUploadFilePreview(canvas.toDataURL('image/jpeg', 0.7));
-            }
-          };
-          video.src = e.target?.result as string;
-        } else {
-          // For images, use directly
-          setUploadFilePreview(e.target?.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setUploadFilePreview('');
-    }
-
-    setUploading(true);
-    setUploadProgress(0);
-    setUploadStatus('Checking for duplicates...');
-    setUploadLoadedBytes(0);
-    setUploadTotalBytes(file.size);
-
-    try {
-      const contentHash = await computeFileHash(file);
-      const duplicateUrl = await checkDuplicateUpload(contentHash, file);
-      if (duplicateUrl) {
-        const uploadedAt = Date.now();
-        setUploadedFiles((prev) => [
-          {
-            url: duplicateUrl,
-            filename: file.name,
-            size: file.size,
-            timestamp: uploadedAt,
-          },
-          ...prev,
-        ]);
-
-        const historyResponse = await fetch('/api/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: duplicateUrl,
-            filename: file.name,
-            size: file.size,
-          }),
-        });
-
-        if (!historyResponse.ok) {
-          const errorPayload = await historyResponse.json().catch(() => ({}));
-          throw new Error(errorPayload?.error || 'Failed to save upload history');
-        }
-
-        if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
-          await fetchPublicHistory();
-        }
-        showUploadSuccessCue(file.name);
-        if (notify) {
-          showToast('Upload complete', 'success');
-        }
-        return;
-      }
-
-      setUploadStatus('Preparing upload...');
-      const randomFilename = generateRandomFilename(file.name);
-      const pathname = `d/${randomFilename}`;
-
-      const initResponse = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pathname,
-          contentType: file.type || 'application/octet-stream',
-          size: file.size,
-          filename: file.name,
-        }),
-      });
-
-      const initPayload = await initResponse.json();
-      if (!initResponse.ok || !initPayload?.uploadUrl) {
-        throw new Error(initPayload?.error || 'Failed to initialize upload');
-      }
-
-      await uploadToPresignedUrl(initPayload.uploadUrl, file, (loaded, total) => {
-        if (cancelUploadRef.current) {
-          return;
-        }
-        const percent = total > 0 ? Math.round((loaded / total) * 100) : 0;
-        scheduleTopUploadProgress(loaded, total, `Uploading ${Math.min(100, percent)}%`);
-      });
-
-      if (cancelUploadRef.current) {
-        return;
-      }
-
-      const filename = pathname.split('/').pop() || '';
-      const newUrl = `${window.location.origin}/download/${filename}`;
-      const uploadedAt = Date.now();
-
-      setUploadedFiles(prev => [
-        {
-          url: newUrl,
-          filename: file.name,
-          size: file.size,
-          timestamp: uploadedAt
-        },
-        ...prev
-      ]);
-
-      // Persist upload in history.
-      const historyResponse = await fetch('/api/history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: newUrl,
-          filename: file.name,
-          size: file.size
-        })
-      });
-
-      if (!historyResponse.ok) {
-        const errorPayload = await historyResponse.json().catch(() => ({}));
-        throw new Error(errorPayload?.error || 'Failed to save upload history');
-      }
-
-      await commitFileHash(contentHash, pathname, file);
-
-      // Refresh history
-      if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
-        await fetchPublicHistory();
-      }
-      showUploadSuccessCue(file.name);
-      if (notify) {
-        showToast('Upload complete', 'success');
-      }
-    } catch (error) {
-      console.error('Upload failed:', error);
-      if (notify) {
-        showToast('Upload failed', 'error');
-      }
-      throw error;
-    } finally {
-      activeUploadRequestRef.current = null;
-      setUploading(false);
-      setUploadProgress(0);
-      setUploadStatus('');
-      setUploadLoadedBytes(0);
-      setUploadTotalBytes(0);
-      setUploadFilePreview('');
     }
   };
 
@@ -1797,33 +1542,6 @@ export default function Home() {
     copyText(toDownloadPageUrl(url), 'Copied to clipboard');
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  const formatTimestamp = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  };
-
-  const formatDisplayName = (filename: string) => {
-    return filename;
-  };
-
   const filteredUploadedFiles = useMemo(() => {
     const query = uploadedFilesSearch.trim().toLowerCase();
 
@@ -1848,128 +1566,6 @@ export default function Home() {
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
-
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-
-        body {
-          background: radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%);
-          background-attachment: fixed;
-          color: #eef1f6;
-          font-family: 'Sora', sans-serif;
-          min-height: 100vh;
-          overflow-x: hidden;
-        }
-
-        @keyframes fadeSlideIn {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 1; }
-        }
-
-        @keyframes iconFloat {
-          0%, 100% { transform: translateY(0) scale(1); opacity: 0.9; }
-          50% { transform: translateY(-1px) scale(1.03); opacity: 1; }
-        }
-
-        @keyframes successPop {
-          0% { transform: scale(0.72); opacity: 0; }
-          55% { transform: scale(1.06); opacity: 1; }
-          100% { transform: scale(1); opacity: 1; }
-        }
-
-        @keyframes successSweep {
-          0% { transform: translateX(-120%) skewX(-16deg); opacity: 0; }
-          35% { opacity: 1; }
-          100% { transform: translateX(120%) skewX(-16deg); opacity: 0; }
-        }
-
-        @keyframes successGlow {
-          0%, 100% { box-shadow: 0 0 0 rgba(79,248,192,0); }
-          50% { box-shadow: 0 0 24px rgba(79,248,192,0.28); }
-        }
-
-        @keyframes successExit {
-          0% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
-          100% { opacity: 0; transform: translateY(-8px) scale(0.985); filter: blur(1px); }
-        }
-
-        @keyframes slideSide {
-          0%   { transform: translateX(0) scaleX(1); opacity: 1; }
-          35%  { transform: translateX(0) scaleX(1); opacity: 1; }
-          48%  { transform: translateX(600px) scaleX(1.3); opacity: 0; }
-          49%  { transform: translateX(-600px) scaleX(1.3); opacity: 0; }
-          62%  { transform: translateX(0) scaleX(1); opacity: 1; }
-          100% { transform: translateX(0) scaleX(1); opacity: 1; }
-        }
-
-        ::-webkit-scrollbar {
-          width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.04);
-          border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.35);
-        }
-
-        .monoIcon {
-          display: inline-flex;
-          vertical-align: middle;
-          animation: iconFloat 2.8s ease-in-out infinite;
-          color: #eef1f6;
-        }
-
-        .monoIcon--success {
-          animation: successPop 420ms ease-out, iconFloat 2.8s ease-in-out infinite 420ms;
-        }
-
-        .uploadSuccessCard {
-          animation: fadeSlideIn 260ms ease-out, successGlow 1.5s ease-in-out infinite;
-        }
-
-        .uploadSuccessCard--exiting {
-          animation: successExit 420ms ease-in forwards;
-          pointer-events: none;
-        }
-
-        .uploadSuccessSweep {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(90deg, rgba(79,248,192,0), rgba(79,248,192,0.28), rgba(79,248,192,0));
-          animation: successSweep 1.2s ease-in-out infinite;
-          pointer-events: none;
-        }
-      `}} />
-
       <main style={{
         padding: uploading ? '6.5rem 6vw 4rem' : '4rem 6vw',
         minHeight: '100vh',
@@ -2508,20 +2104,7 @@ export default function Home() {
                 WebkitBackdropFilter: 'blur(14px)',
                 flexWrap: 'wrap'
               }}>
-                {uploadFilePreview ? (
-                  <img
-                    src={uploadFilePreview}
-                    alt="Upload preview"
-                    style={{
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: '12px',
-                      objectFit: 'cover',
-                      border: '1px solid rgba(255,255,255,0.12)'
-                    }}
-                  />
-                ) : (
-                  <div style={{
+                <div style={{
                     width: '44px',
                     height: '44px',
                     borderRadius: '12px',
@@ -2533,7 +2116,6 @@ export default function Home() {
                   }}>
                     <MonoIcon name={uploadProgress >= 100 ? 'check' : 'cloudUpload'} className="monoIcon" width={14} height={14} />
                   </div>
-                )}
 
                 <div style={{ flex: '1 1 260px', minWidth: 0, textAlign: 'left' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>

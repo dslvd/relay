@@ -1,9 +1,17 @@
 import type { Metadata } from "next";
+import { Sora } from 'next/font/google';
 import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
 import ClickRipple from "./click-ripple";
 import type { Viewport } from "next";
+
+const sora = Sora({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-sora',
+});
 
 export const metadata: Metadata = {
   title: "Relay",
@@ -21,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" style={{ backgroundColor: "#0a0a0a" }}>
+    <html lang="en" className={sora.variable} style={{ backgroundColor: "#0a0a0a" }}>
       <body className="antialiased" style={{ backgroundColor: "#0a0a0a", margin: 0 }}>
         <Script
           async
