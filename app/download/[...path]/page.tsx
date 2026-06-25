@@ -302,9 +302,6 @@ export default function DownloadPage() {
     <main
       style={{
         minHeight: '100vh',
-        background: 'radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%)',
-        backgroundAttachment: 'fixed',
-        color: '#f5f5f5',
         display: 'flex',
         flexDirection: 'column',
         padding: 0
@@ -319,19 +316,19 @@ export default function DownloadPage() {
           left: '1.5rem',
           zIndex: 50,
           textDecoration: 'none',
-          color: '#f5f5f5',
+          color: 'var(--c-text)',
           fontFamily: "'Open Sans', sans-serif",
           fontSize: '0.85rem',
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
           gap: '0.4rem',
-          transition: 'colors 0.2s ease',
+          transition: 'background 0.2s ease',
           padding: '0.5rem 0.8rem',
           borderRadius: '6px',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+          e.currentTarget.style.background = 'rgba(128,128,128,0.1)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'transparent';
@@ -362,7 +359,7 @@ export default function DownloadPage() {
             <div
               style={{
                 fontSize: '0.85rem',
-                color: 'rgba(245, 245, 245, 0.6)',
+                color: 'var(--c-dim)',
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase'
               }}
@@ -375,10 +372,10 @@ export default function DownloadPage() {
             style={{
               width: 'min(500px, 92vw)',
               borderRadius: '20px',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
-              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(128,128,128,0.18)',
+              background: 'rgba(128,128,128,0.05)',
               padding: '1.5rem',
-              boxShadow: '0 22px 60px rgba(0, 0, 0, 0.45)',
+              boxShadow: '0 22px 60px rgba(0, 0, 0, 0.25)',
               textAlign: 'center'
             }}
           >
@@ -387,7 +384,7 @@ export default function DownloadPage() {
                 fontSize: '0.7rem',
                 letterSpacing: '0.3em',
                 textTransform: 'uppercase',
-                color: 'rgba(245, 245, 245, 0.55)',
+                color: 'var(--c-dim)',
                 marginBottom: '0.6rem'
               }}
             >
@@ -397,7 +394,8 @@ export default function DownloadPage() {
               style={{
                 margin: '0 0 0.4rem',
                 fontSize: 'clamp(1.3rem, 2.5vw, 1.8rem)',
-                letterSpacing: '-0.02em'
+                letterSpacing: '-0.02em',
+                color: 'var(--c-text)'
               }}
             >
               File not found
@@ -405,7 +403,7 @@ export default function DownloadPage() {
             <p
               style={{
                 margin: 0,
-                color: 'rgba(245, 245, 245, 0.7)',
+                color: 'var(--c-dim)',
                 fontSize: '0.85rem',
                 marginBottom: '1.2rem'
               }}
@@ -418,15 +416,15 @@ export default function DownloadPage() {
                 display: 'inline-block',
                 padding: '0.5rem 1rem',
                 borderRadius: '999px',
-                background: 'rgba(233,236,242,0.18)',
+                background: 'rgba(128,128,128,0.14)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(233,236,242,0.35)',
-                color: '#eef1f6',
+                border: '1px solid rgba(128,128,128,0.25)',
+                color: 'var(--c-text)',
                 textDecoration: 'none',
                 fontWeight: 700,
                 fontSize: '0.85rem',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.25)'
+                boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
               }}
             >
               Upload a new file
@@ -437,10 +435,10 @@ export default function DownloadPage() {
             style={{
               width: 'min(500px, 92vw)',
               borderRadius: '20px',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
-              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(128,128,128,0.18)',
+              background: 'rgba(128,128,128,0.05)',
               padding: '1.5rem',
-              boxShadow: '0 22px 60px rgba(0, 0, 0, 0.45)',
+              boxShadow: '0 22px 60px rgba(0, 0, 0, 0.25)',
               maxHeight: '80vh',
               display: 'flex',
               flexDirection: 'column',
@@ -455,9 +453,9 @@ export default function DownloadPage() {
                     alignSelf: 'flex-start',
                     padding: '0.4rem 0.8rem',
                     borderRadius: '999px',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: '#f5f5f5',
+                    border: '1px solid rgba(128,128,128,0.22)',
+                    background: 'rgba(128,128,128,0.07)',
+                    color: 'var(--c-text)',
                     fontSize: '0.75rem',
                     fontWeight: 500,
                     cursor: 'pointer',
@@ -491,7 +489,7 @@ export default function DownloadPage() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '0.6rem',
-                        background: 'rgba(10, 10, 10, 0.6)',
+                        background: 'rgba(128,128,128,0.15)',
                         borderRadius: '12px'
                       }}
                     >
@@ -500,12 +498,12 @@ export default function DownloadPage() {
                           width: '28px',
                           height: '28px',
                           borderRadius: '999px',
-                          border: '2px solid rgba(245, 245, 245, 0.5)',
+                          border: '2px solid rgba(128,128,128,0.45)',
                           borderTopColor: 'transparent',
                           animation: 'previewSpin 0.8s linear infinite'
                         }}
                       />
-                      <span style={{ fontSize: '0.8rem', color: 'rgba(245, 245, 245, 0.7)' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--c-dim)' }}>
                         Loading preview...
                       </span>
                     </div>
@@ -543,8 +541,8 @@ export default function DownloadPage() {
                         width: '100%',
                         height: '100%',
                         borderRadius: '12px',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        background: 'rgba(0,0,0,0.22)',
+                        border: '1px solid rgba(128,128,128,0.14)',
+                        background: 'rgba(128,128,128,0.06)',
                         overflow: 'auto',
                         padding: '0.8rem',
                       }}
@@ -558,13 +556,13 @@ export default function DownloadPage() {
                           lineHeight: 1.45,
                           fontFamily:
                             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                          color: 'rgba(245,245,245,0.88)',
+                          color: 'var(--c-text)',
                         }}
                       >
                         {previewText || (previewLoading ? 'Loading…' : 'No preview')}
                       </pre>
                       {previewTextTruncated && (
-                        <div style={{ marginTop: '0.6rem', fontSize: '0.72rem', color: 'rgba(245,245,245,0.55)' }}>
+                        <div style={{ marginTop: '0.6rem', fontSize: '0.72rem', color: 'var(--c-dim)' }}>
                           Preview truncated.
                         </div>
                       )}
@@ -576,10 +574,10 @@ export default function DownloadPage() {
               <>
                 {/* Title Section */}
                 <div style={{ marginBottom: '0.8rem' }}>
-                  <h1 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>
+                  <h1 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--c-text)' }}>
                     Download your file
                   </h1>
-                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'rgba(245, 245, 245, 0.6)' }}>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'var(--c-dim)' }}>
                     Secure data routing via Relay.
                   </p>
                 </div>
@@ -587,20 +585,20 @@ export default function DownloadPage() {
                 {/* File Details Table */}
                 <div style={{ marginBottom: '1.2rem', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
-                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Name:</div>
-                    <div style={{ flex: 1, color: '#f5f5f5', wordBreak: 'break-all' }}>
+                    <div style={{ width: '80px', color: 'var(--c-dim)' }}>Name:</div>
+                    <div style={{ flex: 1, color: 'var(--c-text)', wordBreak: 'break-all' }}>
                       {fileData.filename}
                     </div>
                   </div>
                   <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
-                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Size:</div>
-                    <div style={{ flex: 1, color: '#f5f5f5' }}>
+                    <div style={{ width: '80px', color: 'var(--c-dim)' }}>Size:</div>
+                    <div style={{ flex: 1, color: 'var(--c-text)' }}>
                       {typeof fileData.size === 'number' ? formatFileSize(fileData.size) : 'Unknown'}
                     </div>
                   </div>
                   <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
-                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Uploaded:</div>
-                    <div style={{ flex: 1, color: '#f5f5f5' }}>
+                    <div style={{ width: '80px', color: 'var(--c-dim)' }}>Uploaded:</div>
+                    <div style={{ flex: 1, color: 'var(--c-text)' }}>
                       {fileData.timestamp
                         ? new Date(fileData.timestamp).toLocaleDateString('en-US', {
                             month: 'short',
@@ -611,14 +609,14 @@ export default function DownloadPage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', marginBottom: '0.4rem' }}>
-                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Downloads:</div>
-                    <div style={{ flex: 1, color: '#f5f5f5' }}>
+                    <div style={{ width: '80px', color: 'var(--c-dim)' }}>Downloads:</div>
+                    <div style={{ flex: 1, color: 'var(--c-text)' }}>
                       {typeof downloadCount === 'number' ? downloadCount.toLocaleString() : 'Unknown'}
                     </div>
                   </div>
                   <div style={{ display: 'flex' }}>
-                    <div style={{ width: '80px', color: 'rgba(245, 245, 245, 0.6)' }}>Expires:</div>
-                    <div style={{ flex: 1, color: '#f5f5f5' }}>
+                    <div style={{ width: '80px', color: 'var(--c-dim)' }}>Expires:</div>
+                    <div style={{ flex: 1, color: 'var(--c-text)' }}>
                       {getExpiresIn()}
                     </div>
                   </div>
@@ -657,18 +655,18 @@ export default function DownloadPage() {
                       display: 'block',
                       padding: '0.45rem 0.8rem',
                       borderRadius: '6px',
-                      background: 'rgba(233,236,242,0.18)',
+                      background: 'rgba(128,128,128,0.15)',
                       backdropFilter: 'blur(10px)',
                       WebkitBackdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(233,236,242,0.35)',
-                      color: '#eef1f6',
+                      border: '1px solid rgba(128,128,128,0.28)',
+                      color: 'var(--c-text)',
                       textDecoration: 'none',
                       fontWeight: 700,
                       textAlign: 'center',
                       fontSize: '0.78rem',
                       cursor: 'pointer',
                       transition: 'transform 0.2s ease, opacity 0.2s ease',
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.25)'
+                      boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'translateY(-1px)';
@@ -694,17 +692,17 @@ export default function DownloadPage() {
                       padding: '0.45rem 0.8rem',
                       borderRadius: '6px',
                       background: 'transparent',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      color: !isPreviewable(fileData.filename) ? 'rgba(245, 245, 245, 0.4)' : '#f5f5f5',
+                      border: '1px solid rgba(128,128,128,0.22)',
+                      color: 'var(--c-text)',
                       fontWeight: 600,
                       fontSize: '0.78rem',
                       cursor: !isPreviewable(fileData.filename) ? 'not-allowed' : 'pointer',
-                      opacity: !isPreviewable(fileData.filename) ? 0.6 : 1,
+                      opacity: !isPreviewable(fileData.filename) ? 0.5 : 1,
                       transition: 'all 0.2s ease'
                     }}
                     onMouseEnter={(e) => {
                       if (!isPreviewable(fileData.filename)) return;
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                      e.currentTarget.style.background = 'rgba(128,128,128,0.1)';
                     }}
                     onMouseLeave={(e) => {
                       if (!isPreviewable(fileData.filename)) return;
@@ -722,9 +720,9 @@ export default function DownloadPage() {
                       flex: 1,
                       padding: '0.55rem 0.9rem',
                       borderRadius: '6px',
-                      background: isCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                      border: `1px solid ${isCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.16)'}`,
-                      color: isCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
+                      background: isCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(128,128,128,0.08)',
+                      border: `1px solid ${isCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(128,128,128,0.18)'}`,
+                      color: isCopied ? '#4ff8c0' : 'var(--c-text)',
                       fontWeight: 600,
                       fontSize: '0.78rem',
                       cursor: 'pointer',
@@ -732,14 +730,14 @@ export default function DownloadPage() {
                     }}
                     onMouseEnter={(e) => {
                       if (!isCopied) {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.24)';
+                        e.currentTarget.style.background = 'rgba(128,128,128,0.14)';
+                        e.currentTarget.style.borderColor = 'rgba(128,128,128,0.28)';
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (!isCopied) {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
+                        e.currentTarget.style.background = 'rgba(128,128,128,0.08)';
+                        e.currentTarget.style.borderColor = 'rgba(128,128,128,0.18)';
                       }
                     }}
                   >
@@ -756,21 +754,21 @@ export default function DownloadPage() {
                       flex: 1,
                       padding: '0.55rem 0.9rem',
                       borderRadius: '6px',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.16)',
-                      color: '#f5f5f5',
+                      background: 'rgba(128,128,128,0.08)',
+                      border: '1px solid rgba(128,128,128,0.18)',
+                      color: 'var(--c-text)',
                       fontWeight: 600,
                       fontSize: '0.78rem',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.24)';
+                      e.currentTarget.style.background = 'rgba(128,128,128,0.14)';
+                      e.currentTarget.style.borderColor = 'rgba(128,128,128,0.28)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
+                      e.currentTarget.style.background = 'rgba(128,128,128,0.08)';
+                      e.currentTarget.style.borderColor = 'rgba(128,128,128,0.18)';
                     }}
                     title="Show QR code"
                   >
@@ -789,9 +787,9 @@ export default function DownloadPage() {
                           minWidth: '150px',
                           padding: '0.55rem 0.9rem',
                           borderRadius: '6px',
-                          background: showEmbed ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.06)',
-                          border: '1px solid rgba(255, 255, 255, 0.14)',
-                          color: '#f5f5f5',
+                          background: showEmbed ? 'rgba(128,128,128,0.12)' : 'rgba(128,128,128,0.06)',
+                          border: '1px solid rgba(128,128,128,0.16)',
+                          color: 'var(--c-text)',
                           fontWeight: 600,
                           fontSize: '0.78rem',
                           cursor: 'pointer',
@@ -814,9 +812,9 @@ export default function DownloadPage() {
                           width: '100%',
                           padding: '0.55rem 0.9rem',
                           borderRadius: '6px',
-                          background: isEmbedCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-                          border: `1px solid ${isEmbedCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(255, 255, 255, 0.14)'}`,
-                          color: isEmbedCopied ? 'rgba(79, 248, 192, 1)' : '#f5f5f5',
+                          background: isEmbedCopied ? 'rgba(79, 248, 192, 0.2)' : 'rgba(128,128,128,0.06)',
+                          border: `1px solid ${isEmbedCopied ? 'rgba(79, 248, 192, 0.4)' : 'rgba(128,128,128,0.14)'}`,
+                          color: isEmbedCopied ? '#4ff8c0' : 'var(--c-text)',
                           fontWeight: 600,
                           fontSize: '0.78rem',
                           cursor: 'pointer',
@@ -834,9 +832,9 @@ export default function DownloadPage() {
                         style={{
                           padding: '0.9rem',
                           borderRadius: '14px',
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          background: 'rgba(0,0,0,0.18)',
-                          boxShadow: '0 12px 38px rgba(0,0,0,0.35)'
+                          border: '1px solid rgba(128,128,128,0.18)',
+                          background: 'rgba(128,128,128,0.08)',
+                          boxShadow: '0 12px 38px rgba(0,0,0,0.2)'
                         }}
                       >
                         <img src={qrDataUrl} alt="QR code" style={{ width: '240px', height: '240px' }} />
@@ -848,13 +846,13 @@ export default function DownloadPage() {
                       style={{
                         marginTop: '0.6rem',
                         fontSize: '0.72rem',
-                        color: 'rgba(245, 245, 245, 0.55)',
+                        color: 'var(--c-dim)',
                         lineHeight: 1.35,
                         wordBreak: 'break-word',
                         padding: '0.6rem 0.75rem',
                         borderRadius: '10px',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        background: 'rgba(0,0,0,0.15)',
+                        border: '1px solid rgba(128,128,128,0.14)',
+                        background: 'rgba(128,128,128,0.06)',
                       }}
                     >
                       <div style={{ marginBottom: '0.35rem', letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: '0.62rem' }}>

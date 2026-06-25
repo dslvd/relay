@@ -4,6 +4,8 @@ import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
 import ClickRipple from "./click-ripple";
+import ThemeProvider from "./components/ThemeProvider";
+import ThemeToggle from "./components/ThemeToggle";
 import type { Viewport } from "next";
 
 const sora = Sora({
@@ -35,10 +37,12 @@ export default function RootLayout({
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7504951431311068"
           crossOrigin="anonymous"
-          // Keep first paint snappy; ads can load after hydration.
           strategy="afterInteractive"
         />
-        {children}
+        <ThemeProvider>
+          <ThemeToggle />
+          {children}
+        </ThemeProvider>
         <ClickRipple />
         <Link className="footer-link dmca-link" href="/dmca" prefetch>
           DMCA

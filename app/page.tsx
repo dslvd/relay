@@ -5,6 +5,7 @@ import Image from 'next/image';
 import QRCode from 'qrcode';
 // import AdBanner from './components/AdBanner';
 import logo from './logo.png';
+import { useTheme } from './components/ThemeProvider';
 
 interface UploadRecord {
   url: string;
@@ -162,15 +163,26 @@ function MonoIcon({
       );
     case 'sun':
       return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <circle {...common} cx="12" cy="12" r="4" />
-          <path {...common} d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className} {...props}>
+          <circle cx="12" cy="12" r="4.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="12" y1="2.5" x2="12" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="12" y1="19" x2="12" y2="21.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="2.5" y1="12" x2="5" y2="12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="19" y1="12" x2="21.5" y2="12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="5.22" y1="5.22" x2="6.94" y2="6.94" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="17.06" y1="17.06" x2="18.78" y2="18.78" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="5.22" y1="18.78" x2="6.94" y2="17.06" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="17.06" y1="6.94" x2="18.78" y2="5.22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
       );
     case 'moon':
       return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className} {...props}>
+          <path
+            d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9.003 9.003 0 0 0 12 21a9.003 9.003 0 0 0 8.354-5.646z"
+            stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+            fill="currentColor" fillOpacity="0.15"
+          />
         </svg>
       );
     case 'qrCode':
@@ -474,7 +486,7 @@ export default function Home() {
   const [remoteTotalBytes, setRemoteTotalBytes] = useState<number | null>(null);
 
   // Feature state
-  const [isDark, setIsDark] = useState(true);
+  const { isDark } = useTheme();
   const [dragFileCount, setDragFileCount] = useState(0);
   const [qrPopoverUrl, setQrPopoverUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
@@ -528,19 +540,6 @@ export default function Home() {
   useEffect(() => {
     queuePausedRef.current = queuePaused;
   }, [queuePaused]);
-
-  // Feature 7: dark/light theme — load from localStorage and keep data-theme in sync.
-  useEffect(() => {
-    const stored = localStorage.getItem('relay:theme');
-    const dark = stored ? stored === 'dark' : true;
-    setIsDark(dark);
-    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    localStorage.setItem('relay:theme', isDark ? 'dark' : 'light');
-  }, [isDark]);
 
   // Feature 5: generate QR data URL whenever a popover URL is set.
   useEffect(() => {
@@ -1882,7 +1881,7 @@ export default function Home() {
                 </span>
               ) : (
                 <span style={{ color: 'var(--c-dim)' }}>
-                  Premium = Higher limits + no ads
+                  Premium = higher limits + no ads
                 </span>
               )}
             </div>
@@ -2131,26 +2130,6 @@ export default function Home() {
             {uploading ? 'Uploading...' : 'Choose File'}
           </button>
 
-          {/* Theme toggle */}
-          <button
-            onClick={() => setIsDark((d) => !d)}
-            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            style={{
-              width: '36px', height: '36px', borderRadius: '999px',
-              border: `1px solid ${t.border}`,
-              background: t.surface,
-              backdropFilter: 'blur(14px)',
-              WebkitBackdropFilter: 'blur(14px)',
-              color: 'var(--c-text)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', flexShrink: 0,
-              boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <MonoIcon name={isDark ? 'sun' : 'moon'} width={14} height={14} />
-          </button>
         </div>
         )}
 
@@ -2270,7 +2249,7 @@ export default function Home() {
           textAlign: 'center',
           letterSpacing: '0.02em'
         }}>
-          Max upload size: {formatFileSize(maxUploadBytes)} per file {isPremium ? '• Premium' : '• Free'}
+          {/* Max upload size: {formatFileSize(maxUploadBytes)} per file {isPremium ? '• Premium' : '• Free'} */}
         </p>
         )}
 
