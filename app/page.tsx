@@ -56,7 +56,8 @@ type MonoIconName =
   | 'share'
   | 'sun'
   | 'moon'
-  | 'qrCode';
+  | 'qrCode'
+  | 'trash';
 
 function MonoIcon({
   name,
@@ -179,6 +180,15 @@ function MonoIcon({
           <rect {...common} x="14" y="3" width="7" height="7" rx="1" />
           <rect {...common} x="3" y="14" width="7" height="7" rx="1" />
           <path {...common} d="M14 14h3v3h-3zM17 17h3v3h-3zM14 17h.01M17 14h.01" />
+        </svg>
+      );
+    case 'trash':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
+          <polyline {...common} points="3 6 5 6 21 6" />
+          <path {...common} d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+          <path {...common} d="M10 11v6M14 11v6" />
+          <path {...common} d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
         </svg>
       );
     default:
@@ -468,6 +478,7 @@ export default function Home() {
   const [dragFileCount, setDragFileCount] = useState(0);
   const [qrPopoverUrl, setQrPopoverUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [deletingUrls, setDeletingUrls] = useState<Set<string>>(new Set());
   const lastSuccessUrlRef = useRef<string | null>(null);
 
   const t = isDark ? DARK_T : LIGHT_T;
@@ -1402,6 +1413,27 @@ export default function Home() {
     setUploadQueue((prev) =>
       prev.map((it) => (it.id === id ? { ...it, status: 'queued', error: undefined } : it))
     );
+  };
+
+  const deleteUploadedFile = async (url: string) => {
+    setDeletingUrls((prev) => new Set(prev).add(url));
+    try {
+      const res = await fetch('/api/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? 'Delete failed');
+      }
+      setUploadedFiles((prev) => prev.filter((f) => f.url !== url));
+      showToast('File deleted', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Delete failed', 'error');
+    } finally {
+      setDeletingUrls((prev) => { const s = new Set(prev); s.delete(url); return s; });
+    }
   };
 
   const toDownloadPageUrl = (rawUrl: string) => {
@@ -2671,6 +2703,30 @@ export default function Home() {
                           }}
                         >
                           <MonoIcon name="qrCode" className="monoIcon" width={12} height={12} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteUploadedFile(url); }}
+                          aria-label="Delete file"
+                          title="Delete file"
+                          disabled={deletingUrls.has(url)}
+                          style={{
+                            width: '28px', height: '28px', borderRadius: '999px',
+                            border: '1px solid rgba(242,100,100,0.3)',
+                            background: 'rgba(242,100,100,0.08)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            color: deletingUrls.has(url) ? 'rgba(242,100,100,0.4)' : '#f26464',
+                            fontSize: '0.9rem', lineHeight: '1',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: deletingUrls.has(url) ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {deletingUrls.has(url)
+                            ? <span style={{ fontSize: '0.6rem', opacity: 0.6 }}>…</span>
+                            : <MonoIcon name="trash" className="monoIcon" width={12} height={12} />
+                          }
                         </button>
                       </div>
                     </div>
