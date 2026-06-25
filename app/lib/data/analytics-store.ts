@@ -1,5 +1,29 @@
+import fs from 'fs';
+import path from 'path';
 import { getRedisClient, hasRedisConfigured } from '@/app/lib/data/redis-client';
 import { incrementDownloadCount, getDownloadCount, getAllDownloadCounts, hasD1Configured } from '@/app/lib/data/d1-downloads';
+
+// File-based fallback so counts survive dev-server restarts and Vercel cold starts.
+const FILE_PATH = process.env.NODE_ENV === 'production'
+  ? '/tmp/relay-analytics.json'
+  : path.join(process.cwd(), '.analytics-local.json');
+
+function readFileStore(): AnalyticsData | null {
+  try {
+    const raw = fs.readFileSync(FILE_PATH, 'utf8');
+    return normalizeAnalyticsData(JSON.parse(raw) as Partial<AnalyticsData>);
+  } catch {
+    return null;
+  }
+}
+
+function writeFileStore(data: AnalyticsData): void {
+  try {
+    fs.writeFileSync(FILE_PATH, JSON.stringify(data));
+  } catch {
+    // ignore write errors (read-only fs, etc.)
+  }
+}
 
 export interface DownloadEvent {
   filename: string;
@@ -98,6 +122,17 @@ export async function loadAnalyticsData(): Promise<AnalyticsData> {
     });
   }
 
+  // File-based persistence (survives restarts when no Redis/D1).
+  const fileData = readFileStore();
+  if (fileData) {
+    // Keep global in sync so subsequent in-process reads are fast.
+    global.analyticsData = fileData;
+    return normalizeAnalyticsData({
+      ...fileData,
+      downloadCounts: { ...fileData.downloadCounts, ...downloadCounts },
+    });
+  }
+
   const data = getGlobalAnalyticsData();
   return normalizeAnalyticsData({
     ...data,
@@ -112,6 +147,8 @@ export async function saveAnalyticsData(data: AnalyticsData): Promise<void> {
     return;
   }
 
+  // Persist to file AND keep global for fast in-process reads.
+  writeFileStore(data);
   global.analyticsData = data;
 }
 
