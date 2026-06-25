@@ -166,6 +166,7 @@ const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
 const IDB_NAME = 'relay_uploads_v1';
 const IDB_STORE = 'files';
 const MAX_CONCURRENT_UPLOADS = 3;
+const PARALLEL_PARTS = 6;
 
 const emptyMessages = [
   { icon: 'cloudUpload' as const, title: 'No uploads yet', detail: 'Drop a file to start building your vault.' },
@@ -394,7 +395,7 @@ export default function Home() {
   const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
   const [queuePaused, setQueuePaused] = useState(false);
   const queuePausedRef = useRef(false);
-  const queueXhrsRef = useRef<Record<string, XMLHttpRequest | null>>({});
+  const queueXhrsRef = useRef<Record<string, Set<XMLHttpRequest>>>({});
   const [emptyMessageIndex] = useState(() => Math.floor(Math.random() * emptyMessages.length));
   const [uploadSuccessCue, setUploadSuccessCue] = useState<{ filename: string; label: string; exiting?: boolean } | null>(null);
   const uploadSuccessTimeoutRef = useRef<number | null>(null);
@@ -951,20 +952,37 @@ export default function Home() {
     const totalParts = Math.ceil(file.size / partSize);
     const done = new Map<number, string>(multipart.parts.map((p) => [p.partNumber, p.etag]));
 
-    const uploadPartXhr = (url: string, blob: Blob, startOffset: number) =>
+    // Track per-part loaded bytes so parallel uploads sum correctly.
+    const partLoaded = new Map<number, number>();
+    for (const [pn] of done) {
+      const pStart = (pn - 1) * partSize;
+      partLoaded.set(pn, Math.min(file.size, pStart + partSize) - pStart);
+    }
+
+    const uploadPartXhr = (
+      url: string,
+      blob: Blob,
+      partNumber: number,
+      partFullSize: number,
+    ) =>
       new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        queueXhrsRef.current[itemId] = xhr;
+        const xhrSet = (queueXhrsRef.current[itemId] ??= new Set());
+        xhrSet.add(xhr);
         xhr.open('PUT', url, true);
 
         xhr.upload.onprogress = (event) => {
-          const loaded = startOffset + (event.loaded || 0);
-          scheduleQueueUploadProgress(itemId, loaded, file.size);
+          partLoaded.set(partNumber, event.loaded || 0);
+          const total = Array.from(partLoaded.values()).reduce((a, b) => a + b, 0);
+          scheduleQueueUploadProgress(itemId, total, file.size);
         };
 
         xhr.onload = () => {
-          queueXhrsRef.current[itemId] = null;
+          xhrSet.delete(xhr);
           if (xhr.status >= 200 && xhr.status < 300) {
+            partLoaded.set(partNumber, partFullSize);
+            const total = Array.from(partLoaded.values()).reduce((a, b) => a + b, 0);
+            scheduleQueueUploadProgress(itemId, total, file.size);
             const etag = xhr.getResponseHeader('ETag') || xhr.getResponseHeader('etag') || '';
             resolve(etag.replace(/^\"|\"$/g, '') || etag);
             return;
@@ -973,59 +991,76 @@ export default function Home() {
         };
 
         xhr.onerror = () => {
-          queueXhrsRef.current[itemId] = null;
+          xhrSet.delete(xhr);
           reject(new Error('Part upload request failed'));
         };
 
         xhr.onabort = () => {
-          queueXhrsRef.current[itemId] = null;
+          xhrSet.delete(xhr);
           reject(new Error('Upload cancelled'));
         };
 
         xhr.send(blob);
       });
 
-    for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
+    // Build list of parts that still need uploading.
+    const pendingParts: number[] = [];
+    for (let pn = 1; pn <= totalParts; pn++) {
+      if (!done.has(pn)) pendingParts.push(pn);
+    }
+
+    // Upload PARALLEL_PARTS parts at a time: presign + PUT run concurrently within each batch.
+    for (let i = 0; i < pendingParts.length; i += PARALLEL_PARTS) {
       throwIfPaused();
       throwIfCancelled();
-      if (done.has(partNumber)) {
-        continue;
-      }
 
-      const start = (partNumber - 1) * partSize;
-      const end = Math.min(file.size, start + partSize);
-      const blob = file.slice(start, end);
+      const batch = pendingParts.slice(i, i + PARALLEL_PARTS);
 
-      const presignRes = await fetchWithRetry(
-        '/api/multipart/part',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            uploadId: multipart.uploadId,
-            objectKey: multipart.objectKey,
-            partNumber,
-          }),
-        },
-        3
+      const presigned = await Promise.all(
+        batch.map(async (partNumber) => {
+          const presignRes = await fetchWithRetry(
+            '/api/multipart/part',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                uploadId: multipart.uploadId,
+                objectKey: multipart.objectKey,
+                partNumber,
+              }),
+            },
+            3,
+          );
+          const presignPayload = await presignRes.json().catch(() => ({}));
+          if (!presignRes.ok || !presignPayload?.data?.url) {
+            throw new Error(presignPayload?.error || 'Failed to presign upload part');
+          }
+          return { partNumber, url: presignPayload.data.url as string };
+        }),
       );
-      const presignPayload = await presignRes.json().catch(() => ({}));
-      if (!presignRes.ok || !presignPayload?.data?.url) {
-        throw new Error(presignPayload?.error || 'Failed to presign upload part');
-      }
+
       throwIfPaused();
-
-      const etag = await uploadPartXhr(presignPayload.data.url as string, blob, start);
       throwIfCancelled();
-      done.set(partNumber, etag);
 
-      const nextParts = Array.from(done.entries())
+      const uploaded = await Promise.all(
+        presigned.map(async ({ partNumber, url }) => {
+          const start = (partNumber - 1) * partSize;
+          const end = Math.min(file.size, start + partSize);
+          const etag = await uploadPartXhr(url, file.slice(start, end), partNumber, end - start);
+          return { partNumber, etag };
+        }),
+      );
+
+      for (const { partNumber, etag } of uploaded) {
+        done.set(partNumber, etag);
+      }
+
+      multipart.parts = Array.from(done.entries())
         .map(([pn, e]) => ({ partNumber: pn, etag: e }))
         .sort((a, b) => a.partNumber - b.partNumber);
-      multipart.parts = nextParts;
 
       setUploadQueue((prev) =>
-        prev.map((it) => (it.id === itemId ? { ...it, multipart } : it))
+        prev.map((it) => (it.id === itemId ? { ...it, multipart } : it)),
       );
     }
 
@@ -1177,15 +1212,12 @@ export default function Home() {
       }
       activeUploadRequestRef.current = null;
     }
-    for (const [id, xhr] of Object.entries(queueXhrsRef.current)) {
-      if (xhr) {
-        try {
-          xhr.abort();
-        } catch {
-          // ignore
-        }
-        queueXhrsRef.current[id] = null;
+    for (const [id, xhrs] of Object.entries(queueXhrsRef.current)) {
+      for (const xhr of xhrs) {
+        try { xhr.abort(); } catch { /* ignore */ }
       }
+      xhrs.clear();
+      delete queueXhrsRef.current[id];
     }
     cancelUploadRef.current = false;
     setUploadQueue((prev) =>
@@ -1207,15 +1239,12 @@ export default function Home() {
     queuePausedRef.current = true;
     setQueuePaused(true);
     // Abort active uploads and return them to queued.
-    for (const [id, xhr] of Object.entries(queueXhrsRef.current)) {
-      if (xhr) {
-        try {
-          xhr.abort();
-        } catch {
-          // ignore
-        }
-        queueXhrsRef.current[id] = null;
+    for (const [id, xhrs] of Object.entries(queueXhrsRef.current)) {
+      for (const xhr of xhrs) {
+        try { xhr.abort(); } catch { /* ignore */ }
       }
+      xhrs.clear();
+      delete queueXhrsRef.current[id];
     }
     setUploadQueue((prev) =>
       prev.map((it) => (it.status === 'uploading' ? { ...it, status: 'queued', error: undefined } : it))
