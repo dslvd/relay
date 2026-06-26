@@ -2116,6 +2116,7 @@ export default function Home() {
             </button>
           )}
 
+          {/* Remote Upload — secondary */}
           <button
             onClick={() => {
               setShowRemoteUpload((v) => !v);
@@ -2123,32 +2124,38 @@ export default function Home() {
             }}
             style={{
               fontFamily: "'Sora', sans-serif",
-              padding: '0.42rem 1.55rem',
-              fontSize: '0.82rem',
-              fontWeight: 400,
+              display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+              padding: '0.52rem 1.2rem',
+              fontSize: '0.81rem',
+              fontWeight: 500,
               letterSpacing: '0.02em',
-              color: 'var(--c-text)',
-              background: showRemoteUpload ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
+              color: showRemoteUpload ? 'var(--c-text)' : 'var(--c-dim)',
+              background: showRemoteUpload ? 'rgba(255,255,255,0.1)' : 'transparent',
               backdropFilter: 'blur(14px)',
               WebkitBackdropFilter: 'blur(14px)',
-              border: '1px solid rgba(255,255,255,0.13)',
+              border: showRemoteUpload ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.11)',
               borderRadius: '50px',
               cursor: 'pointer',
-              transition: 'all 0.3s',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)'
+              transition: 'all 0.22s',
+              boxShadow: showRemoteUpload ? '0 2px 12px rgba(0,0,0,0.22)' : 'none',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+              e.currentTarget.style.color = 'var(--c-text)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = showRemoteUpload ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
+              e.currentTarget.style.background = showRemoteUpload ? 'rgba(255,255,255,0.1)' : 'transparent';
+              e.currentTarget.style.borderColor = showRemoteUpload ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.11)';
+              e.currentTarget.style.color = showRemoteUpload ? 'var(--c-text)' : 'var(--c-dim)';
             }}
           >
-            {remoteUploading ? 'Remote Uploading…' : 'Remote Upload'}
+            {remoteUploading
+              ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Uploading…</>
+              : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Remote URL</>}
           </button>
 
+          {/* Choose File — primary */}
           <button
             onClick={() => {
               setActiveView('upload');
@@ -2157,37 +2164,45 @@ export default function Home() {
             disabled={uploading}
             style={{
               fontFamily: "'Sora', sans-serif",
-              padding: '0.42rem 1.55rem',
-              fontSize: '0.82rem',
+              display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+              padding: '0.52rem 1.35rem',
+              fontSize: '0.81rem',
               fontWeight: 600,
               letterSpacing: '0.02em',
-              color: uploading ? 'rgba(255,255,255,0.35)' : 'var(--c-text)',
-              background: uploading ? 'rgba(255,255,255,0.04)' : 'rgba(233,236,242,0.18)',
-              backdropFilter: 'blur(14px)',
-              WebkitBackdropFilter: 'blur(14px)',
-              border: uploading ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(233,236,242,0.35)',
+              color: uploading ? 'rgba(255,255,255,0.3)' : isDark ? '#0a0a0a' : '#ffffff',
+              background: uploading
+                ? 'rgba(255,255,255,0.06)'
+                : isDark
+                  ? 'rgba(233,236,242,0.92)'
+                  : 'rgba(20,20,20,0.88)',
+              border: uploading
+                ? '1px solid rgba(255,255,255,0.08)'
+                : isDark
+                  ? '1px solid rgba(255,255,255,0.12)'
+                  : '1px solid rgba(0,0,0,0.12)',
               borderRadius: '50px',
               cursor: uploading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.3s',
-              position: 'relative',
-              overflow: 'hidden',
-              zIndex: 1,
-              boxShadow: uploading ? 'none' : '0 2px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)'
+              transition: 'all 0.22s',
+              boxShadow: uploading ? 'none' : isDark ? '0 2px 18px rgba(233,236,242,0.15), 0 1px 0 rgba(255,255,255,0.1) inset' : '0 2px 18px rgba(0,0,0,0.18)',
             }}
             onMouseEnter={(e) => {
               if (!uploading) {
-                e.currentTarget.style.background = 'rgba(233,236,242,0.26)';
-                e.currentTarget.style.borderColor = 'rgba(233,236,242,0.5)';
+                e.currentTarget.style.background = isDark ? 'rgba(233,236,242,1)' : 'rgba(10,10,10,0.96)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = isDark ? '0 4px 22px rgba(233,236,242,0.22)' : '0 4px 22px rgba(0,0,0,0.25)';
               }
             }}
             onMouseLeave={(e) => {
               if (!uploading) {
-                e.currentTarget.style.background = 'rgba(233,236,242,0.18)';
-                e.currentTarget.style.borderColor = 'rgba(233,236,242,0.35)';
+                e.currentTarget.style.background = isDark ? 'rgba(233,236,242,0.92)' : 'rgba(20,20,20,0.88)';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = isDark ? '0 2px 18px rgba(233,236,242,0.15)' : '0 2px 18px rgba(0,0,0,0.18)';
               }
             }}
           >
-            {uploading ? 'Uploading...' : 'Choose File'}
+            {uploading
+              ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Uploading…</>
+              : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>Choose File</>}
           </button>
 
         </div>

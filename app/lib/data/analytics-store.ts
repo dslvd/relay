@@ -20,8 +20,8 @@ function readFileStore(): AnalyticsData | null {
 function writeFileStore(data: AnalyticsData): void {
   try {
     fs.writeFileSync(FILE_PATH, JSON.stringify(data));
-  } catch {
-    // ignore write errors (read-only fs, etc.)
+  } catch (err) {
+    console.error('[analytics] writeFileStore failed:', err);
   }
 }
 

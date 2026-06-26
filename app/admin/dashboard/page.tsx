@@ -121,7 +121,6 @@ export default function AdminDashboard() {
   const [files, setFiles] = useState<UploadRecord[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('timestamp');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -336,30 +335,6 @@ export default function AdminDashboard() {
     setSelectedFiles(new Set());
   };
 
-  const deleteFile = async (url: string, filename: string) => {
-    if (!confirm(`Delete "${filename}"?`)) return;
-
-    try {
-      setDeleting(url);
-      const response = await fetch('/api/admin', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ url })
-      });
-
-      if (response.ok) {
-        await fetchFiles();
-      } else {
-        alert('Failed to delete file');
-      }
-    } catch (error) {
-      console.error('Failed to delete file:', error);
-      alert('Failed to delete file');
-    } finally {
-      setDeleting(null);
-    }
-  };
 
   const clearAllFiles = async () => {
     if (!confirm('Delete ALL files? This cannot be undone!')) return;
@@ -567,30 +542,6 @@ export default function AdminDashboard() {
     setSelectedFiles(newSelected);
   };
 
-  const deleteSelected = async () => {
-    if (selectedFiles.size === 0) return;
-    if (!confirm(`Delete ${selectedFiles.size} selected file(s)?`)) return;
-
-    try {
-      setLoading(true);
-      const deletePromises = Array.from(selectedFiles).map(url =>
-        fetch('/api/admin', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ url })
-        })
-      );
-      await Promise.all(deletePromises);
-      setSelectedFiles(new Set());
-      await fetchFiles();
-    } catch (error) {
-      console.error('Failed to delete files:', error);
-      alert('Failed to delete some files');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const runBulkAction = async (action: 'delete' | 'expire' | 'quarantine' | 'unquarantine', urls?: string[]) => {
     const targets = urls || Array.from(selectedFiles);
@@ -810,6 +761,11 @@ export default function AdminDashboard() {
 
     return 0;
   });
+
+  // Map filename → total download count from analytics topFiles
+  const downloadCountMap = Object.fromEntries(
+    (analytics?.topFiles || []).map(f => [f.filename, f.totalDownloads])
+  );
 
   const totalSize = files.reduce((sum, file) => sum + file.size, 0);
   const uploadsToday = files.filter(f => {
@@ -1279,19 +1235,19 @@ export default function AdminDashboard() {
                   marginBottom: '1.1rem'
                 }}>
                   <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>⬇️ Download Alerts</div>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>Recent downloads</div>
                     <div style={{ fontSize: '1.45rem', fontWeight: 700 }}>{analytics.recentDownloads.length}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Recent tracked events</div>
+                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Tracked events</div>
                   </div>
                   <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>⏳ Expiring Soon</div>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>Expiring soon</div>
                     <div style={{ fontSize: '1.45rem', fontWeight: 700 }}>{expiringSoonFiles.length}</div>
                     <div style={{ fontSize: '0.7rem', color: '#666666' }}>Within 48 hours</div>
                   </div>
                   <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>✉️ Email Alerts</div>
-                    <div style={{ fontSize: '1.0rem', fontWeight: 700 }}>Ready to wire</div>
-                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Connect SMTP/Resend to notify owners</div>
+                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>Quarantined</div>
+                    <div style={{ fontSize: '1.45rem', fontWeight: 700 }}>{quarantineRecords.length}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Flagged files</div>
                   </div>
                 </div>
 
@@ -1302,10 +1258,10 @@ export default function AdminDashboard() {
                   gap: '1rem'
                 }}>
                   <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.75rem' }}>🔔 Notification feed</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.75rem' }}>Recent activity</div>
                     <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
                       {notificationAlerts.length === 0 ? (
-                        <div style={{ color: '#666666', fontSize: '0.8rem' }}>No notifications yet.</div>
+                        <div style={{ color: '#666666', fontSize: '0.8rem' }}>No activity yet.</div>
                       ) : notificationAlerts.map((alert, index) => (
                         <div key={`${alert.kind}-${alert.title}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <div style={{ minWidth: 0 }}>
@@ -1321,10 +1277,10 @@ export default function AdminDashboard() {
                   </div>
 
                   <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.75rem' }}>⌛ Files expiring soon</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.75rem' }}>Expiring soon</div>
                     <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
                       {expiringSoonFiles.length === 0 ? (
-                        <div style={{ color: '#666666', fontSize: '0.8rem' }}>No files are close to expiring.</div>
+                        <div style={{ color: '#666666', fontSize: '0.8rem' }}>No files expiring within 48 hours.</div>
                       ) : expiringSoonFiles.map((file) => (
                         <div key={file.url} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <div style={{ minWidth: 0 }}>
@@ -1332,7 +1288,7 @@ export default function AdminDashboard() {
                             <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>{file.expiresAt ? new Date(file.expiresAt).toLocaleString() : 'Based on last access time'}</div>
                           </div>
                           <div style={{ fontSize: '0.68rem', color: '#ffd1a3', whiteSpace: 'nowrap' }}>
-                            soon
+                            expiring
                           </div>
                         </div>
                       ))}
@@ -1793,7 +1749,7 @@ export default function AdminDashboard() {
                 🏷️ Apply Tags
               </button>
               <button
-                onClick={deleteSelected}
+                onClick={deleteSelectedDirect}
                 style={{
                   padding: '0.5rem 1rem',
                   background: 'rgba(180,50,50,0.2)',
@@ -2291,6 +2247,11 @@ export default function AdminDashboard() {
                       )}
                       <div style={{ fontSize: '0.72rem', color: '#666666', marginTop: '0.2rem' }}>
                         {formatFileSize(file.size)} &bull; {formatTimestamp(file.timestamp)}{file.ip ? ` · ${file.ip}` : ''}
+                        {downloadCountMap[file.filename] !== undefined && (
+                          <span style={{ marginLeft: '0.5rem', color: '#7ef4cb' }}>
+                            &bull; {downloadCountMap[file.filename]} dl
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -2300,6 +2261,25 @@ export default function AdminDashboard() {
                       {feedback === 'err' && (
                         <span style={{ fontSize: '0.75rem', color: '#f5a5a5' }}>✗ Failed</span>
                       )}
+                      <button
+                        onClick={() => copyToClipboard(file.url)}
+                        title="Copy link"
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255,255,255,0.05)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#c3cad6',
+                          fontSize: '0.72rem',
+                          cursor: 'pointer',
+                          fontFamily: "'Open Sans', sans-serif",
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Copy
+                      </button>
                       <button
                         onClick={() => toggleFavoriteFile(file)}
                         disabled={organizingFiles}
@@ -2443,287 +2423,6 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Files List */}
-        {loading ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '3rem',
-            color: '#666666'
-          }}>
-            Loading files...
-          </div>
-        ) : filteredFiles.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '3rem',
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '16px',
-            color: '#666666'
-          }}>
-            {searchQuery || filterType !== 'all' ? 'No files match your filters' : 'No files uploaded yet'}
-          </div>
-        ) : (
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '16px',
-            overflow: 'auto'
-          }}>
-            <table style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              minWidth: '800px'
-            }}>
-              <thead>
-                <tr style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <th style={{
-                    padding: '1rem',
-                    textAlign: 'center',
-                    fontSize: '0.85rem',
-                    width: '50px'
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedFiles.size === filteredFiles.length && filteredFiles.length > 0}
-                      onChange={toggleSelectAll}
-                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                    />
-                  </th>
-                  <th 
-                    onClick={() => toggleSort('filename')}
-                    style={{
-                      padding: '1rem',
-                      textAlign: 'left',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      color: '#666666',
-                      cursor: 'pointer',
-                      userSelect: 'none'
-                    }}
-                  >
-                    Filename {sortKey === 'filename' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th 
-                    onClick={() => toggleSort('size')}
-                    style={{
-                      padding: '1rem',
-                      textAlign: 'left',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      color: '#666666',
-                      cursor: 'pointer',
-                      userSelect: 'none'
-                    }}
-                  >
-                    Size {sortKey === 'size' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th 
-                    onClick={() => toggleSort('timestamp')}
-                    style={{
-                      padding: '1rem',
-                      textAlign: 'left',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      color: '#666666',
-                      cursor: 'pointer',
-                      userSelect: 'none'
-                    }}
-                  >
-                    Uploaded {sortKey === 'timestamp' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th 
-                    onClick={() => toggleSort('ip')}
-                    style={{
-                      padding: '1rem',
-                      textAlign: 'left',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      color: '#666666',
-                      cursor: 'pointer',
-                      userSelect: 'none'
-                    }}
-                  >
-                    IP Address {sortKey === 'ip' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th style={{
-                    padding: '1rem',
-                    textAlign: 'center',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    color: '#666666'
-                  }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredFiles.map((file, index) => (
-                  <tr
-                    key={index}
-                    style={{
-                      borderBottom: index < filteredFiles.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
-                      background: selectedFiles.has(file.url) ? 'rgba(255, 255, 255, 0.05)' : 'transparent'
-                    }}
-                  >
-                    <td style={{
-                      padding: '1rem',
-                      textAlign: 'center'
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedFiles.has(file.url)}
-                        onChange={() => toggleSelectFile(file.url)}
-                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                      />
-                    </td>
-                    <td style={{
-                      padding: '1rem',
-                      fontSize: '0.9rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            color: '#5865F2',
-                            textDecoration: 'none',
-                            wordBreak: 'break-all'
-                          }}
-                        >
-                          {file.filename}
-                        </a>
-                        {file.quarantined && (
-                          <span style={{
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: '999px',
-                            border: '1px solid rgba(255, 120, 120, 0.45)',
-                            background: 'rgba(200, 60, 60, 0.18)',
-                            color: '#f2bcbc',
-                            fontSize: '0.65rem',
-                            letterSpacing: '0.04em'
-                          }}>
-                            Quarantined
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{
-                      padding: '1rem',
-                      fontSize: '0.875rem',
-                      color: '#666666'
-                    }}>
-                      {formatFileSize(file.size)}
-                    </td>
-                    <td style={{
-                      padding: '1rem',
-                      fontSize: '0.875rem',
-                      color: '#666666'
-                    }}>
-                      {formatTimestamp(file.timestamp)}
-                    </td>
-                    <td style={{
-                      padding: '1rem',
-                      fontSize: '0.875rem',
-                      color: '#666666',
-                      fontFamily: 'monospace'
-                    }}>
-                      {file.ip || 'Unknown'}
-                    </td>
-                    <td style={{
-                      padding: '1rem',
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => copyToClipboard(file.url)}
-                          title="Copy URL"
-                          style={{
-                            padding: '0.45rem 0.7rem',
-                            background: 'rgba(255,255,255,0.07)',
-                            backdropFilter: 'blur(10px)',
-                            WebkitBackdropFilter: 'blur(10px)',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            borderRadius: '8px',
-                            color: '#f5f5f5',
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                            fontFamily: "'Open Sans', sans-serif",
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
-                          }}
-                        >
-                          📋
-                        </button>
-                        <button
-                          onClick={() => toggleQuarantine(file)}
-                          title={file.quarantined ? 'Unquarantine' : 'Quarantine'}
-                          style={{
-                            padding: '0.45rem 0.7rem',
-                            background: file.quarantined ? 'rgba(255,255,255,0.05)' : 'rgba(255,200,100,0.18)',
-                            backdropFilter: 'blur(10px)',
-                            WebkitBackdropFilter: 'blur(10px)',
-                            border: file.quarantined ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,200,100,0.35)',
-                            borderRadius: '8px',
-                            color: file.quarantined ? '#8a92a1' : '#ffd1a3',
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                            fontFamily: "'Open Sans', sans-serif",
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
-                          }}
-                        >
-                          {file.quarantined ? '✅' : '🧪'}
-                        </button>
-                        {file.ip && (
-                          <button
-                            onClick={() => blacklistIpFromFile(file.ip)}
-                            title="Blacklist IP"
-                            style={{
-                              padding: '0.45rem 0.7rem',
-                              background: 'rgba(255,255,255,0.05)',
-                              backdropFilter: 'blur(10px)',
-                              WebkitBackdropFilter: 'blur(10px)',
-                              border: '1px solid rgba(255,255,255,0.1)',
-                              borderRadius: '8px',
-                              color: '#c3cad6',
-                              fontSize: '0.8rem',
-                              cursor: 'pointer',
-                              fontFamily: "'Open Sans', sans-serif",
-                              boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
-                            }}
-                          >
-                            🚫
-                          </button>
-                        )}
-                        <button
-                          onClick={() => deleteFile(file.url, file.filename)}
-                          disabled={deleting === file.url}
-                          style={{
-                            padding: '0.45rem 0.7rem',
-                            background: deleting === file.url ? 'rgba(255,255,255,0.05)' : 'rgba(180,50,50,0.18)',
-                            backdropFilter: 'blur(10px)',
-                            WebkitBackdropFilter: 'blur(10px)',
-                            border: deleting === file.url ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(220,80,80,0.3)',
-                            borderRadius: '8px',
-                            color: deleting === file.url ? '#8a92a1' : '#f5a5a5',
-                            fontSize: '0.8rem',
-                            cursor: deleting === file.url ? 'not-allowed' : 'pointer',
-                            opacity: deleting === file.url ? 0.5 : 1,
-                            fontFamily: "'Open Sans', sans-serif",
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
-                          }}
-                        >
-                          {deleting === file.url ? '⏳' : '🗑️'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );

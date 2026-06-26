@@ -250,32 +250,34 @@ export async function GET(
     const filename = path[path.length - 1];
     await updateLastAccessTime(filename);
     
-    // Track download before responding so increments are not lost on fast exits.
-    try {
-      const ip =
-        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        request.headers.get('x-real-ip') ||
-        'Unknown';
-      const userAgent = request.headers.get('user-agent') || 'Unknown';
-      const referer = request.headers.get('referer') || undefined;
-
-      let analyticsData = cleanupAnalyticsData(await loadAnalyticsData());
-      analyticsData = await recordDownloadEvent(analyticsData, {
-        filename,
-        fileKey: key,
-        ip,
-        userAgent,
-        bytes: Number(response.headers.get('Content-Length')) || undefined,
-        referer,
-        country: getCountry(request),
-      });
-      await saveAnalyticsData(analyticsData);
-    } catch {
-      // Ignore analytics errors
-    }
-    
-    // Return the file with proper headers
+    // ?dl= means the request came from the download page, which posts its own
+    // analytics event. Only track here for direct /d/[...] hits to avoid
+    // double-counting.
     const shouldDownload = request.nextUrl.searchParams.has('dl');
+    if (!shouldDownload) {
+      try {
+        const ip =
+          request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+          request.headers.get('x-real-ip') ||
+          'Unknown';
+        const userAgent = request.headers.get('user-agent') || 'Unknown';
+        const referer = request.headers.get('referer') || undefined;
+
+        let analyticsData = cleanupAnalyticsData(await loadAnalyticsData());
+        analyticsData = await recordDownloadEvent(analyticsData, {
+          filename,
+          fileKey: key,
+          ip,
+          userAgent,
+          bytes: Number(response.headers.get('Content-Length')) || undefined,
+          referer,
+          country: getCountry(request),
+        });
+        await saveAnalyticsData(analyticsData);
+      } catch (err) {
+        console.error('[analytics] failed to record direct download:', err);
+      }
+    }
     const originalFilename = shouldDownload ? await findOriginalFilenameByKey(key) : null;
 
     return new NextResponse(response.body, {

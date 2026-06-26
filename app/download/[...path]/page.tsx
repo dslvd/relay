@@ -634,12 +634,25 @@ export default function DownloadPage() {
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                    setTimeout(() => {
-                      fetch(`/api/analytics?key=${encodeURIComponent(pathKey)}&filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
-                        .then(res => res.json())
-                        .then(data => setDownloadCount(Number(data?.totalDownloads) || 0))
-                        .catch(() => {});
-                    }, 500);
+                    // Explicitly POST the download event so the count is tracked
+                    // reliably regardless of whether the /d/[...] proxy route
+                    // manages to record it (e.g. slow R2 response, cold start).
+                    fetch('/api/analytics', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        type: 'download',
+                        filename: fileData.filename || filename,
+                        fileKey: pathKey,
+                        bytes: fileData.size,
+                      }),
+                    })
+                      .then(() =>
+                        fetch(`/api/analytics?key=${encodeURIComponent(pathKey)}&filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
+                      )
+                      .then(res => res.json())
+                      .then(data => setDownloadCount(Number(data?.totalDownloads) || 0))
+                      .catch(() => {});
                   }}
                   style={{
                     display: 'flex',
