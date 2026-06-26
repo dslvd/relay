@@ -493,6 +493,22 @@ export default function Home() {
   const [deletingUrls, setDeletingUrls] = useState<Set<string>>(new Set());
   const lastSuccessUrlRef = useRef<string | null>(null);
 
+  // Drive-style file manager
+  const [fileViewMode, setFileViewMode] = useState<'grid' | 'list'>('list');
+  const [fileSort, setFileSort] = useState<'name' | 'date' | 'size' | 'type'>('date');
+  const [fileSortDir, setFileSortDir] = useState<'asc' | 'desc'>('desc');
+  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+  const [filesFolderMap, setFilesFolderMap] = useState<Record<string, string>>({});
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
+  const [renamingUrl, setRenamingUrl] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renameFolderValue, setRenameFolderValue] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [movingFileUrl, setMovingFileUrl] = useState<string | null>(null);
+
   const t = isDark ? DARK_T : LIGHT_T;
 
   useEffect(() => {
@@ -517,6 +533,27 @@ export default function Home() {
       // Ignore storage errors.
     }
   }, [uploadedFiles]);
+
+  // Persist drive metadata (folders, folder assignments, display names).
+  useEffect(() => {
+    try {
+      const f = localStorage.getItem('relay:folders');
+      if (f) setFolders(JSON.parse(f));
+      const m = localStorage.getItem('relay:filesFolderMap');
+      if (m) setFilesFolderMap(JSON.parse(m));
+      const n = localStorage.getItem('relay:displayNames');
+      if (n) setDisplayNames(JSON.parse(n));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem('relay:folders', JSON.stringify(folders)); } catch {}
+  }, [folders]);
+  useEffect(() => {
+    try { localStorage.setItem('relay:filesFolderMap', JSON.stringify(filesFolderMap)); } catch {}
+  }, [filesFolderMap]);
+  useEffect(() => {
+    try { localStorage.setItem('relay:displayNames', JSON.stringify(displayNames)); } catch {}
+  }, [displayNames]);
 
   useEffect(() => {
     return () => {
@@ -1763,6 +1800,29 @@ export default function Home() {
     });
   }, [uploadedFiles, uploadedFilesSearch, uploadedFilesFilter]);
 
+  // Files visible in the current drive folder, sorted.
+  const driveFiles = useMemo(() => {
+    const base = filteredUploadedFiles.filter(f => {
+      const assigned = filesFolderMap[f.url];
+      if (currentFolderId === null) {
+        return !assigned || !folders.find(folder => folder.id === assigned);
+      }
+      return assigned === currentFolderId;
+    });
+    return [...base].sort((a, b) => {
+      const nameA = displayNames[a.url] || formatDisplayName(a.filename);
+      const nameB = displayNames[b.url] || formatDisplayName(b.filename);
+      const extA = a.filename.split('.').pop()?.toLowerCase() || '';
+      const extB = b.filename.split('.').pop()?.toLowerCase() || '';
+      let cmp = 0;
+      if (fileSort === 'name') cmp = nameA.localeCompare(nameB);
+      else if (fileSort === 'date') cmp = a.timestamp - b.timestamp;
+      else if (fileSort === 'size') cmp = (a.size || 0) - (b.size || 0);
+      else if (fileSort === 'type') cmp = extA.localeCompare(extB);
+      return fileSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredUploadedFiles, filesFolderMap, folders, currentFolderId, fileSort, fileSortDir, displayNames]);
+
   return (
     <>
       <main style={{
@@ -2467,284 +2527,307 @@ export default function Home() {
         )}
 
         {activeView === 'upload' && uploadedFiles.length > 0 && showUploadedFiles && (
-          <div style={{
-            marginTop: '2rem',
-            animation: 'fadeSlideIn 0.8s ease-out',
-            width: '100%',
-            maxWidth: '720px'
-          }}>
-            <div style={{
-              display: 'flex',
-              gap: '0.75rem',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1rem'
-            }}>
-              <p style={{
-                fontSize: '1rem',
-                color: 'var(--c-text)',
-                fontWeight: 500,
-                textAlign: 'left',
-                margin: 0
-              }}>
-                Uploaded Files • {filteredUploadedFiles.length}/{uploadedFiles.length}
-              </p>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ marginTop: '2rem', animation: 'fadeSlideIn 0.8s ease-out', width: '100%', maxWidth: '720px' }}>
+
+            {/* ── Toolbar ── */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {/* Breadcrumb */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                <button
+                  onClick={() => setCurrentFolderId(null)}
+                  style={{ background: 'none', border: 'none', padding: 0, color: currentFolderId ? 'var(--c-dim)' : 'var(--c-text)', cursor: currentFolderId ? 'pointer' : 'default', fontWeight: 600, fontSize: '0.85rem', fontFamily: 'inherit' }}
+                >
+                  Files
+                </button>
+                {currentFolderId && (() => {
+                  const folder = folders.find(f => f.id === currentFolderId);
+                  return folder ? (
+                    <>
+                      <span style={{ color: 'var(--c-dim)', opacity: 0.5 }}>›</span>
+                      <span style={{ color: 'var(--c-text)' }}>{folder.name}</span>
+                    </>
+                  ) : null;
+                })()}
+                <span style={{ color: 'var(--c-dim)', fontWeight: 400, fontSize: '0.75rem' }}>
+                  {driveFiles.length} {driveFiles.length === 1 ? 'item' : 'items'}
+                  {filteredUploadedFiles.length < uploadedFiles.length ? ` of ${uploadedFiles.length}` : ''}
+                </span>
+              </div>
+
+              {/* Right controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <input
                   value={uploadedFilesSearch}
-                  onChange={(e) => setUploadedFilesSearch(e.target.value)}
-                  placeholder="Search files or links"
-                  aria-label="Search uploaded files"
-                  style={{
-                    minWidth: '220px',
-                    padding: '0.55rem 0.8rem',
-                    borderRadius: '10px',
-                    border: `1px solid ${t.inputBorder}`,
-                    background: t.input,
-                    color: 'var(--c-text)',
-                    fontSize: '0.82rem',
-                    outline: 'none',
-                  }}
+                  onChange={e => setUploadedFilesSearch(e.target.value)}
+                  placeholder="Search…"
+                  style={{ width: '130px', padding: '0.38rem 0.65rem', borderRadius: '8px', border: `1px solid ${t.inputBorder}`, background: t.input, color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none' }}
                 />
                 <select
                   value={uploadedFilesFilter}
-                  onChange={(e) => setUploadedFilesFilter(e.target.value as typeof uploadedFilesFilter)}
-                  aria-label="Filter uploaded files"
-                  style={{
-                    padding: '0.55rem 0.8rem',
-                    borderRadius: '10px',
-                    border: `1px solid ${t.inputBorder}`,
-                    background: t.input,
-                    color: 'var(--c-text)',
-                    fontSize: '0.82rem',
-                    outline: 'none',
-                    cursor: 'pointer',
-                  }}
+                  onChange={e => setUploadedFilesFilter(e.target.value as typeof uploadedFilesFilter)}
+                  style={{ padding: '0.38rem 0.55rem', borderRadius: '8px', border: `1px solid ${t.inputBorder}`, background: t.input, color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none', cursor: 'pointer' }}
                 >
-                  <option value="all">All files</option>
+                  <option value="all">All</option>
                   <option value="images">Images</option>
                   <option value="videos">Videos</option>
-                  <option value="documents">Documents</option>
+                  <option value="documents">Docs</option>
                 </select>
+                <button
+                  onClick={() => { setCreatingFolder(true); setNewFolderName(''); }}
+                  title="New folder"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.28rem', padding: '0.38rem 0.65rem', borderRadius: '8px', border: `1px solid ${t.border}`, background: t.surface, color: 'var(--c-text)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                  New folder
+                </button>
+                {/* View toggle */}
+                <div style={{ display: 'flex', borderRadius: '8px', border: `1px solid ${t.border}`, overflow: 'hidden' }}>
+                  {(['list', 'grid'] as const).map(mode => (
+                    <button key={mode} onClick={() => setFileViewMode(mode)} title={`${mode} view`}
+                      style={{ padding: '0.38rem 0.5rem', background: fileViewMode === mode ? t.surface : 'transparent', border: 'none', borderRight: mode === 'list' ? `1px solid ${t.border}` : 'none', color: fileViewMode === mode ? 'var(--c-text)' : 'var(--c-dim)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      {mode === 'list'
+                        ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                        : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-            
-            <div
-              id="uploaded-files-list"
-              style={{
-              maxHeight: '320px',
-              overflowY: 'auto',
-              background: t.card,
-              backdropFilter: 'blur(20px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-              border: `1px solid ${t.border}`,
-              borderRadius: '16px',
-              padding: '0.85rem',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)'
-            }}>
-              {filteredUploadedFiles.length === 0 ? (
-                <div style={{ padding: '1rem', color: 'var(--c-dim)', fontSize: '0.85rem' }}>
-                  No uploaded files match your search.
-                </div>
-              ) : filteredUploadedFiles.map((fileItem, index) => {
-                const filename = fileItem.filename;
-                const url = fileItem.url;
-                const lowerExt = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
-                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(lowerExt || '');
-                const keyFromUrl = url.includes('/download/')
-                  ? url.split('/download/').pop()
-                  : url.includes('/d/')
-                    ? url.split('/d/').pop()
-                  : url.split('/').pop();
-                const thumbKey = keyFromUrl ? keyFromUrl.split('?')[0] : '';
-                const extension = filename.includes('.')
-                  ? filename.split('.').pop()?.toUpperCase()
-                  : 'FILE';
 
-                return (
-                  <div
-                    key={index}
-                    style={{
-                      marginBottom: index < filteredUploadedFiles.length - 1 ? '0.85rem' : '0',
-                      padding: '0.95rem 1.1rem',
-                      background: t.card,
-                      backdropFilter: 'blur(12px)',
-                      WebkitBackdropFilter: 'blur(12px)',
-                      border: `1px solid ${t.border}`,
-                      borderRadius: '16px',
-                      transition: 'border-color 0.2s ease',
-                      cursor: 'default',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)'
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '1rem'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        minWidth: 0
-                      }}>
-                        {isImage && thumbKey && (
-                          <img
-                            src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=96&h=96`}
-                            alt=""
-                            loading="lazy"
-                            style={{
-                              width: '40px',
-                              height: '40px',
-                              borderRadius: '12px',
-                              objectFit: 'cover',
-                              border: `1px solid ${t.inputBorder}`,
-                              background: t.card
-                            }}
-                          />
-                        )}
-                        <span style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '999px',
-                          background: '#e9ecf2',
-                          opacity: 0.8
-                        }} />
-                        <div style={{ textAlign: 'left', minWidth: 0 }}>
-                          <div style={{
-                            fontSize: '0.95rem',
-                            color: 'var(--c-text)',
-                            fontWeight: 500,
-                            wordBreak: 'break-all'
-                          }}>
-                            {formatDisplayName(filename)}
-                          </div>
-                          <div style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--c-dim)'
-                          }}>
-                            Uploaded {formatTimestamp(fileItem.timestamp)}
-                          </div>
-                        </div>
-                      </div>
+            {/* ── Panel ── */}
+            <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: '14px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }}>
 
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.45rem'
-                      }}>
-                        <div style={{
-                          fontSize: '0.7rem',
-                          color: 'var(--c-text)',
-                          background: t.surface,
-                          backdropFilter: 'blur(10px)',
-                          WebkitBackdropFilter: 'blur(10px)',
-                          border: `1px solid ${t.border}`,
-                          padding: '0.25rem 0.6rem',
-                          borderRadius: '999px',
-                          letterSpacing: '0.08em',
-                          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)'
-                        }}>
-                          {extension}
-                        </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); copyToClipboard(url); }}
-                          aria-label="Share link"
-                          title="Share link"
-                          style={{
-                            width: '28px', height: '28px', borderRadius: '999px',
-                            border: `1px solid ${t.border}`,
-                            background: t.surface,
-                            backdropFilter: 'blur(10px)',
-                            WebkitBackdropFilter: 'blur(10px)',
-                            color: 'var(--c-text)', fontSize: '0.9rem', lineHeight: '1',
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-                          }}
-                        >
-                          <MonoIcon name="share" className="monoIcon" width={12} height={12} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setQrPopoverUrl(toDownloadPageUrl(url)); }}
-                          aria-label="Show QR code"
-                          title="QR code"
-                          style={{
-                            width: '28px', height: '28px', borderRadius: '999px',
-                            border: `1px solid ${t.border}`,
-                            background: t.surface,
-                            backdropFilter: 'blur(10px)',
-                            WebkitBackdropFilter: 'blur(10px)',
-                            color: 'var(--c-text)', fontSize: '0.9rem', lineHeight: '1',
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-                          }}
-                        >
-                          <MonoIcon name="qrCode" className="monoIcon" width={12} height={12} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deleteUploadedFile(url); }}
-                          aria-label="Delete file"
-                          title="Delete file"
-                          disabled={deletingUrls.has(url)}
-                          style={{
-                            width: '28px', height: '28px', borderRadius: '999px',
-                            border: '1px solid rgba(242,100,100,0.3)',
-                            background: 'rgba(242,100,100,0.08)',
-                            backdropFilter: 'blur(10px)',
-                            WebkitBackdropFilter: 'blur(10px)',
-                            color: deletingUrls.has(url) ? 'rgba(242,100,100,0.4)' : '#f26464',
-                            fontSize: '0.9rem', lineHeight: '1',
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: deletingUrls.has(url) ? 'not-allowed' : 'pointer',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
-                          {deletingUrls.has(url)
-                            ? <span style={{ fontSize: '0.6rem', opacity: 0.6 }}>…</span>
-                            : <MonoIcon name="trash" className="monoIcon" width={12} height={12} />
-                          }
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{
-                      marginTop: '0.75rem',
-                      display: 'grid',
-                      gridTemplateColumns: '72px 1fr',
-                      gap: '0.35rem 0.9rem',
-                      alignItems: 'center',
-                      textAlign: 'left'
-                    }}>
-                      <div style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--c-dim)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em'
-                      }}>
-                        Link
-                      </div>
-                        <a 
-                          href={toDownloadPageUrl(url)} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        style={{
-                          color: 'var(--c-sub)',
-                          fontSize: '0.8rem',
-                          textDecoration: 'none',
-                          wordBreak: 'break-all'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
+              {/* Sort header — list view only */}
+              {fileViewMode === 'list' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 68px 88px 80px', gap: '0.5rem', padding: '0.42rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, alignItems: 'center' }}>
+                  {([['name','Name'],['type','Type'],['size','Size'],['date','Modified']] as const).map(([col, label]) => {
+                    const active = fileSort === col;
+                    return (
+                      <button key={col} onClick={() => { if (active) setFileSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setFileSort(col); setFileSortDir(col === 'date' ? 'desc' : 'asc'); } }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.22rem', background: 'none', border: 'none', color: active ? 'var(--c-text)' : 'var(--c-dim)', fontSize: '0.68rem', fontWeight: active ? 700 : 500, cursor: 'pointer', padding: '0.1rem 0', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}
                       >
-                        {url}
-                      </a>
+                        {label}
+                        {active && <svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">{fileSortDir === 'asc' ? <path d="M5 2L9 8H1Z"/> : <path d="M5 8L1 2H9Z"/>}</svg>}
+                      </button>
+                    );
+                  })}
+                  <div/>
+                </div>
+              )}
 
-                    </div>
+              <div style={{ maxHeight: '420px', overflowY: 'auto' }}>
+
+                {/* New folder inline input */}
+                {creatingFolder && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.65rem 0.85rem', borderBottom: `1px solid ${t.borderSub}` }}>
+                    <svg width="16" height="14" viewBox="0 0 24 24" fill="rgba(251,191,36,0.2)" stroke="rgba(251,191,36,0.85)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { const n = newFolderName.trim(); if (n) setFolders(p => [...p, { id: `folder-${Date.now()}`, name: n }]); setCreatingFolder(false); setNewFolderName(''); } if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); } }}
+                      onBlur={() => { const n = newFolderName.trim(); if (n) setFolders(p => [...p, { id: `folder-${Date.now()}`, name: n }]); setCreatingFolder(false); setNewFolderName(''); }}
+                      placeholder="Folder name"
+                      style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--c-text)', fontSize: '0.85rem', fontWeight: 500, fontFamily: 'inherit' }}
+                    />
                   </div>
-                );
-              })}
+                )}
+
+                {/* Folders — root only */}
+                {currentFolderId === null && folders.map(folder => {
+                  const fileCount = Object.values(filesFolderMap).filter(v => v === folder.id).length;
+                  const isRenaming = renamingFolderId === folder.id;
+                  const rowStyle: React.CSSProperties = fileViewMode === 'list'
+                    ? { display: 'grid', gridTemplateColumns: '1fr 52px 68px 88px 80px', gap: '0.5rem', padding: '0.62rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, cursor: 'pointer', transition: 'background 0.12s', alignItems: 'center' }
+                    : { display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.62rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, cursor: 'pointer', transition: 'background 0.12s' };
+                  return (
+                    <div key={folder.id} style={rowStyle}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.surface; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}
+                        onClick={() => !isRenaming && setCurrentFolderId(folder.id)}
+                        onDoubleClick={e => { e.stopPropagation(); setRenamingFolderId(folder.id); setRenameFolderValue(folder.name); }}
+                      >
+                        <svg width="17" height="15" viewBox="0 0 24 24" fill="rgba(251,191,36,0.2)" stroke="rgba(251,191,36,0.85)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        {isRenaming ? (
+                          <input autoFocus value={renameFolderValue} onChange={e => setRenameFolderValue(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            onKeyDown={e => { if (e.key === 'Enter') { const n = renameFolderValue.trim(); if (n) setFolders(p => p.map(f => f.id === folder.id ? { ...f, name: n } : f)); setRenamingFolderId(null); } if (e.key === 'Escape') setRenamingFolderId(null); }}
+                            onBlur={() => { const n = renameFolderValue.trim(); if (n) setFolders(p => p.map(f => f.id === folder.id ? { ...f, name: n } : f)); setRenamingFolderId(null); }}
+                            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--c-text)', fontSize: '0.85rem', fontWeight: 500, fontFamily: 'inherit', padding: 0 }}
+                          />
+                        ) : (
+                          <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--c-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</span>
+                        )}
+                      </div>
+                      {fileViewMode === 'list' && (
+                        <>
+                          <span/>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--c-dim)' }}>{fileCount} {fileCount === 1 ? 'file' : 'files'}</span>
+                          <span/>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.28rem', justifyContent: 'flex-end' }}>
+                            <button onClick={e => { e.stopPropagation(); setRenamingFolderId(folder.id); setRenameFolderValue(folder.name); }} title="Rename" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); setFolders(p => p.filter(f => f.id !== folder.id)); setFilesFolderMap(p => { const n = { ...p }; Object.keys(n).forEach(k => { if (n[k] === folder.id) delete n[k]; }); return n; }); }} title="Delete folder" style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <MonoIcon name="trash" width={9} height={9} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Empty state */}
+                {driveFiles.length === 0 && !creatingFolder && (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--c-dim)', fontSize: '0.82rem' }}>
+                    {currentFolderId ? 'This folder is empty.' : uploadedFilesSearch ? 'No files match your search.' : 'No files here yet.'}
+                  </div>
+                )}
+
+                {/* Files — list view */}
+                {fileViewMode === 'list' && driveFiles.map(fileItem => {
+                  const { filename, url } = fileItem;
+                  const displayName = displayNames[url] || formatDisplayName(filename);
+                  const ext = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
+                  const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext || '');
+                  const keyFromUrl = url.includes('/download/') ? url.split('/download/').pop() : url.includes('/d/') ? url.split('/d/').pop() : url.split('/').pop();
+                  const thumbKey = keyFromUrl ? keyFromUrl.split('?')[0] : '';
+                  const extLabel = filename.includes('.') ? filename.split('.').pop()?.toUpperCase() : 'FILE';
+                  const isRenamingThis = renamingUrl === url;
+                  const isMovingThis = movingFileUrl === url;
+                  const assignedFolder = filesFolderMap[url];
+
+                  return (
+                    <div key={url} style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 52px 68px 88px 80px', gap: '0.5rem', padding: '0.58rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, alignItems: 'center', transition: 'background 0.12s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.surface; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    >
+                      {/* Name */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
+                        {isImage && thumbKey
+                          ? <img src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=64&h=64`} alt="" loading="lazy" style={{ width: '26px', height: '26px', borderRadius: '5px', objectFit: 'cover', border: `1px solid ${t.border}`, flexShrink: 0 }} />
+                          : <div style={{ width: '26px', height: '26px', borderRadius: '5px', background: t.surface, border: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.42rem', fontWeight: 700, color: 'var(--c-dim)', letterSpacing: '0.04em', flexShrink: 0 }}>{extLabel?.slice(0,4)}</div>
+                        }
+                        {isRenamingThis ? (
+                          <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { const n = renameValue.trim(); if (n) setDisplayNames(p => ({ ...p, [url]: n })); setRenamingUrl(null); } if (e.key === 'Escape') setRenamingUrl(null); }}
+                            onBlur={() => { const n = renameValue.trim(); if (n) setDisplayNames(p => ({ ...p, [url]: n })); setRenamingUrl(null); }}
+                            style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: 'var(--c-text)', fontSize: '0.84rem', fontWeight: 500, padding: 0, fontFamily: 'inherit' }}
+                          />
+                        ) : (
+                          <span onDoubleClick={() => { setRenamingUrl(url); setRenameValue(displayName); }} title="Double-click to rename"
+                            style={{ fontSize: '0.84rem', fontWeight: 500, color: 'var(--c-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text' }}
+                          >{displayName}</span>
+                        )}
+                      </div>
+                      {/* Type */}
+                      <span style={{ fontSize: '0.7rem', color: 'var(--c-dim)', fontWeight: 500 }}>{extLabel}</span>
+                      {/* Size */}
+                      <span style={{ fontSize: '0.71rem', color: 'var(--c-dim)' }}>{typeof fileItem.size === 'number' ? formatFileSize(fileItem.size) : '—'}</span>
+                      {/* Date */}
+                      <span style={{ fontSize: '0.71rem', color: 'var(--c-dim)' }}>{formatTimestamp(fileItem.timestamp)}</span>
+                      {/* Actions */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.26rem', justifyContent: 'flex-end' }}>
+                        <button onClick={e => { e.stopPropagation(); copyToClipboard(url); }} title="Copy link" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                          <MonoIcon name="share" width={10} height={10} />
+                        </button>
+                        {/* Move to folder */}
+                        <div style={{ position: 'relative' }}>
+                          <button onClick={e => { e.stopPropagation(); setMovingFileUrl(isMovingThis ? null : url); }} title="Move to folder"
+                            style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${isMovingThis ? 'rgba(251,191,36,0.5)' : t.border}`, background: isMovingThis ? 'rgba(251,191,36,0.12)' : 'transparent', color: isMovingThis ? 'rgba(251,191,36,0.9)' : 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                          </button>
+                          {isMovingThis && (
+                            <div style={{ position: 'absolute', right: 0, top: '28px', zIndex: 100, background: isDark ? '#16162a' : '#ffffff', border: `1px solid ${t.border}`, borderRadius: '10px', padding: '0.3rem', minWidth: '150px', boxShadow: '0 8px 28px rgba(0,0,0,0.4)', backdropFilter: 'blur(14px)' }}>
+                              {folders.length === 0 && <div style={{ padding: '0.45rem 0.65rem', fontSize: '0.74rem', color: 'var(--c-dim)' }}>No folders — create one first</div>}
+                              {folders.map(folder => (
+                                <button key={folder.id} onClick={e => { e.stopPropagation(); setFilesFolderMap(p => ({ ...p, [url]: folder.id })); setMovingFileUrl(null); }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '100%', padding: '0.4rem 0.6rem', background: assignedFolder === folder.id ? t.surface : 'transparent', border: 'none', borderRadius: '6px', color: 'var(--c-text)', fontSize: '0.78rem', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="rgba(251,191,36,0.2)" stroke="rgba(251,191,36,0.85)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                  <span style={{ flex: 1 }}>{folder.name}</span>
+                                  {assignedFolder === folder.id && <span style={{ color: '#7ef4cb', fontSize: '0.65rem' }}>✓</span>}
+                                </button>
+                              ))}
+                              {assignedFolder && (
+                                <button onClick={e => { e.stopPropagation(); setFilesFolderMap(p => { const n = { ...p }; delete n[url]; return n; }); setMovingFileUrl(null); }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '100%', padding: '0.4rem 0.6rem', background: 'transparent', border: 'none', borderRadius: '6px', color: 'var(--c-dim)', fontSize: '0.74rem', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', marginTop: '0.15rem', borderTop: `1px solid ${t.borderSub}` }}
+                                >
+                                  Remove from folder
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {/* Delete */}
+                        <button onClick={e => { e.stopPropagation(); deleteUploadedFile(url); }} disabled={deletingUrls.has(url)} title="Delete"
+                          style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: deletingUrls.has(url) ? 'rgba(242,100,100,0.4)' : '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: deletingUrls.has(url) ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}
+                        >
+                          {deletingUrls.has(url) ? <span style={{ fontSize: '0.55rem' }}>…</span> : <MonoIcon name="trash" width={9} height={9} />}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Files — grid view */}
+                {fileViewMode === 'grid' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.5rem', padding: '0.7rem' }}>
+                    {/* Folder cards */}
+                    {currentFolderId === null && folders.map(folder => (
+                      <div key={folder.id} onDoubleClick={() => setCurrentFolderId(folder.id)}
+                        style={{ borderRadius: '10px', border: `1px solid ${t.border}`, background: t.surface, padding: '0.7rem 0.6rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', transition: 'background 0.12s' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.card; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = t.surface; }}
+                      >
+                        <svg width="34" height="30" viewBox="0 0 24 24" fill="rgba(251,191,36,0.18)" stroke="rgba(251,191,36,0.85)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--c-text)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{folder.name}</span>
+                        <span style={{ fontSize: '0.6rem', color: 'var(--c-dim)' }}>{Object.values(filesFolderMap).filter(v => v === folder.id).length} files</span>
+                      </div>
+                    ))}
+                    {/* File cards */}
+                    {driveFiles.map(fileItem => {
+                      const { filename, url } = fileItem;
+                      const displayName = displayNames[url] || formatDisplayName(filename);
+                      const ext = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
+                      const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext || '');
+                      const keyFromUrl = url.includes('/download/') ? url.split('/download/').pop() : url.includes('/d/') ? url.split('/d/').pop() : url.split('/').pop();
+                      const thumbKey = keyFromUrl ? keyFromUrl.split('?')[0] : '';
+                      const extLabel = filename.includes('.') ? filename.split('.').pop()?.toUpperCase() : 'FILE';
+                      const isRenamingThis = renamingUrl === url;
+                      return (
+                        <div key={url} style={{ borderRadius: '10px', border: `1px solid ${t.border}`, background: t.surface, padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', position: 'relative', transition: 'background 0.12s' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.card; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = t.surface; }}
+                        >
+                          {isImage && thumbKey
+                            ? <img src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=200&h=200`} alt="" loading="lazy" style={{ width: '100%', height: '72px', objectFit: 'cover', borderRadius: '6px', border: `1px solid ${t.border}` }} />
+                            : <div style={{ width: '100%', height: '72px', borderRadius: '6px', background: t.card, border: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 700, color: 'var(--c-dim)', letterSpacing: '0.06em' }}>{extLabel?.slice(0,5)}</div>
+                          }
+                          {isRenamingThis ? (
+                            <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') { const n = renameValue.trim(); if (n) setDisplayNames(p => ({ ...p, [url]: n })); setRenamingUrl(null); } if (e.key === 'Escape') setRenamingUrl(null); }}
+                              onBlur={() => { const n = renameValue.trim(); if (n) setDisplayNames(p => ({ ...p, [url]: n })); setRenamingUrl(null); }}
+                              style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--c-text)', fontSize: '0.7rem', fontWeight: 600, padding: 0, width: '100%', textAlign: 'center', fontFamily: 'inherit' }}
+                            />
+                          ) : (
+                            <span onDoubleClick={() => { setRenamingUrl(url); setRenameValue(displayName); }} title="Double-click to rename"
+                              style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--c-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center', cursor: 'text' }}
+                            >{displayName}</span>
+                          )}
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.28rem' }}>
+                            <button onClick={e => { e.stopPropagation(); copyToClipboard(url); }} title="Copy link" style={{ width: '22px', height: '22px', borderRadius: '5px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><MonoIcon name="share" width={9} height={9} /></button>
+                            <button onClick={e => { e.stopPropagation(); setQrPopoverUrl(toDownloadPageUrl(url)); }} title="QR code" style={{ width: '22px', height: '22px', borderRadius: '5px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><MonoIcon name="qrCode" width={9} height={9} /></button>
+                            <button onClick={e => { e.stopPropagation(); deleteUploadedFile(url); }} disabled={deletingUrls.has(url)} title="Delete" style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><MonoIcon name="trash" width={9} height={9} /></button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
