@@ -29,6 +29,8 @@ export default function DownloadPage() {
   const [isCopied, setIsCopied] = useState(false);
   const [isEmbedCopied, setIsEmbedCopied] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
+  const [showCdn, setShowCdn] = useState(false);
+  const [isCdnCopied, setIsCdnCopied] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
@@ -39,6 +41,10 @@ export default function DownloadPage() {
   const shortLink = typeof window !== 'undefined'
     ? `${window.location.origin}${downloadPageUrl}`
     : downloadPageUrl;
+
+  const cdnUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}${downloadUrl}`
+    : downloadUrl;
 
   const isPreviewable = (fname: string): boolean => {
     const ext = fname.split('.').pop()?.toLowerCase() || '';
@@ -816,6 +822,32 @@ export default function DownloadPage() {
                       Embed
                     </button>
                   )}
+
+                  <button
+                    onClick={() => setShowCdn((prev) => !prev)}
+                    title="CDN link — direct URL for use as src"
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.38rem',
+                      padding: '0.5rem 0.7rem',
+                      borderRadius: '8px',
+                      background: showCdn ? 'rgba(128,128,128,0.13)' : 'rgba(128,128,128,0.05)',
+                      border: `1px solid ${showCdn ? 'rgba(128,128,128,0.28)' : 'rgba(128,128,128,0.14)'}`,
+                      color: 'var(--c-dim)',
+                      fontSize: '0.73rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.18s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(128,128,128,0.11)'; e.currentTarget.style.color = 'var(--c-text)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = showCdn ? 'rgba(128,128,128,0.13)' : 'rgba(128,128,128,0.05)'; e.currentTarget.style.color = 'var(--c-dim)'; }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    CDN link
+                  </button>
                 </div>
 
                 {/* ── Expanded panels ── */}
@@ -828,6 +860,66 @@ export default function DownloadPage() {
                       background: 'rgba(128,128,128,0.06)',
                     }}>
                       <img src={qrDataUrl} alt="QR code" style={{ width: '200px', height: '200px', display: 'block' }} />
+                    </div>
+                  </div>
+                )}
+
+                {showCdn && (
+                  <div style={{ marginTop: '0.65rem' }}>
+                    <div style={{
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(128,128,128,0.13)',
+                      background: 'rgba(128,128,128,0.05)',
+                      fontSize: '0.68rem',
+                      color: 'var(--c-dim)',
+                      marginBottom: '0.45rem',
+                      lineHeight: 1.4,
+                    }}>
+                      Direct URL — use as <code style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--c-text)' }}>src</code> in <code style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--c-text)' }}>&lt;img&gt;</code>, <code style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--c-text)' }}>&lt;video&gt;</code>, CSS, or any app
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(cdnUrl);
+                        setIsCdnCopied(true);
+                        setTimeout(() => setIsCdnCopied(false), 2000);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '0.52rem 0.9rem',
+                        borderRadius: '8px',
+                        background: isCdnCopied ? 'rgba(79,248,192,0.12)' : 'rgba(128,128,128,0.07)',
+                        border: `1px solid ${isCdnCopied ? 'rgba(79,248,192,0.35)' : 'rgba(128,128,128,0.16)'}`,
+                        color: isCdnCopied ? '#4ff8c0' : 'var(--c-text)',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.18s ease',
+                        marginBottom: '0.45rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.38rem',
+                      }}
+                    >
+                      {isCdnCopied ? (
+                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Copied</>
+                      ) : (
+                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Copy CDN link</>
+                      )}
+                    </button>
+                    <div style={{
+                      padding: '0.6rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(128,128,128,0.13)',
+                      background: 'rgba(128,128,128,0.05)',
+                      fontSize: '0.7rem',
+                      color: 'var(--c-dim)',
+                      lineHeight: 1.45,
+                      wordBreak: 'break-all',
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    }}>
+                      {cdnUrl}
                     </div>
                   </div>
                 )}

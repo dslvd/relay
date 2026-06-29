@@ -1497,6 +1497,26 @@ export default function Home() {
     }
   };
 
+  const toCdnUrl = (rawUrl: string) => {
+    const base = typeof window !== 'undefined' ? window.location.origin : '';
+    try {
+      const parsed = new URL(rawUrl, base || 'http://localhost');
+      const cleanPath = parsed.pathname.replace(/\/+$/, '');
+      if (cleanPath.includes('/download/')) {
+        const key = cleanPath.split('/download/')[1] || '';
+        return `${base}/d/${key}`;
+      }
+      if (cleanPath.includes('/d/')) {
+        return `${base}${cleanPath}`;
+      }
+      const tail = cleanPath.split('/').filter(Boolean).pop() || '';
+      return `${base}/d/${tail}`;
+    } catch {
+      const tail = rawUrl.split('/').filter(Boolean).pop() || '';
+      return `${base}/d/${tail}`;
+    }
+  };
+
   const getDownloadLinks = (): string[] => {
     return uploadedFiles.map((file) => toDownloadPageUrl(file.url));
   };
@@ -2500,6 +2520,17 @@ export default function Home() {
                       )}
                     </div>
                     <div className="queue-item__actions">
+                      {item.status === 'success' && item.downloadUrl && (
+                        <button
+                          onClick={() => copyText(toCdnUrl(item.downloadUrl!), 'CDN link copied!')}
+                          className="queue-icon-btn"
+                          title="Copy CDN link (direct URL for use as src)"
+                          aria-label="Copy CDN link"
+                          type="button"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                        </button>
+                      )}
                       {item.status === 'error' && (
                         <button
                           onClick={() => retryQueueItem(item.id)}
@@ -2744,8 +2775,11 @@ export default function Home() {
                       <span style={{ fontSize: '0.71rem', color: 'var(--c-dim)' }}>{formatTimestamp(fileItem.timestamp)}</span>
                       {/* Actions */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.26rem', justifyContent: 'flex-end' }}>
-                        <button onClick={e => { e.stopPropagation(); copyToClipboard(url); }} title="Copy link" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        <button onClick={e => { e.stopPropagation(); copyToClipboard(url); }} title="Copy share link" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                           <MonoIcon name="share" width={10} height={10} />
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); copyText(toCdnUrl(url), 'CDN link copied!'); }} title="Copy CDN link (direct URL for use as src)" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                         </button>
                         {/* Move to folder */}
                         <div style={{ position: 'relative' }}>
