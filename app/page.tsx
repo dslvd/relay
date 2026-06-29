@@ -1099,7 +1099,7 @@ export default function Home() {
 
     if (!multipart) {
       const randomFilename = generateRandomFilename(file.name);
-      const pathname = `d/${randomFilename}`;
+      const pathname = randomFilename;
       const initRes = await fetchWithRetry(
         '/api/multipart/init',
         {
@@ -1504,16 +1504,20 @@ export default function Home() {
       const cleanPath = parsed.pathname.replace(/\/+$/, '');
       if (cleanPath.includes('/download/')) {
         const key = cleanPath.split('/download/')[1] || '';
-        return `${base}/d/${key}`;
+        return `${base}/p/${key}`;
       }
       if (cleanPath.includes('/d/')) {
+        const key = cleanPath.split('/d/')[1] || '';
+        return `${base}/p/${key}`;
+      }
+      if (cleanPath.includes('/p/')) {
         return `${base}${cleanPath}`;
       }
       const tail = cleanPath.split('/').filter(Boolean).pop() || '';
-      return `${base}/d/${tail}`;
+      return `${base}/p/${tail}`;
     } catch {
       const tail = rawUrl.split('/').filter(Boolean).pop() || '';
-      return `${base}/d/${tail}`;
+      return `${base}/p/${tail}`;
     }
   };
 

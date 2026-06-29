@@ -213,7 +213,7 @@ function fileQuarantinedResponse(): NextResponse {
 async function resolveDownloadObjectKey(pathParts: string[]): Promise<string> {
   const key = pathParts.join('/');
   const aliasTarget = await resolveAliasObjectKey(key);
-  return aliasTarget || `d/${key}`;
+  return aliasTarget || key;
 }
 
 export async function GET(

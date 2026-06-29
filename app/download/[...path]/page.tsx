@@ -43,8 +43,8 @@ export default function DownloadPage() {
     : downloadPageUrl;
 
   const cdnUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}${downloadUrl}`
-    : downloadUrl;
+    ? `${window.location.origin}/p/${pathKey}`
+    : `/p/${pathKey}`;
 
   const isPreviewable = (fname: string): boolean => {
     const ext = fname.split('.').pop()?.toLowerCase() || '';

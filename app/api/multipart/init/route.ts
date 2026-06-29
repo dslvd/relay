@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const size = Number(body?.size);
     const filename = typeof body?.filename === 'string' ? body.filename : '';
 
-    if (!pathname || !pathname.startsWith('d/')) {
+    if (!pathname) {
       return NextResponse.json({ error: 'Invalid pathname' }, { status: 400 });
     }
 
