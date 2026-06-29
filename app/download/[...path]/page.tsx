@@ -348,68 +348,51 @@ export default function DownloadPage() {
             </div>
           </div>
         ) : notFound || !fileData ? (
-          <section
-            style={{
-              width: 'min(500px, 92vw)',
-              borderRadius: '20px',
-              border: '1px solid rgba(128,128,128,0.18)',
-              background: 'rgba(128,128,128,0.05)',
-              padding: '1.5rem',
-              boxShadow: '0 22px 60px rgba(0, 0, 0, 0.25)',
-              textAlign: 'center'
-            }}
-          >
-            <div
-              style={{
-                fontSize: '0.7rem',
-                letterSpacing: '0.3em',
-                textTransform: 'uppercase',
-                color: 'var(--c-dim)',
-                marginBottom: '0.6rem'
-              }}
-            >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '2rem' }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+              padding: '0.3rem 0.85rem', borderRadius: '999px',
+              border: '1px solid rgba(126,244,203,0.2)', background: 'rgba(126,244,203,0.06)',
+              color: '#7ef4cb', fontSize: '0.68rem', fontWeight: 600,
+              letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '1.8rem'
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#7ef4cb', boxShadow: '0 0 6px rgba(126,244,203,0.8)', flexShrink: 0 }} />
+              Error
+            </div>
+            <div style={{
+              fontSize: 'clamp(5rem, 18vw, 10rem)', fontWeight: 700, lineHeight: 0.9,
+              letterSpacing: '-0.04em',
+              background: 'linear-gradient(160deg, #ffffff 0%, #7ef4cb 40%, rgba(126,244,203,0.5) 80%)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text', marginBottom: '0.5rem', userSelect: 'none'
+            }}>
               404
             </div>
-            <h1
-              style={{
-                margin: '0 0 0.4rem',
-                fontSize: 'clamp(1.3rem, 2.5vw, 1.8rem)',
-                letterSpacing: '-0.02em',
-                color: 'var(--c-text)'
-              }}
-            >
+            <h1 style={{ fontSize: 'clamp(1rem, 3vw, 1.4rem)', fontWeight: 600, color: '#eef1f6', letterSpacing: '-0.02em', marginBottom: '0.65rem' }}>
               File not found
             </h1>
-            <p
-              style={{
-                margin: 0,
-                color: 'var(--c-dim)',
-                fontSize: '0.85rem',
-                marginBottom: '1.2rem'
-              }}
-            >
-              The file you're looking for doesn't exist, has expired, or may have been deleted.
+            <p style={{ fontSize: '0.9rem', color: '#8a92a1', maxWidth: 340, lineHeight: 1.6, marginBottom: '2.5rem' }}>
+              The file you&apos;re looking for doesn&apos;t exist, has expired, or may have been deleted.
             </p>
-              <a
+            <a
               href="/"
               style={{
-                display: 'inline-block',
-                padding: '0.5rem 1rem',
-                borderRadius: '999px',
-                background: 'rgba(128,128,128,0.14)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(128,128,128,0.25)',
-                color: 'var(--c-text)',
-                textDecoration: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
+                display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                padding: '0.7rem 1.6rem', borderRadius: '999px',
+                fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.01em',
+                color: '#eef1f6', background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.14)',
+                backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
+                textDecoration: 'none'
               }}
             >
-              Upload a new file
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+              Back to Relay
+              <span style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#7ef4cb' }}>404</span>
             </a>
-          </section>
+          </div>
         ) : (
           <section
             style={{

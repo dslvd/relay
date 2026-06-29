@@ -7,14 +7,6 @@ import QRCode from 'qrcode';
 import logo from './logo.png';
 import { useTheme } from './components/ThemeProvider';
 
-interface UploadRecord {
-  url: string;
-  filename: string;
-  timestamp: number;
-  size: number;
-  ip?: string;
-}
-
 interface UploadedItem {
   url: string;
   filename: string;
@@ -395,36 +387,6 @@ const persistQueueMeta = (next: UploadQueueItem[]) => {
   }
 };
 
-const verifyFileExistence = async (records: UploadRecord[]): Promise<UploadRecord[]> => {
-  const verifiedRecords: UploadRecord[] = [];
-  const deletedUrls: string[] = [];
-  for (const record of records) {
-    try {
-      const parsed = new URL(record.url);
-      const filename = parsed.pathname.split('/').pop();
-      const probeUrl = filename ? `/d/${filename}` : parsed.pathname;
-      const response = await fetch(probeUrl, { method: 'HEAD', cache: 'no-store' });
-      if (response.ok) {
-        verifiedRecords.push(record);
-      } else if (response.status === 404) {
-        deletedUrls.push(record.url);
-      } else {
-        verifiedRecords.push(record);
-      }
-    } catch {
-      verifiedRecords.push(record);
-    }
-  }
-  if (deletedUrls.length > 0) {
-    await fetch('/api/history/cleanup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls: deletedUrls })
-    });
-  }
-  return verifiedRecords;
-};
-
 const computeFileHash = async (file: File): Promise<string> => {
   const buffer = await file.arrayBuffer();
   const digest = await crypto.subtle.digest('SHA-256', buffer);
@@ -445,9 +407,6 @@ export default function Home() {
   const [currentUploadName, setCurrentUploadName] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [activeView, setActiveView] = useState<'upload' | 'history'>('upload');
-  const [publicHistory, setPublicHistory] = useState<UploadRecord[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
-  const [verifyingFiles, setVerifyingFiles] = useState(false);
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'error' | 'info' }>>([]);
   const [toastsExpanded, setToastsExpanded] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
@@ -842,32 +801,6 @@ export default function Home() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [uploading]);
-
-  const fetchPublicHistory = async () => {
-    const startTime = Date.now();
-    try {
-      setLoadingHistory(true);
-      setVerifyingFiles(true);
-      const response = await fetch('/api/history', { cache: 'no-store' });
-      if (response.ok) {
-        const data = await response.json();
-        const records = data.history || [];
-
-        // Verify each file still exists
-        const verifiedRecords = await verifyFileExistence(records);
-        setPublicHistory(verifiedRecords);
-      }
-    } catch (error) {
-      console.error('Failed to fetch history:', error);
-    } finally {
-      const elapsed = Date.now() - startTime;
-      if (elapsed < 600) {
-        await new Promise((resolve) => setTimeout(resolve, 600 - elapsed));
-      }
-      setLoadingHistory(false);
-      setVerifyingFiles(false);
-    }
-  };
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = toastIdRef.current++;
@@ -1505,20 +1438,6 @@ export default function Home() {
       const tail = rawUrl.split('/').filter(Boolean).pop() || '';
       return `${base}/p/${tail}`;
     }
-  };
-
-  const getDownloadLinks = (): string[] => {
-    return uploadedFiles.map((file) => toDownloadPageUrl(file.url));
-  };
-
-  const copyAllUploadedLinks = () => {
-    if (uploadedFiles.length === 0) {
-      showToast('No uploaded links yet', 'info');
-      return;
-    }
-
-    const allLinks = getDownloadLinks().join('\n');
-    copyText(allLinks, 'All links copied');
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

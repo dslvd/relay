@@ -3,6 +3,7 @@ import { updateLastAccessTime } from '@/app/lib/storage/retention';
 import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage/r2-storage';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
+import { notFoundResponse } from '@/app/lib/not-found-html';
 
 async function resolveObjectKey(pathParts: string[]): Promise<string> {
   const key = pathParts.join('/');
@@ -30,7 +31,7 @@ export async function GET(
     const response = await fetch(signedUrl, { cache: 'no-store' });
 
     if (!response.ok || !response.body) {
-      return new NextResponse(null, { status: 404 });
+      return notFoundResponse('File not found', 'The link points to a file that no longer exists or never did.');
     }
 
     const filename = path[path.length - 1];
@@ -48,7 +49,7 @@ export async function GET(
       },
     });
   } catch {
-    return new NextResponse(null, { status: 404 });
+    return notFoundResponse('File not found', 'The link points to a file that no longer exists or never did.');
   }
 }
 

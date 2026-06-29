@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { loadShortLink } from '@/app/lib/data/shortlink-store';
+import { notFoundResponse } from '@/app/lib/not-found-html';
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +9,7 @@ export async function GET(
   const { code } = await params;
   const record = await loadShortLink(code);
   if (!record?.url) {
-    return new Response('Not found', { status: 404 });
+    return notFoundResponse('Link not found', 'This short link doesn\'t exist or has expired.');
   }
 
   // 302 so analytics, etc, still works and is flexible.
