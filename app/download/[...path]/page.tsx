@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import AdBanner from '../../components/AdBanner';
 
@@ -61,26 +61,22 @@ export default function DownloadPage() {
     return 'unknown';
   };
 
-  const buildEmbedSnippet = (): string | null => {
-    const abs = shortLink;
+  const embedSnippet = useMemo((): string | null => {
     const directAbs = typeof window !== 'undefined'
       ? `${window.location.origin}${downloadUrl}`
       : downloadUrl;
     const type = getFileType(fileData?.filename || filename);
-
     if (type === 'image') {
-      return `<a href="${abs}" target="_blank" rel="noreferrer"><img src="${directAbs}" alt="${(fileData?.filename || filename).replace(/"/g, '')}" style="max-width:100%;height:auto" /></a>`;
+      return `<a href="${shortLink}" target="_blank" rel="noreferrer"><img src="${directAbs}" alt="${(fileData?.filename || filename).replace(/"/g, '')}" style="max-width:100%;height:auto" /></a>`;
     }
     if (type === 'video') {
       return `<video controls src="${directAbs}" style="max-width:100%"></video>`;
     }
     if (type === 'pdf') {
-      return `<a href="${abs}" target="_blank" rel="noreferrer">Open PDF</a>`;
+      return `<a href="${shortLink}" target="_blank" rel="noreferrer">Open PDF</a>`;
     }
     return null;
-  };
-
-  const embedSnippet = buildEmbedSnippet();
+  }, [shortLink, downloadUrl, fileData, filename]);
 
   const copyShortLink = async () => {
     await navigator.clipboard.writeText(shortLink);
@@ -179,18 +175,6 @@ export default function DownloadPage() {
     };
   }, [showPreview, fileData, downloadUrl]);
 
-  const fetchDownloadCount = async () => {
-    try {
-      const response = await fetch(`/api/analytics?key=${encodeURIComponent(pathKey)}&filename=${encodeURIComponent(filename)}`, { cache: 'no-store' });
-      if (response.ok) {
-        const data = await response.json();
-        setDownloadCount(Number(data?.totalDownloads) || 0);
-      }
-    } catch (err) {
-      // Silently fail
-    }
-  };
-
   useEffect(() => {
     const fetchFileData = async () => {
       try {
@@ -251,11 +235,12 @@ export default function DownloadPage() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        // Page became visible - refetch download count
-        fetchDownloadCount();
+        fetch(`/api/analytics?key=${encodeURIComponent(pathKey)}&filename=${encodeURIComponent(filename)}`, { cache: 'no-store' })
+          .then(res => res.json())
+          .then(data => setDownloadCount(Number(data?.totalDownloads) || 0))
+          .catch(() => {});
       }
     };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [pathKey, filename]);
@@ -266,17 +251,6 @@ export default function DownloadPage() {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  const formatDate = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
 
   const getExpiresIn = (): string => {

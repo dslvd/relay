@@ -208,7 +208,6 @@ function MonoIcon({
   }
 }
 
-const ENABLE_PUBLIC_UPLOAD_HISTORY_UI = false;
 const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const PREMIUM_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
@@ -266,10 +265,6 @@ function formatTimestamp(timestamp: number) {
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString();
-}
-
-function formatDisplayName(filename: string) {
-  return filename;
 }
 
 function makeQueueId() {
@@ -782,11 +777,6 @@ export default function Home() {
       body: JSON.stringify({ type: 'pageview', path: '/' })
     }).catch(() => {}); // Silently fail
     
-    if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
-      fetchPublicHistory();
-    } else {
-      setLoadingHistory(false);
-    }
   }, []);
 
   const logoutPremium = async () => {
@@ -1084,10 +1074,6 @@ export default function Home() {
       if (!historyResponse.ok) {
         const errorPayload = await historyResponse.json().catch(() => ({}));
         throw new Error(errorPayload?.error || 'Failed to save upload history');
-      }
-
-      if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
-        await fetchPublicHistory();
       }
 
       lastSuccessUrlRef.current = downloadPageUrl;
@@ -1761,10 +1747,6 @@ export default function Home() {
         throw new Error(errPayload?.error || 'Failed to save upload history');
       }
 
-      if (ENABLE_PUBLIC_UPLOAD_HISTORY_UI) {
-        await fetchPublicHistory();
-      }
-
       showUploadSuccessCue(filename);
       setRemoteUrl('');
       setRemoteAuthHeader('');
@@ -1834,8 +1816,8 @@ export default function Home() {
       return assigned === currentFolderId;
     });
     return [...base].sort((a, b) => {
-      const nameA = displayNames[a.url] || formatDisplayName(a.filename);
-      const nameB = displayNames[b.url] || formatDisplayName(b.filename);
+      const nameA = displayNames[a.url] || a.filename;
+      const nameB = displayNames[b.url] || b.filename;
       const extA = a.filename.split('.').pop()?.toLowerCase() || '';
       const extB = b.filename.split('.').pop()?.toLowerCase() || '';
       let cmp = 0;
@@ -2108,38 +2090,6 @@ export default function Home() {
           marginTop: '0.20rem',
           animation: 'fadeSlideIn 1s ease-out 0.2s backwards'
         }}>
-          {ENABLE_PUBLIC_UPLOAD_HISTORY_UI && (
-            <button
-              onClick={() => setActiveView(activeView === 'history' ? 'upload' : 'history')}
-              style={{
-                fontFamily: "'Sora', sans-serif",
-                padding: '0.42rem 1.55rem',
-                fontSize: '0.82rem',
-                fontWeight: 400,
-                letterSpacing: '0.02em',
-                color: 'var(--c-text)',
-                background: activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
-                backdropFilter: 'blur(14px)',
-                WebkitBackdropFilter: 'blur(14px)',
-                border: '1px solid rgba(255,255,255,0.13)',
-                borderRadius: '50px',
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = activeView === 'history' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
-              }}
-            >
-              Uploads
-            </button>
-          )}
-
           {/* Remote Upload — secondary */}
           <button
             onClick={() => {
@@ -2738,7 +2688,7 @@ export default function Home() {
                 {/* Files — list view */}
                 {fileViewMode === 'list' && driveFiles.map(fileItem => {
                   const { filename, url } = fileItem;
-                  const displayName = displayNames[url] || formatDisplayName(filename);
+                  const displayName = displayNames[url] || filename;
                   const ext = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
                   const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext || '');
                   const keyFromUrl = url.includes('/download/') ? url.split('/download/').pop() : url.includes('/d/') ? url.split('/d/').pop() : url.split('/').pop();
@@ -2843,7 +2793,7 @@ export default function Home() {
                     {/* File cards */}
                     {driveFiles.map(fileItem => {
                       const { filename, url } = fileItem;
-                      const displayName = displayNames[url] || formatDisplayName(filename);
+                      const displayName = displayNames[url] || filename;
                       const ext = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
                       const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext || '');
                       const keyFromUrl = url.includes('/download/') ? url.split('/download/').pop() : url.includes('/d/') ? url.split('/d/').pop() : url.split('/').pop();
@@ -2883,391 +2833,6 @@ export default function Home() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* Minimal: AdBanner removed for cleaner look */}
-
-        {/* Public Upload History */}
-        {ENABLE_PUBLIC_UPLOAD_HISTORY_UI && activeView === 'history' && (
-        <div style={{
-          marginTop: '3rem',
-          width: '100%',
-          maxWidth: '720px',
-          animation: 'fadeSlideIn 1s ease-out 0.4s backwards'
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '1rem',
-            marginBottom: '1.5rem'
-          }}>
-            <h2 style={{
-              fontSize: '1rem',
-              fontWeight: 500,
-              textAlign: 'center',
-              color: 'var(--c-text)'
-            }}>
-              Public Upload History
-            </h2>
-            <button
-              onClick={() => !verifyingFiles && fetchPublicHistory()}
-              aria-label="Refresh upload history"
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '999px',
-                border: '1px solid rgba(255,255,255,0.13)',
-                background: 'rgba(255,255,255,0.07)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: verifyingFiles ? 'not-allowed' : 'pointer',
-                transition: 'all 0.25s ease',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-              }}
-              onMouseEnter={(e) => {
-                if (!verifyingFiles) {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.13)';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!verifyingFiles) {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.13)';
-                }
-              }}
-            >
-              {verifyingFiles ? (
-                <span style={{
-                  display: 'inline-block',
-                  width: '14px',
-                  height: '14px',
-                  borderRadius: '999px',
-                  border: '2px solid rgba(233, 236, 242, 0.7)',
-                  borderTopColor: 'transparent',
-                  animation: 'spin 0.8s linear infinite'
-                }} />
-              ) : (
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="rgba(233, 236, 242, 0.9)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                  <path d="M21 3v6h-6" />
-                </svg>
-              )}
-            </button>
-          </div>
-
-          {loadingHistory ? (
-            <div style={{
-              textAlign: 'center',
-              padding: '2rem',
-              color: 'var(--c-dim)',
-              animation: 'pulse 1.5s ease-in-out infinite'
-            }}>
-              Loading history...
-            </div>
-          ) : publicHistory.length === 0 ? (
-            <div style={{
-              textAlign: 'center',
-              padding: '2rem',
-              background: 'rgba(255,255,255,0.04)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid rgba(255,255,255,0.09)',
-              borderRadius: '12px',
-              color: 'var(--c-dim)',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.35)'
-            }}>
-              <div style={{ display: 'grid', justifyItems: 'center', gap: '0.75rem' }}>
-                <MonoIcon
-                  name={emptyMessages[emptyMessageIndex].icon}
-                  className="monoIcon"
-                  width={28}
-                  height={28}
-                  style={{ color: 'var(--c-text)' }}
-                />
-                <div style={{ color: 'var(--c-text)', fontSize: '0.9rem', fontWeight: 600 }}>
-                  {emptyMessages[emptyMessageIndex].title}
-                </div>
-                <div style={{ maxWidth: '28rem', lineHeight: 1.5, fontSize: '0.78rem', color: 'var(--c-dim)' }}>
-                  {emptyMessages[emptyMessageIndex].detail}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              background: 'rgba(255,255,255,0.05)',
-              backdropFilter: 'blur(20px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '16px',
-              padding: '0.85rem',
-              maxHeight: '320px',
-              overflowY: 'auto',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)'
-            }}>
-              {publicHistory.map((record, index) => {
-                const extension = record.filename.includes('.')
-                  ? record.filename.split('.').pop()?.toUpperCase()
-                  : 'FILE';
-
-                return (
-                  <div
-                    key={index}
-                    style={{
-                      marginBottom: index < publicHistory.length - 1 ? '0.85rem' : '0',
-                      padding: '0.95rem 1.1rem',
-                      background: 'rgba(255,255,255,0.05)',
-                      backdropFilter: 'blur(16px)',
-                      WebkitBackdropFilter: 'blur(16px)',
-                      border: '1px solid rgba(255,255,255,0.11)',
-                      borderRadius: '16px',
-                      transition: 'border-color 0.2s ease, background 0.2s ease',
-                      cursor: 'default',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.07)'
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '1rem'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        minWidth: 0
-                      }}>
-                        <span style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '999px',
-                          background: '#e9ecf2',
-                          opacity: 0.8
-                        }} />
-                        <div style={{ textAlign: 'left', minWidth: 0 }}>
-                          <div style={{
-                            fontSize: '0.95rem',
-                            color: 'var(--c-text)',
-                            fontWeight: 500,
-                            wordBreak: 'break-all'
-                          }}>
-                            {formatDisplayName(record.filename)}
-                          </div>
-                          <div style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--c-dim)'
-                          }}>
-                            Uploaded {formatTimestamp(record.timestamp)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.45rem'
-                      }}>
-                        <div style={{
-                          fontSize: '0.7rem',
-                          color: 'var(--c-text)',
-                          background: 'rgba(255,255,255,0.08)',
-                          backdropFilter: 'blur(10px)',
-                          WebkitBackdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255,255,255,0.13)',
-                          padding: '0.25rem 0.6rem',
-                          borderRadius: '999px',
-                          letterSpacing: '0.08em',
-                          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)'
-                        }}>
-                          {extension}
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(record.url);
-                          }}
-                          aria-label="Share link"
-                          title="Share link"
-                          style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '999px',
-                            border: '1px solid rgba(255,255,255,0.13)',
-                            background: 'rgba(255,255,255,0.07)',
-                            backdropFilter: 'blur(10px)',
-                            WebkitBackdropFilter: 'blur(10px)',
-                            color: '#e9ecf2',
-                            fontSize: '0.9rem',
-                            lineHeight: '1',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-                          }}
-                        >
-                          <MonoIcon name="share" className="monoIcon" width={12} height={12} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{
-                      marginTop: '0.75rem',
-                      display: 'grid',
-                      gridTemplateColumns: '72px 1fr',
-                      gap: '0.35rem 0.9rem',
-                      alignItems: 'center',
-                      textAlign: 'left'
-                    }}>
-                      <div style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--c-dim)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em'
-                      }}>
-                        Size
-                      </div>
-                      <div style={{
-                        fontSize: '0.8rem',
-                        color: 'var(--c-sub)'
-                      }}>
-                        {formatFileSize(record.size)}
-                      </div>
-
-
-                      <div style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--c-dim)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em'
-                      }}>
-                        Link
-                      </div>
-                      <a 
-                        href={record.url.includes('/d/') || record.url.includes('/download/') ? record.url : `${window.location.origin}/download/${record.url.split('/').pop()}`} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        style={{
-                          color: 'var(--c-sub)',
-                          fontSize: '0.8rem',
-                          textDecoration: 'none',
-                          wordBreak: 'break-all'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {record.url}
-                      </a>
-
-                    </div>
-                  </div>
-                );
-              })}
-                  {remoteUploading && (
-                    <div
-                      style={{
-                        position: 'fixed',
-                        bottom: '2rem',
-                        right: '2rem',
-                        width: '320px',
-                        borderRadius: '16px',
-                        background: 'rgba(255,255,255,0.08)',
-                        backdropFilter: 'blur(20px)',
-                        WebkitBackdropFilter: 'blur(20px)',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        padding: '1.2rem',
-                        boxShadow: '0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)',
-                        zIndex: 1000,
-                        animation: 'fadeSlideIn 0.3s ease-out'
-                      }}
-                    >
-                      <div style={{ marginBottom: '0.8rem' }}>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.4rem' }}>
-                          Remote Upload
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)' }}>
-                          {remoteStage === 'download' && 'Downloading file…'}
-                          {remoteStage === 'server' && 'Fetching server-side…'}
-                          {remoteStage === 'enqueue' && 'Queued for upload…'}
-                        </div>
-                      </div>
-
-                      {remoteStage === 'download' && (
-                        <div style={{ marginBottom: '0.8rem' }}>
-                          <div style={{
-                            width: '100%',
-                            height: '4px',
-                            background: 'rgba(255,255,255,0.1)',
-                            borderRadius: '999px',
-                            overflow: 'hidden',
-                            marginBottom: '0.5rem'
-                          }}>
-                            <div style={{
-                              height: '100%',
-                              background: 'linear-gradient(90deg, #4ff8c0 0%, #5ee7f4 100%)',
-                              width: `${remoteTotalBytes ? Math.min(100, Math.round((remoteDownloadedBytes / remoteTotalBytes) * 100)) : 0}%`,
-                              transition: 'width 0.2s ease'
-                            }}/>
-                          </div>
-                          <div style={{ fontSize: '0.72rem', color: 'rgba(var(--c-dim-ch),0.75)', textAlign: 'center' }}>
-                            {remoteTotalBytes
-                              ? `${Math.min(100, Math.round((remoteDownloadedBytes / remoteTotalBytes) * 100))}% • ${formatFileSize(remoteDownloadedBytes)} / ${formatFileSize(remoteTotalBytes)}`
-                              : `${formatFileSize(remoteDownloadedBytes)}`}
-                          </div>
-                        </div>
-                      )}
-
-                      {(remoteStage === 'server' || remoteStage === 'enqueue') && (
-                        <div style={{
-                          fontSize: '0.72rem',
-                          color: 'rgba(var(--c-dim-ch),0.75)',
-                          textAlign: 'center',
-                          padding: '0.4rem 0'
-                        }}>
-                          <span style={{
-                            display: 'inline-block',
-                            animation: 'spin 0.8s linear infinite',
-                            animationDelay: '0s'
-                          }}>⟳</span>
-                          <span style={{ marginLeft: '0.3rem' }}>Processing…</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-            </div>
-          )}
-          
-          <div style={{
-            marginTop: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '2rem',
-            flexWrap: 'wrap'
-          }}>
-            <p style={{
-              opacity: 0.7,
-              fontSize: '0.8rem',
-              color: 'var(--c-dim)',
-              margin: 0
-            }}>
-              Showing {publicHistory.length} recent uploads {verifyingFiles ? '• Verifying files...' : ''}
-            </p>
-          </div>
-        </div>
         )}
 
         {/* Toast Notifications Stack */}
