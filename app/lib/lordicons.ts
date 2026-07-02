@@ -24,7 +24,7 @@ export const LORD_ICON = {
   spinner: 'https://cdn.lordicon.com/ktsahwvc.json',
   // "25-error-cross-outline"
   cross: 'https://cdn.lordicon.com/rmkpgtpt.json',
-  // "system-solid-99-copy" — also used for "copy link" style actions (no open chain-link asset found).
+  // "system-solid-99-copy"
   copy: 'https://cdn.lordicon.com/iykgtsbt.json',
   // "system-regular-39-trash"
   trash: 'https://cdn.lordicon.com/wpyrrmcq.json',
@@ -32,6 +32,11 @@ export const LORD_ICON = {
   pencil: 'https://cdn.lordicon.com/gwlusjdu.json',
   // "system-solid-12-arrow-down" — stand-in for download (no open tray+arrow asset found).
   download: 'https://cdn.lordicon.com/xcrjfuzb.json',
+  // "system-outline-1-share" — used for "copy the download page link" actions.
+  link: 'https://cdn.lordicon.com/fhlrrido.json',
+  // "system-solid-102-wifi" — stand-in for "CDN"/network delivery (no open cloud asset found
+  // despite an extensive search; swap this one out first if a real cloud icon turns up).
+  network: 'https://cdn.lordicon.com/shquqxad.json',
 } as const;
 
 export type LordIconName = keyof typeof LORD_ICON;

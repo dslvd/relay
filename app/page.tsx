@@ -2351,15 +2351,26 @@ export default function Home() {
                     </div>
                     <div className="queue-item__actions">
                       {item.status === 'success' && item.downloadUrl && (
-                        <button
-                          onClick={() => copyToClipboard(item.downloadUrl!)}
-                          className="queue-icon-btn"
-                          title="Copy download page link"
-                          aria-label="Copy download page link"
-                          type="button"
-                        >
-                          <LordIcon name="copy" size={12} />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => copyToClipboard(item.downloadUrl!)}
+                            className="queue-icon-btn"
+                            title="Copy download page link"
+                            aria-label="Copy download page link"
+                            type="button"
+                          >
+                            <LordIcon name="link" size={12} />
+                          </button>
+                          <button
+                            onClick={() => copyText(toCdnUrl(item.downloadUrl!), 'CDN link copied!')}
+                            className="queue-icon-btn"
+                            title="Copy CDN link (direct URL for use as src)"
+                            aria-label="Copy CDN link"
+                            type="button"
+                          >
+                            <LordIcon name="network" size={12} />
+                          </button>
+                        </>
                       )}
                       {item.status === 'error' && (
                         <button
