@@ -2352,10 +2352,10 @@ export default function Home() {
                     <div className="queue-item__actions">
                       {item.status === 'success' && item.downloadUrl && (
                         <button
-                          onClick={() => copyText(toCdnUrl(item.downloadUrl!), 'CDN link copied!')}
+                          onClick={() => copyToClipboard(item.downloadUrl!)}
                           className="queue-icon-btn"
-                          title="Copy CDN link (direct URL for use as src)"
-                          aria-label="Copy CDN link"
+                          title="Copy download page link"
+                          aria-label="Copy download page link"
                           type="button"
                         >
                           <LordIcon name="copy" size={12} />
