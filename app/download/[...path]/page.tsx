@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import AdBanner from '../../components/AdBanner';
+import LordIcon from '../../components/LordIcon';
 
 interface UploadRecord {
   url: string;
@@ -387,7 +388,7 @@ export default function DownloadPage() {
                 textDecoration: 'none'
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+              <LordIcon name="arrowRight" size={13} mirror />
               Back to Relay
               <span style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
               <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#7ef4cb' }}>404</span>
@@ -648,11 +649,7 @@ export default function DownloadPage() {
                     e.currentTarget.style.boxShadow = '0 0 0 0 rgba(126,244,203,0)';
                   }}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
+                  <LordIcon name="download" size={14} />
                   Download
                 </a>
 
@@ -685,12 +682,12 @@ export default function DownloadPage() {
                   >
                     {isCopied ? (
                       <>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        <LordIcon name="checkmark" size={13} />
                         Copied
                       </>
                     ) : (
                       <>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                        <LordIcon name="copy" size={13} />
                         Copy link
                       </>
                     )}
@@ -802,7 +799,7 @@ export default function DownloadPage() {
                     onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(128,128,128,0.11)'; e.currentTarget.style.color = 'var(--c-text)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = showCdn ? 'rgba(128,128,128,0.13)' : 'rgba(128,128,128,0.05)'; e.currentTarget.style.color = 'var(--c-dim)'; }}
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    <LordIcon name="copy" size={12} />
                     CDN link
                   </button>
                 </div>
@@ -860,9 +857,9 @@ export default function DownloadPage() {
                       }}
                     >
                       {isCdnCopied ? (
-                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Copied</>
+                        <><LordIcon name="checkmark" size={12} />Copied</>
                       ) : (
-                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Copy CDN link</>
+                        <><LordIcon name="copy" size={12} />Copy CDN link</>
                       )}
                     </button>
                     <div style={{
@@ -908,9 +905,9 @@ export default function DownloadPage() {
                       }}
                     >
                       {isEmbedCopied ? (
-                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Copied</>
+                        <><LordIcon name="checkmark" size={12} />Copied</>
                       ) : (
-                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy embed snippet</>
+                        <><LordIcon name="copy" size={12} />Copy embed snippet</>
                       )}
                     </button>
                     <div style={{

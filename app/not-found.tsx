@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
+import LordIcon from './components/LordIcon';
 
 export default function NotFound() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -298,9 +299,7 @@ export default function NotFound() {
           </p>
 
           <Link href="/" className="nf-btn">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M19 12H5M12 5l-7 7 7 7" />
-            </svg>
+            <LordIcon name="arrowRight" size={13} mirror />
             Back to Relay
             <div className="nf-divider" />
             <span className="nf-btn-code">404</span>

@@ -6,6 +6,8 @@ import QRCode from 'qrcode';
 // import AdBanner from './components/AdBanner';
 import logo from './logo.png';
 import { useTheme } from './components/ThemeProvider';
+import LordIcon from './components/LordIcon';
+import type { LordIconName } from './lib/lordicons';
 
 interface UploadedItem {
   url: string;
@@ -52,11 +54,43 @@ type MonoIconName =
   | 'qrCode'
   | 'trash';
 
+// Icons with an animated Lordicon equivalent available (see app/lib/lordicons.ts for
+// sourcing notes). Names left out (folder, pause, play, sun, moon, qrCode) have no
+// reasonable open Lordicon match, or are paired in a toggle with a name that doesn't
+// (play/pause, sun/moon), so the original static glyph was kept for both sides.
+const MONO_LORD_ICON: Partial<Record<MonoIconName, LordIconName>> = {
+  cloudUpload: 'rocket',
+  spark: 'bolt',
+  warning: 'warning',
+  check: 'checkmark',
+  arrowLeft: 'arrowRight',
+  refresh: 'spinner',
+  retry: 'spinner',
+  close: 'cross',
+  share: 'copy',
+  trash: 'trash',
+};
+const MONO_LORD_ICON_MIRROR: Partial<Record<MonoIconName, true>> = { arrowLeft: true };
+
 function MonoIcon({
   name,
   className,
   ...props
 }: { name: MonoIconName; className?: string } & SVGProps<SVGSVGElement>) {
+  const lordIconName = MONO_LORD_ICON[name];
+  if (lordIconName) {
+    const size = typeof props.width === 'number' ? props.width : 16;
+    return (
+      <LordIcon
+        name={lordIconName}
+        size={size}
+        mirror={MONO_LORD_ICON_MIRROR[name]}
+        className={className}
+        style={props.style}
+      />
+    );
+  }
+
   const common = {
     fill: 'none',
     stroke: 'currentColor',
@@ -66,51 +100,6 @@ function MonoIcon({
   };
 
   switch (name) {
-    case 'cloudUpload':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M7 18h9.2a3.8 3.8 0 0 0 1-7.46A5.4 5.4 0 0 0 6.5 9.9 3.8 3.8 0 0 0 7 18Z" />
-          <path {...common} d="M12 15V8.2" />
-          <path {...common} d="M9.8 10.8 12 8.6l2.2 2.2" />
-        </svg>
-      );
-    case 'spark':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M12 3.5l1.8 4.6L18.5 10l-4.7 1.8L12 16.5l-1.8-4.7L5.5 10l4.7-1.9L12 3.5Z" />
-        </svg>
-      );
-    case 'warning':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M12 4.5 21 19.5H3L12 4.5Z" />
-          <path {...common} d="M12 9v4.8" />
-          <path {...common} d="M12 16.8h.01" />
-        </svg>
-      );
-    case 'check':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />
-          <path {...common} d="m8.5 12.4 2.4 2.4 4.7-5.2" />
-        </svg>
-      );
-    case 'arrowLeft':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M10 6 4 12l6 6" />
-          <path {...common} d="M5 12h15" />
-        </svg>
-      );
-    case 'refresh':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M20 12a8 8 0 0 0-14.8-4.2" />
-          <path {...common} d="M6 4v4h4" />
-          <path {...common} d="M4 12a8 8 0 0 0 14.8 4.2" />
-          <path {...common} d="M18 20v-4h-4" />
-        </svg>
-      );
     case 'pause':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
@@ -122,29 +111,6 @@ function MonoIcon({
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
           <path {...common} d="M9 6.8v10.4l8.3-5.2L9 6.8Z" />
-        </svg>
-      );
-    case 'share':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M15 6h3a1.5 1.5 0 0 1 1.5 1.5v3" />
-          <path {...common} d="M10 14 19.5 4.5" />
-          <path {...common} d="M16 4.5H19.5V8" />
-          <path {...common} d="M5.5 8.5v9A1.5 1.5 0 0 0 7 19h9" />
-        </svg>
-      );
-    case 'retry':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M20 12a8 8 0 0 0-14.8-4.2" />
-          <path {...common} d="M6 4v4h4" />
-        </svg>
-      );
-    case 'close':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <path {...common} d="M6 6 18 18" />
-          <path {...common} d="M18 6 6 18" />
         </svg>
       );
     case 'folder':
@@ -184,15 +150,6 @@ function MonoIcon({
           <rect {...common} x="14" y="3" width="7" height="7" rx="1" />
           <rect {...common} x="3" y="14" width="7" height="7" rx="1" />
           <path {...common} d="M14 14h3v3h-3zM17 17h3v3h-3zM14 17h.01M17 14h.01" />
-        </svg>
-      );
-    case 'trash':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={className} {...props}>
-          <polyline {...common} points="3 6 5 6 21 6" />
-          <path {...common} d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-          <path {...common} d="M10 11v6M14 11v6" />
-          <path {...common} d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
         </svg>
       );
     default:
@@ -2044,8 +2001,8 @@ export default function Home() {
             }}
           >
             {remoteUploading
-              ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Uploading…</>
-              : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Remote URL</>}
+              ? <><LordIcon name="spinner" trigger="loop" size={12} />Uploading…</>
+              : <><LordIcon name="copy" size={12} />Remote URL</>}
           </button>
 
           {/* Choose File — primary */}
@@ -2094,8 +2051,8 @@ export default function Home() {
             }}
           >
             {uploading
-              ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Uploading…</>
-              : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>Choose File</>}
+              ? <><LordIcon name="spinner" trigger="loop" size={12} />Uploading…</>
+              : <><LordIcon name="rocket" size={12} />Choose File</>}
           </button>
 
         </div>
@@ -2401,7 +2358,7 @@ export default function Home() {
                           aria-label="Copy CDN link"
                           type="button"
                         >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                          <LordIcon name="copy" size={12} />
                         </button>
                       )}
                       {item.status === 'error' && (
@@ -2585,7 +2542,7 @@ export default function Home() {
                           <span/>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.28rem', justifyContent: 'flex-end' }}>
                             <button onClick={e => { e.stopPropagation(); setRenamingFolderId(folder.id); setRenameFolderValue(folder.name); }} title="Rename" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              <LordIcon name="pencil" size={10} />
                             </button>
                             <button onClick={e => { e.stopPropagation(); setFolders(p => p.filter(f => f.id !== folder.id)); setFilesFolderMap(p => { const n = { ...p }; Object.keys(n).forEach(k => { if (n[k] === folder.id) delete n[k]; }); return n; }); }} title="Delete folder" style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                               <MonoIcon name="trash" width={9} height={9} />
@@ -2652,7 +2609,7 @@ export default function Home() {
                           <MonoIcon name="share" width={10} height={10} />
                         </button>
                         <button onClick={e => { e.stopPropagation(); copyText(toCdnUrl(url), 'CDN link copied!'); }} title="Copy CDN link (direct URL for use as src)" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                          <LordIcon name="copy" size={10} />
                         </button>
                         {/* Move to folder */}
                         <div style={{ position: 'relative' }}>

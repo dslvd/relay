@@ -39,6 +39,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
           strategy="afterInteractive"
         />
+        <Script src="https://cdn.lordicon.com/lordicon.js" strategy="beforeInteractive" />
         <ThemeProvider>
           <ThemeToggle />
           {children}
