@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
         size: obj.Size || 0,
         lastModified: obj.LastModified?.toISOString() || '',
         downloadUrl: `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/api/v1/files/${encodeURIComponent(obj.Key || '')}`,
-        directDownloadUrl: `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/d/${obj.Key || ''}`,
+        directDownloadUrl: `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/dl/${obj.Key || ''}`,
       }));
 
       return NextResponse.json({

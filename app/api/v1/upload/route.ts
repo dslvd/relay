@@ -60,8 +60,8 @@ export async function POST(request: NextRequest) {
         bytesUploaded: size,
       });
 
-      const downloadPageUrl = `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/download/${objectKey}`;
-      const directDownloadUrl = `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/d/${objectKey}`;
+      const downloadPageUrl = `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/d/${objectKey}`;
+      const directDownloadUrl = `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/dl/${objectKey}`;
 
       return NextResponse.json({
         success: true,

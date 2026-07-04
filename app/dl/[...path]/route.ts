@@ -92,23 +92,23 @@ export async function GET(
 
     // Fetch and proxy the file content
     const response = await fetch(signedUrl, { cache: 'no-store' });
-    
+
     if (!response.ok) {
       return notFoundResponse('File not found', 'The link points to a file that no longer exists or never did.');
     }
-    
+
     // Get the file content
     if (!response.body) {
       return notFoundResponse('File not found', 'The link points to a file that no longer exists or never did.');
     }
-    
+
     // Update last access time to reset the deletion timer
     const key = path.join('/');
     const filename = path[path.length - 1];
     await updateLastAccessTime(filename);
-    
+
     // ?dl= means the request came from the download page, which posts its own
-    // analytics event. Only track here for direct /d/[...] hits to avoid
+    // analytics event. Only track here for direct /dl/[...] hits to avoid
     // double-counting.
     const shouldDownload = request.nextUrl.searchParams.has('dl');
     if (!shouldDownload) {
@@ -178,7 +178,7 @@ export async function HEAD(
         }
       });
     }
-    
+
     return new NextResponse(null, { status: 404 });
   } catch {
     return new NextResponse(null, { status: 404 });

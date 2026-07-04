@@ -585,7 +585,7 @@ export default function Home() {
             const key = extractKey(file.url);
             if (!key) return { url: file.url, deleted: false };
             try {
-              const res = await fetch(`/d/${encodeURIComponent(key)}`, { method: 'HEAD', cache: 'no-store' });
+              const res = await fetch(`/dl/${encodeURIComponent(key)}`, { method: 'HEAD', cache: 'no-store' });
               return { url: file.url, deleted: res.status === 404 };
             } catch {
               return { url: file.url, deleted: false };
@@ -1144,7 +1144,7 @@ export default function Home() {
     }
 
     const uploadedFilename = multipart.objectKey.split('/').pop() || '';
-    const newUrl = `${window.location.origin}/download/${uploadedFilename}`;
+    const newUrl = `${window.location.origin}/d/${uploadedFilename}`;
     const uploadedAt = Date.now();
 
     setUploadQueue((prev) =>
@@ -1355,21 +1355,23 @@ export default function Home() {
       const parsed = new URL(rawUrl, base || 'http://localhost');
       const cleanPath = parsed.pathname.replace(/\/+$/, '');
 
+      // '/download/' is the legacy page prefix (still resolvable via a
+      // redirect); '/d/' is the current page. Either way, the key is the same.
       if (cleanPath.includes('/download/')) {
         const key = cleanPath.split('/download/')[1] || '';
-        return `${base}/download/${key}`;
+        return `${base}/d/${key}`;
       }
 
       if (cleanPath.includes('/d/')) {
         const key = cleanPath.split('/d/')[1] || '';
-        return `${base}/download/${key}`;
+        return `${base}/d/${key}`;
       }
 
       const tail = cleanPath.split('/').filter(Boolean).pop() || '';
-      return `${base}/download/${tail}`;
+      return `${base}/d/${tail}`;
     } catch {
       const tail = rawUrl.split('/').filter(Boolean).pop() || '';
-      return `${base}/download/${tail}`;
+      return `${base}/d/${tail}`;
     }
   };
 

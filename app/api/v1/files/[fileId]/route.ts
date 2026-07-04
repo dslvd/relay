@@ -37,7 +37,7 @@ export async function GET(
         expiresInSeconds: 3600, // 1 hour
       });
 
-      const directDownloadUrl = `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/d/${objectKey}`;
+      const directDownloadUrl = `${process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin}/dl/${objectKey}`;
 
       // Update API key usage
       await updateApiKeyUsage(apiKey.id, {
