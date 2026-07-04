@@ -67,7 +67,7 @@ const MONO_LORD_ICON: Partial<Record<MonoIconName, LordIconName>> = {
   refresh: 'spinner',
   retry: 'spinner',
   close: 'cross',
-  share: 'copy',
+  share: 'link',
   trash: 'trash',
 };
 const MONO_LORD_ICON_MIRROR: Partial<Record<MonoIconName, true>> = { arrowLeft: true };
