@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, pruneMissingHistoryEntries, RETENTION_MS } from '@/app/lib/storage/retention';
 import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
 import { addUploadRecord, loadUploadHistory, saveUploadHistory, type UploadRecord } from '@/app/lib/data/upload-history-store';
+import { isAdminRequest, requireAdmin } from '@/app/lib/auth/admin-auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -11,7 +12,6 @@ const MAX_DAILY_BYTES = 1024 * 1024 * 1024; // 1GB per IP
 const MAX_DAILY_UPLOADS = 100;
 
 const PREMIUM_COOKIE_NAME = 'premium_auth';
-const ADMIN_COOKIE_NAME = 'admin_auth';
 
 interface UploadQuota {
   dayStart: number;
@@ -51,12 +51,6 @@ function stripOwnershipFields(record: UploadRecord) {
   };
 }
 
-function isAdminRequest(request: NextRequest): boolean {
-  const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
-  const cookieValue = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
-  return Boolean(cookieValue && cookieValue === adminPassword);
-}
-
 async function runBestEffortHistoryMaintenance(options?: { includePremium?: boolean }) {
   const includePremium = options?.includePremium ?? false;
 
@@ -82,6 +76,11 @@ async function runBestEffortHistoryMaintenance(options?: { includePremium?: bool
 // For production, use a database like Vercel KV, PostgreSQL, or similar
 export async function GET(request: NextRequest) {
   try {
+    // This endpoint returns raw uploader IPs (see stripOwnershipFields), and no
+    // part of the app's own UI reads it — it's an admin/moderation tool only.
+    const authError = requireAdmin(request);
+    if (authError) return authError;
+
     const includePremiumRequested = request.nextUrl.searchParams.get('includePremium') === '1';
     const includePremium = includePremiumRequested && isAdminRequest(request);
     await runBestEffortHistoryMaintenance({ includePremium });

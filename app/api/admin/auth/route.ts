@@ -1,5 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
+import { ADMIN_COOKIE_NAME, getAdminPassword, verifyAdminPassword } from '@/app/lib/auth/admin-auth';
+
+const MAX_ATTEMPTS_PER_WINDOW = 10;
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+
+type RateEntry = { windowStart: number; count: number };
+
+function isRateLimited(ip: string): boolean {
+  if (typeof global.adminLoginRateLimit === 'undefined') {
+    global.adminLoginRateLimit = {};
+  }
+
+  const now = Date.now();
+  const entry: RateEntry = global.adminLoginRateLimit[ip] || { windowStart: now, count: 0 };
+  if (now - entry.windowStart > RATE_WINDOW_MS) {
+    entry.windowStart = now;
+    entry.count = 0;
+  }
+
+  entry.count += 1;
+  global.adminLoginRateLimit[ip] = entry;
+
+  return entry.count > MAX_ATTEMPTS_PER_WINDOW;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,17 +34,23 @@ export async function POST(request: NextRequest) {
       'Unknown';
     const userAgent = request.headers.get('user-agent') || 'Unknown';
 
-    // Get password from environment variable (defaults to 'admin123' if not set)
-    const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { success: false, message: 'Too many attempts. Try again later.' },
+        { status: 429 }
+      );
+    }
 
-    if (password === adminPassword) {
+    const adminPassword = getAdminPassword();
+
+    if (adminPassword && typeof password === 'string' && verifyAdminPassword(password)) {
       const response = NextResponse.json({
         success: true,
         message: 'Authentication successful'
       });
 
       response.cookies.set({
-        name: 'admin_auth',
+        name: ADMIN_COOKIE_NAME,
         value: adminPassword,
         httpOnly: true,
         sameSite: 'strict',
@@ -67,7 +97,7 @@ export async function DELETE() {
     });
 
     response.cookies.set({
-      name: 'admin_auth',
+      name: ADMIN_COOKIE_NAME,
       value: '',
       httpOnly: true,
       sameSite: 'strict',
@@ -84,4 +114,9 @@ export async function DELETE() {
       { status: 500 }
     );
   }
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var adminLoginRateLimit: Record<string, RateEntry> | undefined;
 }

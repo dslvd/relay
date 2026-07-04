@@ -103,6 +103,17 @@ export default function DownloadPage() {
   };
 
   useEffect(() => {
+    if (notFound) {
+      document.title = 'File not found';
+      return;
+    }
+    const name = fileData?.filename || filename;
+    if (name) {
+      document.title = name;
+    }
+  }, [fileData, filename, notFound]);
+
+  useEffect(() => {
     fetch('/api/premium/me', { cache: 'no-store' })
       .then((response) => response.json())
       .then((data) => {

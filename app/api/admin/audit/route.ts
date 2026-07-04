@@ -1,18 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadAuditLog } from '@/app/lib/data/admin-audit-store';
-
-const ADMIN_COOKIE_NAME = 'admin_auth';
-
-function requireAdmin(request: NextRequest): NextResponse | null {
-  const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
-  const cookieValue = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
-
-  if (!cookieValue || cookieValue !== adminPassword) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  return null;
-}
+import { requireAdmin } from '@/app/lib/auth/admin-auth';
 
 export async function GET(request: NextRequest) {
   const authError = requireAdmin(request);

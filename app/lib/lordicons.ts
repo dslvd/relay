@@ -30,8 +30,8 @@ export const LORD_ICON = {
   trash: 'https://cdn.lordicon.com/wpyrrmcq.json',
   // "system-solid-114-edit-pencil-rename"
   pencil: 'https://cdn.lordicon.com/gwlusjdu.json',
-  // "system-solid-12-arrow-down" — stand-in for download (no open tray+arrow asset found).
-  download: 'https://cdn.lordicon.com/xcrjfuzb.json',
+  // "system-outline-1-share" — requested explicitly for the Download button.
+  download: 'https://cdn.lordicon.com/fhlrrido.json',
   // "system-outline-1-share" — used for "copy the download page link" actions.
   link: 'https://cdn.lordicon.com/fhlrrido.json',
   // "system-solid-102-wifi" — stand-in for "CDN"/network delivery (no open cloud asset found

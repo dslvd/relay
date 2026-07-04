@@ -8,8 +8,7 @@ import {
   revokePremiumInvite,
 } from '@/app/lib/auth/premium-auth';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
-
-const ADMIN_COOKIE_NAME = 'admin_auth';
+import { requireAdmin } from '@/app/lib/auth/admin-auth';
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -21,17 +20,6 @@ function getClientIp(request: NextRequest): string {
 
 function getUserAgent(request: NextRequest): string {
   return request.headers.get('user-agent') || 'Unknown';
-}
-
-function requireAdmin(request: NextRequest): NextResponse | null {
-  const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
-  const cookieValue = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
-
-  if (!cookieValue || cookieValue !== adminPassword) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  return null;
 }
 
 function sanitizeInviteForAdmin(invite: PremiumInviteRecord) {

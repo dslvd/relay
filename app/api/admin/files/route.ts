@@ -4,19 +4,7 @@ import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
-
-const ADMIN_COOKIE_NAME = 'admin_auth';
-
-function requireAdmin(request: NextRequest): NextResponse | null {
-  const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
-  const cookieValue = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
-
-  if (!cookieValue || cookieValue !== adminPassword) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  return null;
-}
+import { requireAdmin } from '@/app/lib/auth/admin-auth';
 
 async function resolveObjectKeyFromUrl(url: string): Promise<string | null> {
   const objectKey = toObjectKeyFromAppUrl(url);

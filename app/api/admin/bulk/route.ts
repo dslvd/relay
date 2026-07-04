@@ -4,21 +4,9 @@ import { loadUploadHistory, saveUploadHistory, updateUploadRecordsByUrls, type U
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
 import { removeQuarantineRecord, upsertQuarantineRecord } from '@/app/lib/data/abuse-store';
-
-const ADMIN_COOKIE_NAME = 'admin_auth';
+import { requireAdmin } from '@/app/lib/auth/admin-auth';
 
 type BulkAction = 'delete' | 'expire' | 'quarantine' | 'unquarantine' | 'move';
-
-function requireAdmin(request: NextRequest): NextResponse | null {
-  const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
-  const cookieValue = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
-
-  if (!cookieValue || cookieValue !== adminPassword) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  return null;
-}
 
 function getClientIp(request: NextRequest): string {
   return (

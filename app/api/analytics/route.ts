@@ -6,6 +6,7 @@ import {
   recordPageViewEvent,
   saveAnalyticsData,
 } from '@/app/lib/data/analytics-store';
+import { requireAdmin } from '@/app/lib/auth/admin-auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -96,6 +97,11 @@ export async function GET(request: NextRequest) {
         }
       });
     }
+
+    // Everything below is the full site-wide dashboard (visitor IPs, referrers,
+    // countries, recent-download log) — admin-only, not the public per-file lookup above.
+    const authError = requireAdmin(request);
+    if (authError) return authError;
 
     // Build per-file recent-window stats from bounded event history.
     const recentDownloadStats = data.downloads.reduce((acc, event) => {

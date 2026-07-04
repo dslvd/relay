@@ -19,6 +19,13 @@ export async function GET(
 ) {
   try {
     const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { keyId } = await params;
 
     const apiKey = await getApiKey(keyId);
@@ -33,8 +40,7 @@ export async function GET(
       );
     }
 
-    // Check ownership if user is authenticated
-    if (user && apiKey.userId && apiKey.userId !== user.id) {
+    if (apiKey.userId !== user.id) {
       return NextResponse.json(
         {
           success: false,
@@ -78,6 +84,13 @@ export async function PATCH(
 ) {
   try {
     const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { keyId } = await params;
     const body = await request.json();
 
@@ -93,8 +106,7 @@ export async function PATCH(
       );
     }
 
-    // Check ownership if user is authenticated
-    if (user && apiKey.userId && apiKey.userId !== user.id) {
+    if (apiKey.userId !== user.id) {
       return NextResponse.json(
         {
           success: false,
@@ -186,6 +198,13 @@ export async function DELETE(
 ) {
   try {
     const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { keyId } = await params;
 
     const apiKey = await getApiKey(keyId);
@@ -200,8 +219,7 @@ export async function DELETE(
       );
     }
 
-    // Check ownership if user is authenticated
-    if (user && apiKey.userId && apiKey.userId !== user.id) {
+    if (apiKey.userId !== user.id) {
       return NextResponse.json(
         {
           success: false,

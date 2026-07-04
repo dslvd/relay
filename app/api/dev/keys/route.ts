@@ -17,13 +17,14 @@ async function getAuthenticatedUser(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
-    // Allow both authenticated users and unauthenticated (for testing)
-    // In production, you might want to require authentication
-    const userId = user?.id;
-    const email = user?.email;
-
-    const keys = await listApiKeys(userId);
+    const keys = await listApiKeys(user.id);
 
     // Remove sensitive information
     const sanitizedKeys = keys.map((key) => ({
@@ -63,6 +64,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
     const name = typeof body?.name === 'string' ? body.name : 'Unnamed Key';
@@ -82,8 +90,8 @@ export async function POST(request: NextRequest) {
 
     const result = await createApiKey({
       name,
-      userId: user?.id,
-      email: user?.email,
+      userId: user.id,
+      email: user.email,
       permissions,
       rateLimit,
       expiresInDays,
