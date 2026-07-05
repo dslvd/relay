@@ -76,8 +76,24 @@ export async function initializeDownloadCountTable(): Promise<boolean> {
   return result.success !== false;
 }
 
+// initializeDownloadCountTable() was never actually called anywhere, so on a
+// database without the table pre-created by hand, every query below was
+// silently failing (queryD1 swallows the "no such table" error and returns
+// success: false) — counts looked like they were persisting but never left
+// memory. This lazily creates the table once per warm instance before the
+// first real query; CREATE TABLE IF NOT EXISTS is cheap and idempotent, so
+// re-running it on a cold start elsewhere is harmless.
+let tableReady: Promise<boolean> | null = null;
+function ensureTableReady(): Promise<boolean> {
+  if (!tableReady) {
+    tableReady = initializeDownloadCountTable();
+  }
+  return tableReady;
+}
+
 export async function incrementDownloadCount(fileKey: string, filename: string): Promise<number> {
   if (!hasD1Configured()) return 0;
+  await ensureTableReady();
 
   const now = Date.now();
   
@@ -102,6 +118,7 @@ export async function incrementDownloadCount(fileKey: string, filename: string):
 
 export async function getDownloadCount(fileKey: string, filename?: string): Promise<number> {
   if (!hasD1Configured()) return 0;
+  await ensureTableReady();
 
   let query: string;
   let params: string[];
@@ -127,6 +144,7 @@ export async function getDownloadCount(fileKey: string, filename?: string): Prom
 
 export async function getAllDownloadCounts(): Promise<Record<string, number>> {
   if (!hasD1Configured()) return {};
+  await ensureTableReady();
 
   const query = 'SELECT file_key, download_count FROM download_counts';
   const result = await queryD1(query);

@@ -13,6 +13,14 @@ type LordIconProps = {
   mirror?: boolean;
   className?: string;
   style?: CSSProperties;
+  /**
+   * CSS selector for the ancestor whose hover/click should drive the
+   * animation (Lordicon walks up via closest()), so the icon animates as
+   * soon as the button is hovered rather than only the icon's own few
+   * pixels. Defaults to the nearest button or link. Pass `false` to fall
+   * back to the icon's own bounds (e.g. if it isn't inside either).
+   */
+  target?: string | false;
 };
 
 export default function LordIcon({
@@ -24,11 +32,13 @@ export default function LordIcon({
   mirror = false,
   className,
   style,
+  target = 'button, a',
 }: LordIconProps) {
   return (
     <lord-icon
       src={LORD_ICON[name]}
       trigger={trigger}
+      target={target || undefined}
       colors={colors}
       stroke={stroke}
       aria-hidden="true"

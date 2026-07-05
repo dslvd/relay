@@ -4,10 +4,9 @@ import { removeUploadUrls, updateUploadRecordsByUrls } from '@/app/lib/data/uplo
 
 export const dynamic = 'force-dynamic';
 
-type BulkAction = 'delete' | 'move' | 'favorite' | 'tag';
+type BulkAction = 'delete' | 'move';
 
 const MAX_URLS_PER_REQUEST = 200;
-const MAX_TAG_LENGTH = 40;
 
 // POST /api/bulk — batched version of the single-file actions each user
 // already has (DELETE /api/delete, PATCH /api/history). Same capability
@@ -52,34 +51,6 @@ export async function POST(request: NextRequest) {
       const [publicCount, premiumCount] = await Promise.all([
         updateUploadRecordsByUrls(urls, (r) => ({ ...r, folder, updatedAt: Date.now() }), 'public'),
         updateUploadRecordsByUrls(urls, (r) => ({ ...r, folder, updatedAt: Date.now() }), 'premium'),
-      ]);
-      return NextResponse.json({ success: true, data: { updated: publicCount + premiumCount } });
-    }
-
-    if (action === 'favorite') {
-      const favorite = Boolean(body?.favorite);
-      const [publicCount, premiumCount] = await Promise.all([
-        updateUploadRecordsByUrls(urls, (r) => ({ ...r, favorite, updatedAt: Date.now() }), 'public'),
-        updateUploadRecordsByUrls(urls, (r) => ({ ...r, favorite, updatedAt: Date.now() }), 'premium'),
-      ]);
-      return NextResponse.json({ success: true, data: { updated: publicCount + premiumCount } });
-    }
-
-    if (action === 'tag') {
-      const newTags: string[] = Array.isArray(body?.tags)
-        ? body.tags.filter((t: unknown): t is string => typeof t === 'string').map((t: string) => t.trim().slice(0, MAX_TAG_LENGTH)).filter(Boolean)
-        : [];
-      if (newTags.length === 0) {
-        return NextResponse.json({ error: 'tags are required' }, { status: 400 });
-      }
-      const mergeTags = (r: Parameters<Parameters<typeof updateUploadRecordsByUrls>[1]>[0]) => ({
-        ...r,
-        tags: Array.from(new Set([...(r.tags || []), ...newTags])).slice(0, 20),
-        updatedAt: Date.now(),
-      });
-      const [publicCount, premiumCount] = await Promise.all([
-        updateUploadRecordsByUrls(urls, mergeTags, 'public'),
-        updateUploadRecordsByUrls(urls, mergeTags, 'premium'),
       ]);
       return NextResponse.json({ success: true, data: { updated: publicCount + premiumCount } });
     }

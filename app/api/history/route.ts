@@ -201,13 +201,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-const MAX_TAGS = 20;
-const MAX_TAG_LENGTH = 40;
-
-// PATCH: update per-file metadata (favorite, tags, folder, display name).
-// No auth beyond knowing the file's URL — same capability model as
-// DELETE /api/delete, which already allows anyone with the URL to remove
-// the file outright, so this isn't a new trust boundary.
+// PATCH: update per-file metadata (folder, display name, size after a
+// replace-file overwrite). No auth beyond knowing the file's URL — same
+// capability model as DELETE /api/delete, which already allows anyone with
+// the URL to remove the file outright, so this isn't a new trust boundary.
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -216,13 +213,8 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'url is required' }, { status: 400 });
     }
 
-    const update: Partial<Pick<UploadRecord, 'folder' | 'tags' | 'favorite' | 'displayName' | 'size'>> = {};
+    const update: Partial<Pick<UploadRecord, 'folder' | 'displayName' | 'size'>> = {};
     let hasUpdate = false;
-
-    if ('favorite' in body) {
-      update.favorite = Boolean(body.favorite);
-      hasUpdate = true;
-    }
 
     if ('size' in body) {
       const size = Number(body.size);
@@ -240,21 +232,6 @@ export async function PATCH(request: NextRequest) {
 
     if ('displayName' in body) {
       update.displayName = body.displayName === null ? undefined : String(body.displayName).trim().slice(0, 200) || undefined;
-      hasUpdate = true;
-    }
-
-    if ('tags' in body) {
-      if (body.tags === null) {
-        update.tags = undefined;
-      } else if (Array.isArray(body.tags)) {
-        update.tags = body.tags
-          .filter((t: unknown): t is string => typeof t === 'string')
-          .map((t: string) => t.trim().slice(0, MAX_TAG_LENGTH))
-          .filter(Boolean)
-          .slice(0, MAX_TAGS);
-      } else {
-        return NextResponse.json({ error: 'tags must be an array of strings' }, { status: 400 });
-      }
       hasUpdate = true;
     }
 

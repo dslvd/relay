@@ -14,8 +14,6 @@ interface UploadedItem {
   filename: string;
   size: number;
   timestamp: number;
-  favorite?: boolean;
-  tags?: string[];
 }
 
 type UploadQueueItem = {
@@ -356,7 +354,7 @@ const computeFileHash = async (file: File): Promise<string> => {
 export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
   const [uploadedFilesSearch, setUploadedFilesSearch] = useState('');
-  const [uploadedFilesFilter, setUploadedFilesFilter] = useState<'all' | 'images' | 'videos' | 'documents' | 'favorites'>('all');
+  const [uploadedFilesFilter, setUploadedFilesFilter] = useState<'all' | 'images' | 'videos' | 'documents'>('all');
   const [showUploadedFiles, setShowUploadedFiles] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -406,8 +404,6 @@ export default function Home() {
   const [deletingUrls, setDeletingUrls] = useState<Set<string>>(new Set());
   const lastSuccessUrlRef = useRef<string | null>(null);
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
-  const [bulkTagDraft, setBulkTagDraft] = useState('');
-  const [showBulkTagInput, setShowBulkTagInput] = useState(false);
   const [showBulkMoveMenu, setShowBulkMoveMenu] = useState(false);
   const [bulkWorking, setBulkWorking] = useState(false);
   const [replacingUrls, setReplacingUrls] = useState<Set<string>>(new Set());
@@ -429,8 +425,6 @@ export default function Home() {
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [movingFileUrl, setMovingFileUrl] = useState<string | null>(null);
-  const [taggingUrl, setTaggingUrl] = useState<string | null>(null);
-  const [tagDraft, setTagDraft] = useState('');
 
   const t = isDark ? DARK_T : LIGHT_T;
 
@@ -1698,26 +1692,13 @@ export default function Home() {
     copyText(toDownloadPageUrl(url), 'Copied to clipboard');
   };
 
-  // Persists favorite/tags/folder/displayName changes to the server (PATCH
-  // /api/history) and updates the local list optimistically. Errors are
-  // surfaced via toast but don't roll back the optimistic change — retrying
-  // the same action re-sends the same patch.
+  // Persists folder/displayName changes to the server (PATCH /api/history).
+  // Errors are surfaced via toast but don't roll back the optimistic change
+  // made by the caller — retrying the same action re-sends the same patch.
   const updateFileMetadata = async (
     url: string,
-    patch: { favorite?: boolean; tags?: string[] | null; folder?: string | null; displayName?: string | null }
+    patch: { folder?: string | null; displayName?: string | null }
   ) => {
-    setUploadedFiles((prev) =>
-      prev.map((f) =>
-        f.url === url
-          ? {
-              ...f,
-              ...(patch.favorite !== undefined ? { favorite: patch.favorite } : {}),
-              ...(patch.tags !== undefined ? { tags: patch.tags ?? undefined } : {}),
-            }
-          : f
-      )
-    );
-
     try {
       const res = await fetch('/api/history', {
         method: 'PATCH',
@@ -1731,10 +1712,6 @@ export default function Home() {
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to update file', 'error');
     }
-  };
-
-  const toggleFavorite = (url: string, current: boolean | undefined) => {
-    updateFileMetadata(url, { favorite: !current });
   };
 
   // Folders live on the server (app/api/folders) so they can be shared —
@@ -1843,20 +1820,11 @@ export default function Home() {
           urls.forEach((u) => { if (folder) next[u] = folder; else delete next[u]; });
           return next;
         });
-      } else if (payload.action === 'favorite') {
-        setUploadedFiles((prev) => prev.map((f) => (selectedUrls.has(f.url) ? { ...f, favorite: payload.favorite as boolean } : f)));
-      } else if (payload.action === 'tag') {
-        const added = payload.tags as string[];
-        setUploadedFiles((prev) =>
-          prev.map((f) => (selectedUrls.has(f.url) ? { ...f, tags: Array.from(new Set([...(f.tags || []), ...added])) } : f))
-        );
       }
 
       showToast('Bulk action complete', 'success');
       setSelectedUrls(new Set());
-      setShowBulkTagInput(false);
       setShowBulkMoveMenu(false);
-      setBulkTagDraft('');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Bulk action failed', 'error');
     } finally {
@@ -1919,13 +1887,11 @@ export default function Home() {
       const matchesSearch =
         !query ||
         file.filename.toLowerCase().includes(query) ||
-        file.url.toLowerCase().includes(query) ||
-        (file.tags || []).some((tag) => tag.toLowerCase().includes(query));
+        file.url.toLowerCase().includes(query);
 
       if (!matchesSearch) return false;
 
       if (uploadedFilesFilter === 'all') return true;
-      if (uploadedFilesFilter === 'favorites') return Boolean(file.favorite);
 
       const ext = file.filename.split('.').pop()?.toLowerCase() || '';
       if (uploadedFilesFilter === 'images') return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
@@ -2716,7 +2682,6 @@ export default function Home() {
                   style={{ padding: '0.38rem 0.55rem', borderRadius: '8px', border: `1px solid ${t.inputBorder}`, background: t.input, color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none', cursor: 'pointer' }}
                 >
                   <option value="all">All</option>
-                  <option value="favorites">Favorites</option>
                   <option value="images">Images</option>
                   <option value="videos">Videos</option>
                   <option value="documents">Docs</option>
@@ -2766,22 +2731,6 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-                <div style={{ position: 'relative' }}>
-                  <button disabled={bulkWorking} onClick={() => setShowBulkTagInput(v => !v)}
-                    style={{ fontSize: '0.75rem', padding: '0.32rem 0.6rem', borderRadius: '7px', border: `1px solid ${t.border}`, background: t.surface, color: 'var(--c-text)', cursor: 'pointer' }}
-                  >Add tag</button>
-                  {showBulkTagInput && (
-                    <div style={{ position: 'absolute', left: 0, top: '30px', zIndex: 100, background: isDark ? '#16162a' : '#ffffff', border: `1px solid ${t.border}`, borderRadius: '10px', padding: '0.5rem', width: '180px', boxShadow: '0 8px 28px rgba(0,0,0,0.4)' }}>
-                      <input autoFocus value={bulkTagDraft} onChange={e => setBulkTagDraft(e.target.value)} placeholder="tag1, tag2"
-                        onKeyDown={e => { if (e.key === 'Enter') runBulkAction({ action: 'tag', tags: bulkTagDraft.split(',').map(s => s.trim()).filter(Boolean) }); if (e.key === 'Escape') setShowBulkTagInput(false); }}
-                        style={{ width: '100%', background: t.input, border: `1px solid ${t.inputBorder}`, borderRadius: '6px', padding: '0.4rem 0.5rem', fontSize: '0.75rem', color: 'var(--c-text)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                  )}
-                </div>
-                <button disabled={bulkWorking} onClick={() => runBulkAction({ action: 'favorite', favorite: true })}
-                  style={{ fontSize: '0.75rem', padding: '0.32rem 0.6rem', borderRadius: '7px', border: `1px solid ${t.border}`, background: t.surface, color: 'var(--c-text)', cursor: 'pointer' }}
-                >★ Favorite</button>
                 <button disabled={bulkWorking} onClick={() => { if (confirm(`Delete ${selectedUrls.size} file(s)?`)) runBulkAction({ action: 'delete' }); }}
                   style={{ fontSize: '0.75rem', padding: '0.32rem 0.6rem', borderRadius: '7px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: '#f26464', cursor: 'pointer' }}
                 >Delete</button>
@@ -2901,7 +2850,6 @@ export default function Home() {
                   const extLabel = filename.includes('.') ? filename.split('.').pop()?.toUpperCase() : 'FILE';
                   const isRenamingThis = renamingUrl === url;
                   const isMovingThis = movingFileUrl === url;
-                  const isTaggingThis = taggingUrl === url;
                   const assignedFolder = filesFolderMap[url];
 
                   return (
@@ -2939,39 +2887,6 @@ export default function Home() {
                       <span style={{ fontSize: '0.71rem', color: 'var(--c-dim)' }}>{formatTimestamp(fileItem.timestamp)}</span>
                       {/* Actions */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.26rem', justifyContent: 'flex-end' }}>
-                        <button onClick={e => { e.stopPropagation(); toggleFavorite(url, fileItem.favorite); }} title={fileItem.favorite ? 'Remove favorite' : 'Add favorite'}
-                          style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${fileItem.favorite ? 'rgba(251,191,36,0.5)' : t.border}`, background: fileItem.favorite ? 'rgba(251,191,36,0.12)' : 'transparent', color: fileItem.favorite ? '#fbbf24' : 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                        >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill={fileItem.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.5l2.9 6.6 7.1.7-5.4 4.7 1.6 7-6.2-3.8-6.2 3.8 1.6-7-5.4-4.7 7.1-.7z"/></svg>
-                        </button>
-                        {/* Tags */}
-                        <div style={{ position: 'relative' }}>
-                          <button onClick={e => { e.stopPropagation(); setTaggingUrl(isTaggingThis ? null : url); setTagDraft((fileItem.tags || []).join(', ')); }} title="Edit tags"
-                            style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${isTaggingThis || (fileItem.tags && fileItem.tags.length > 0) ? 'rgba(126,244,203,0.4)' : t.border}`, background: isTaggingThis ? 'rgba(126,244,203,0.12)' : 'transparent', color: isTaggingThis || (fileItem.tags && fileItem.tags.length > 0) ? '#7ef4cb' : 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><circle cx="7" cy="7" r="1"/></svg>
-                          </button>
-                          {isTaggingThis && (
-                            <div style={{ position: 'absolute', right: 0, top: '28px', zIndex: 100, background: isDark ? '#16162a' : '#ffffff', border: `1px solid ${t.border}`, borderRadius: '10px', padding: '0.5rem', width: '190px', boxShadow: '0 8px 28px rgba(0,0,0,0.4)', backdropFilter: 'blur(14px)' }} onClick={e => e.stopPropagation()}>
-                              <input autoFocus value={tagDraft} onChange={e => setTagDraft(e.target.value)}
-                                placeholder="tag1, tag2, tag3"
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') {
-                                    const tags = tagDraft.split(',').map(s => s.trim()).filter(Boolean);
-                                    updateFileMetadata(url, { tags });
-                                    setTaggingUrl(null);
-                                  }
-                                  if (e.key === 'Escape') setTaggingUrl(null);
-                                }}
-                                style={{ width: '100%', background: t.input, border: `1px solid ${t.inputBorder}`, borderRadius: '6px', padding: '0.4rem 0.5rem', fontSize: '0.75rem', color: 'var(--c-text)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                              />
-                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem', marginTop: '0.4rem' }}>
-                                <button onClick={() => setTaggingUrl(null)} style={{ fontSize: '0.68rem', color: 'var(--c-dim)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.2rem 0.4rem' }}>Cancel</button>
-                                <button onClick={() => { const tags = tagDraft.split(',').map(s => s.trim()).filter(Boolean); updateFileMetadata(url, { tags }); setTaggingUrl(null); }} style={{ fontSize: '0.68rem', color: '#7ef4cb', background: 'rgba(126,244,203,0.1)', border: '1px solid rgba(126,244,203,0.3)', borderRadius: '5px', cursor: 'pointer', padding: '0.2rem 0.5rem' }}>Save</button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
                         <button onClick={e => { e.stopPropagation(); copyToClipboard(url); }} title="Copy share link" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                           <MonoIcon name="share" width={10} height={10} />
                         </button>
@@ -3074,7 +2989,6 @@ export default function Home() {
                             >{displayName}</span>
                           )}
                           <div style={{ display: 'flex', justifyContent: 'center', gap: '0.28rem' }}>
-                            <button onClick={e => { e.stopPropagation(); toggleFavorite(url, fileItem.favorite); }} title={fileItem.favorite ? 'Remove favorite' : 'Add favorite'} style={{ width: '22px', height: '22px', borderRadius: '5px', border: `1px solid ${fileItem.favorite ? 'rgba(251,191,36,0.5)' : t.border}`, background: fileItem.favorite ? 'rgba(251,191,36,0.12)' : 'transparent', color: fileItem.favorite ? '#fbbf24' : 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><svg width="10" height="10" viewBox="0 0 24 24" fill={fileItem.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.5l2.9 6.6 7.1.7-5.4 4.7 1.6 7-6.2-3.8-6.2 3.8 1.6-7-5.4-4.7 7.1-.7z"/></svg></button>
                             <button onClick={e => { e.stopPropagation(); copyToClipboard(url); }} title="Copy link" style={{ width: '22px', height: '22px', borderRadius: '5px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><MonoIcon name="share" width={9} height={9} /></button>
                             <button onClick={e => { e.stopPropagation(); setQrPopoverUrl(toDownloadPageUrl(url)); }} title="QR code" style={{ width: '22px', height: '22px', borderRadius: '5px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><MonoIcon name="qrCode" width={9} height={9} /></button>
                             <button onClick={e => { e.stopPropagation(); deleteUploadedFile(url); }} disabled={deletingUrls.has(url)} title="Delete" style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><MonoIcon name="trash" width={9} height={9} /></button>
