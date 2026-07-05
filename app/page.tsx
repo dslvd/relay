@@ -14,6 +14,8 @@ interface UploadedItem {
   filename: string;
   size: number;
   timestamp: number;
+  favorite?: boolean;
+  tags?: string[];
 }
 
 type UploadQueueItem = {
@@ -354,7 +356,7 @@ const computeFileHash = async (file: File): Promise<string> => {
 export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
   const [uploadedFilesSearch, setUploadedFilesSearch] = useState('');
-  const [uploadedFilesFilter, setUploadedFilesFilter] = useState<'all' | 'images' | 'videos' | 'documents'>('all');
+  const [uploadedFilesFilter, setUploadedFilesFilter] = useState<'all' | 'images' | 'videos' | 'documents' | 'favorites'>('all');
   const [showUploadedFiles, setShowUploadedFiles] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -403,6 +405,14 @@ export default function Home() {
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [deletingUrls, setDeletingUrls] = useState<Set<string>>(new Set());
   const lastSuccessUrlRef = useRef<string | null>(null);
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  const [bulkTagDraft, setBulkTagDraft] = useState('');
+  const [showBulkTagInput, setShowBulkTagInput] = useState(false);
+  const [showBulkMoveMenu, setShowBulkMoveMenu] = useState(false);
+  const [bulkWorking, setBulkWorking] = useState(false);
+  const [replacingUrls, setReplacingUrls] = useState<Set<string>>(new Set());
+  const replaceTargetUrlRef = useRef<string | null>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
   // Drive-style file manager
   const [fileViewMode, setFileViewMode] = useState<'grid' | 'list'>('list');
@@ -419,6 +429,8 @@ export default function Home() {
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [movingFileUrl, setMovingFileUrl] = useState<string | null>(null);
+  const [taggingUrl, setTaggingUrl] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState('');
 
   const t = isDark ? DARK_T : LIGHT_T;
 
@@ -445,20 +457,27 @@ export default function Home() {
     }
   }, [uploadedFiles]);
 
-  // Persist drive metadata (folders, folder assignments, display names).
+  // Folders are server-backed now (so they can be shared — see /api/folders
+  // and /folder/[code]) rather than purely client-local. Folder *assignment*
+  // (filesFolderMap) and display names stay in localStorage for instant
+  // rendering, but assignment changes are also pushed to the server via
+  // updateFileMetadata so the shared-folder view stays in sync.
+  useEffect(() => {
+    fetch('/api/folders')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data?.data?.folders)) setFolders(data.data.folders);
+      })
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     try {
-      const f = localStorage.getItem('relay:folders');
-      if (f) setFolders(JSON.parse(f));
       const m = localStorage.getItem('relay:filesFolderMap');
       if (m) setFilesFolderMap(JSON.parse(m));
       const n = localStorage.getItem('relay:displayNames');
       if (n) setDisplayNames(JSON.parse(n));
     } catch {}
   }, []);
-  useEffect(() => {
-    try { localStorage.setItem('relay:folders', JSON.stringify(folders)); } catch {}
-  }, [folders]);
   useEffect(() => {
     try { localStorage.setItem('relay:filesFolderMap', JSON.stringify(filesFolderMap)); } catch {}
   }, [filesFolderMap]);
@@ -854,7 +873,7 @@ export default function Home() {
 
   const commitFileHash = async (hash: string, objectKey: string, file: File): Promise<void> => {
     try {
-      await fetch('/api/dedupe', {
+      const res = await fetch('/api/dedupe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -866,8 +885,17 @@ export default function Home() {
           contentType: file.type || 'application/octet-stream',
         }),
       });
-    } catch {
-      // Best effort.
+      if (res.status === 422) {
+        const payload = await res.json().catch(() => ({}));
+        if (payload?.quarantined) {
+          throw new Error(payload?.error || 'This file was flagged as malicious and cannot be shared.');
+        }
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.toLowerCase().includes('malicious')) {
+        throw err;
+      }
+      // Otherwise best effort — dedupe registration failing shouldn't fail the upload.
     }
   };
 
@@ -1180,7 +1208,15 @@ export default function Home() {
       throw new Error(errorPayload?.error || 'Failed to save upload history');
     }
 
-    await commitFileHash(contentHash, multipart.objectKey, file);
+    try {
+      await commitFileHash(contentHash, multipart.objectKey, file);
+    } catch (err) {
+      // Malware flagged post-upload: the object stays in R2/history under
+      // quarantine (blocked at the /d/, /dl/, and /p/ routes) for admin
+      // review, but it shouldn't appear as a usable link in this browser.
+      setUploadedFiles((prev) => prev.filter((f) => f.url !== newUrl));
+      throw err;
+    }
     lastSuccessUrlRef.current = newUrl;
   };
 
@@ -1662,6 +1698,220 @@ export default function Home() {
     copyText(toDownloadPageUrl(url), 'Copied to clipboard');
   };
 
+  // Persists favorite/tags/folder/displayName changes to the server (PATCH
+  // /api/history) and updates the local list optimistically. Errors are
+  // surfaced via toast but don't roll back the optimistic change — retrying
+  // the same action re-sends the same patch.
+  const updateFileMetadata = async (
+    url: string,
+    patch: { favorite?: boolean; tags?: string[] | null; folder?: string | null; displayName?: string | null }
+  ) => {
+    setUploadedFiles((prev) =>
+      prev.map((f) =>
+        f.url === url
+          ? {
+              ...f,
+              ...(patch.favorite !== undefined ? { favorite: patch.favorite } : {}),
+              ...(patch.tags !== undefined ? { tags: patch.tags ?? undefined } : {}),
+            }
+          : f
+      )
+    );
+
+    try {
+      const res = await fetch('/api/history', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, ...patch }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Failed to update file');
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to update file', 'error');
+    }
+  };
+
+  const toggleFavorite = (url: string, current: boolean | undefined) => {
+    updateFileMetadata(url, { favorite: !current });
+  };
+
+  // Folders live on the server (app/api/folders) so they can be shared —
+  // these wrap the CRUD calls and keep local `folders` state in sync.
+  const createFolderApi = async (name: string) => {
+    try {
+      const res = await fetch('/api/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.error || 'Failed to create folder');
+      setFolders((prev) => [payload.data.folder, ...prev]);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to create folder', 'error');
+    }
+  };
+
+  const renameFolderApi = async (id: string, name: string) => {
+    setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name } : f)));
+    try {
+      const res = await fetch(`/api/folders/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error('Failed to rename folder');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to rename folder', 'error');
+    }
+  };
+
+  const deleteFolderApi = async (id: string) => {
+    setFolders((prev) => prev.filter((f) => f.id !== id));
+    setFilesFolderMap((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => { if (next[k] === id) delete next[k]; });
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/folders/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete folder');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete folder', 'error');
+    }
+  };
+
+  const shareFolderApi = async (id: string) => {
+    try {
+      const res = await fetch(`/api/folders/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'share' }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload?.data?.shareCode) throw new Error(payload?.error || 'Failed to share folder');
+      const link = `${window.location.origin}/folder/${payload.data.shareCode}`;
+      await navigator.clipboard.writeText(link);
+      showToast('Folder link copied!', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to share folder', 'error');
+    }
+  };
+
+  // Move (or unassign) a file to a folder — updates the fast local cache and
+  // persists to the server so the shared-folder view reflects it too.
+  const assignFileToFolder = (url: string, folderId: string | null) => {
+    setFilesFolderMap((prev) => {
+      const next = { ...prev };
+      if (folderId) next[url] = folderId;
+      else delete next[url];
+      return next;
+    });
+    updateFileMetadata(url, { folder: folderId });
+  };
+
+  const toggleSelected = (url: string) => {
+    setSelectedUrls((prev) => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url);
+      else next.add(url);
+      return next;
+    });
+  };
+
+  const runBulkAction = async (payload: Record<string, unknown>) => {
+    const urls = Array.from(selectedUrls);
+    if (urls.length === 0) return;
+    setBulkWorking(true);
+    try {
+      const res = await fetch('/api/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls, ...payload }),
+      });
+      const responsePayload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(responsePayload?.error || 'Bulk action failed');
+
+      if (payload.action === 'delete') {
+        setUploadedFiles((prev) => prev.filter((f) => !selectedUrls.has(f.url)));
+      } else if (payload.action === 'move') {
+        const folder = payload.folder as string | null;
+        setFilesFolderMap((prev) => {
+          const next = { ...prev };
+          urls.forEach((u) => { if (folder) next[u] = folder; else delete next[u]; });
+          return next;
+        });
+      } else if (payload.action === 'favorite') {
+        setUploadedFiles((prev) => prev.map((f) => (selectedUrls.has(f.url) ? { ...f, favorite: payload.favorite as boolean } : f)));
+      } else if (payload.action === 'tag') {
+        const added = payload.tags as string[];
+        setUploadedFiles((prev) =>
+          prev.map((f) => (selectedUrls.has(f.url) ? { ...f, tags: Array.from(new Set([...(f.tags || []), ...added])) } : f))
+        );
+      }
+
+      showToast('Bulk action complete', 'success');
+      setSelectedUrls(new Set());
+      setShowBulkTagInput(false);
+      setShowBulkMoveMenu(false);
+      setBulkTagDraft('');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Bulk action failed', 'error');
+    } finally {
+      setBulkWorking(false);
+    }
+  };
+
+  // "Replace file" — overwrites the R2 object at the same key a fresh PUT,
+  // so the download link stays identical. This is a straight overwrite, not
+  // version history: the previous bytes aren't retained anywhere.
+  const requestReplaceFile = (url: string) => {
+    replaceTargetUrlRef.current = url;
+    replaceFileInputRef.current?.click();
+  };
+
+  const handleReplaceFileSelected = async (file: File) => {
+    const url = replaceTargetUrlRef.current;
+    if (!url) return;
+    setReplacingUrls((prev) => new Set(prev).add(url));
+    try {
+      const presignRes = await fetch('/api/replace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, contentType: file.type || 'application/octet-stream' }),
+      });
+      const presignPayload = await presignRes.json().catch(() => ({}));
+      if (!presignRes.ok || !presignPayload?.data?.uploadUrl) {
+        throw new Error(presignPayload?.error || 'Failed to prepare replacement upload');
+      }
+
+      const putRes = await fetch(presignPayload.data.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!putRes.ok) {
+        throw new Error('Failed to upload replacement file');
+      }
+
+      await fetch('/api/history', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, size: file.size }),
+      }).catch(() => {});
+
+      setUploadedFiles((prev) => prev.map((f) => (f.url === url ? { ...f, size: file.size, timestamp: Date.now() } : f)));
+      showToast('File replaced', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to replace file', 'error');
+    } finally {
+      setReplacingUrls((prev) => { const next = new Set(prev); next.delete(url); return next; });
+      replaceTargetUrlRef.current = null;
+    }
+  };
+
   const filteredUploadedFiles = useMemo(() => {
     const query = uploadedFilesSearch.trim().toLowerCase();
 
@@ -1669,11 +1919,13 @@ export default function Home() {
       const matchesSearch =
         !query ||
         file.filename.toLowerCase().includes(query) ||
-        file.url.toLowerCase().includes(query);
+        file.url.toLowerCase().includes(query) ||
+        (file.tags || []).some((tag) => tag.toLowerCase().includes(query));
 
       if (!matchesSearch) return false;
 
       if (uploadedFilesFilter === 'all') return true;
+      if (uploadedFilesFilter === 'favorites') return Boolean(file.favorite);
 
       const ext = file.filename.split('.').pop()?.toLowerCase() || '';
       if (uploadedFilesFilter === 'images') return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
@@ -1913,6 +2165,13 @@ export default function Home() {
           type="file"
           multiple
           onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+
+        <input
+          ref={replaceFileInputRef}
+          type="file"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleReplaceFileSelected(f); e.target.value = ''; }}
           style={{ display: 'none' }}
         />
 
@@ -2457,6 +2716,7 @@ export default function Home() {
                   style={{ padding: '0.38rem 0.55rem', borderRadius: '8px', border: `1px solid ${t.inputBorder}`, background: t.input, color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none', cursor: 'pointer' }}
                 >
                   <option value="all">All</option>
+                  <option value="favorites">Favorites</option>
                   <option value="images">Images</option>
                   <option value="videos">Videos</option>
                   <option value="documents">Docs</option>
@@ -2483,6 +2743,51 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+            {/* ── Bulk action bar ── */}
+            {selectedUrls.size > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.7rem', marginBottom: '0.6rem', borderRadius: '10px', border: '1px solid rgba(126,244,203,0.3)', background: 'rgba(126,244,203,0.08)', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#7ef4cb' }}>{selectedUrls.size} selected</span>
+                <div style={{ position: 'relative' }}>
+                  <button disabled={bulkWorking} onClick={() => setShowBulkMoveMenu(v => !v)}
+                    style={{ fontSize: '0.75rem', padding: '0.32rem 0.6rem', borderRadius: '7px', border: `1px solid ${t.border}`, background: t.surface, color: 'var(--c-text)', cursor: 'pointer' }}
+                  >Move to folder</button>
+                  {showBulkMoveMenu && (
+                    <div style={{ position: 'absolute', left: 0, top: '30px', zIndex: 100, background: isDark ? '#16162a' : '#ffffff', border: `1px solid ${t.border}`, borderRadius: '10px', padding: '0.3rem', minWidth: '160px', boxShadow: '0 8px 28px rgba(0,0,0,0.4)' }}>
+                      {folders.length === 0 && <div style={{ padding: '0.45rem 0.65rem', fontSize: '0.74rem', color: 'var(--c-dim)' }}>No folders yet</div>}
+                      {folders.map(folder => (
+                        <button key={folder.id} onClick={() => runBulkAction({ action: 'move', folder: folder.id })}
+                          style={{ display: 'block', width: '100%', padding: '0.4rem 0.6rem', background: 'transparent', border: 'none', borderRadius: '6px', color: 'var(--c-text)', fontSize: '0.78rem', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
+                        >{folder.name}</button>
+                      ))}
+                      <button onClick={() => runBulkAction({ action: 'move', folder: null })}
+                        style={{ display: 'block', width: '100%', padding: '0.4rem 0.6rem', background: 'transparent', border: 'none', borderRadius: '6px', color: 'var(--c-dim)', fontSize: '0.74rem', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', marginTop: '0.15rem', borderTop: `1px solid ${t.borderSub}` }}
+                      >Remove from folder</button>
+                    </div>
+                  )}
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <button disabled={bulkWorking} onClick={() => setShowBulkTagInput(v => !v)}
+                    style={{ fontSize: '0.75rem', padding: '0.32rem 0.6rem', borderRadius: '7px', border: `1px solid ${t.border}`, background: t.surface, color: 'var(--c-text)', cursor: 'pointer' }}
+                  >Add tag</button>
+                  {showBulkTagInput && (
+                    <div style={{ position: 'absolute', left: 0, top: '30px', zIndex: 100, background: isDark ? '#16162a' : '#ffffff', border: `1px solid ${t.border}`, borderRadius: '10px', padding: '0.5rem', width: '180px', boxShadow: '0 8px 28px rgba(0,0,0,0.4)' }}>
+                      <input autoFocus value={bulkTagDraft} onChange={e => setBulkTagDraft(e.target.value)} placeholder="tag1, tag2"
+                        onKeyDown={e => { if (e.key === 'Enter') runBulkAction({ action: 'tag', tags: bulkTagDraft.split(',').map(s => s.trim()).filter(Boolean) }); if (e.key === 'Escape') setShowBulkTagInput(false); }}
+                        style={{ width: '100%', background: t.input, border: `1px solid ${t.inputBorder}`, borderRadius: '6px', padding: '0.4rem 0.5rem', fontSize: '0.75rem', color: 'var(--c-text)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  )}
+                </div>
+                <button disabled={bulkWorking} onClick={() => runBulkAction({ action: 'favorite', favorite: true })}
+                  style={{ fontSize: '0.75rem', padding: '0.32rem 0.6rem', borderRadius: '7px', border: `1px solid ${t.border}`, background: t.surface, color: 'var(--c-text)', cursor: 'pointer' }}
+                >★ Favorite</button>
+                <button disabled={bulkWorking} onClick={() => { if (confirm(`Delete ${selectedUrls.size} file(s)?`)) runBulkAction({ action: 'delete' }); }}
+                  style={{ fontSize: '0.75rem', padding: '0.32rem 0.6rem', borderRadius: '7px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: '#f26464', cursor: 'pointer' }}
+                >Delete</button>
+                <button onClick={() => setSelectedUrls(new Set())} style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--c-dim)', background: 'transparent', border: 'none', cursor: 'pointer' }}>Clear</button>
+              </div>
+            )}
 
             {/* ── Panel ── */}
             <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: '14px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }}>
@@ -2512,8 +2817,8 @@ export default function Home() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.65rem 0.85rem', borderBottom: `1px solid ${t.borderSub}` }}>
                     <svg width="16" height="14" viewBox="0 0 24 24" fill="rgba(251,191,36,0.2)" stroke="rgba(251,191,36,0.85)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                     <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { const n = newFolderName.trim(); if (n) setFolders(p => [...p, { id: `folder-${Date.now()}`, name: n }]); setCreatingFolder(false); setNewFolderName(''); } if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); } }}
-                      onBlur={() => { const n = newFolderName.trim(); if (n) setFolders(p => [...p, { id: `folder-${Date.now()}`, name: n }]); setCreatingFolder(false); setNewFolderName(''); }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.currentTarget.blur(); } if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); } }}
+                      onBlur={() => { const n = newFolderName.trim(); if (n) createFolderApi(n); setCreatingFolder(false); setNewFolderName(''); }}
                       placeholder="Folder name"
                       style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--c-text)', fontSize: '0.85rem', fontWeight: 500, fontFamily: 'inherit' }}
                     />
@@ -2531,6 +2836,14 @@ export default function Home() {
                     <div key={folder.id} style={rowStyle}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.surface; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.background = 'rgba(126,244,203,0.1)'; }}
+                      onDragLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        (e.currentTarget as HTMLElement).style.background = 'transparent';
+                        const draggedUrl = e.dataTransfer.getData('text/plain');
+                        if (draggedUrl) assignFileToFolder(draggedUrl, folder.id);
+                      }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}
                         onClick={() => !isRenaming && setCurrentFolderId(folder.id)}
@@ -2540,8 +2853,8 @@ export default function Home() {
                         {isRenaming ? (
                           <input autoFocus value={renameFolderValue} onChange={e => setRenameFolderValue(e.target.value)}
                             onClick={e => e.stopPropagation()}
-                            onKeyDown={e => { if (e.key === 'Enter') { const n = renameFolderValue.trim(); if (n) setFolders(p => p.map(f => f.id === folder.id ? { ...f, name: n } : f)); setRenamingFolderId(null); } if (e.key === 'Escape') setRenamingFolderId(null); }}
-                            onBlur={() => { const n = renameFolderValue.trim(); if (n) setFolders(p => p.map(f => f.id === folder.id ? { ...f, name: n } : f)); setRenamingFolderId(null); }}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.currentTarget.blur(); } if (e.key === 'Escape') setRenamingFolderId(null); }}
+                            onBlur={() => { const n = renameFolderValue.trim(); if (n) renameFolderApi(folder.id, n); setRenamingFolderId(null); }}
                             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--c-text)', fontSize: '0.85rem', fontWeight: 500, fontFamily: 'inherit', padding: 0 }}
                           />
                         ) : (
@@ -2554,10 +2867,13 @@ export default function Home() {
                           <span style={{ fontSize: '0.72rem', color: 'var(--c-dim)' }}>{fileCount} {fileCount === 1 ? 'file' : 'files'}</span>
                           <span/>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.28rem', justifyContent: 'flex-end' }}>
+                            <button onClick={e => { e.stopPropagation(); shareFolderApi(folder.id); }} title="Copy shareable folder link" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                              <LordIcon name="copy" size={10} />
+                            </button>
                             <button onClick={e => { e.stopPropagation(); setRenamingFolderId(folder.id); setRenameFolderValue(folder.name); }} title="Rename" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                               <LordIcon name="pencil" size={10} />
                             </button>
-                            <button onClick={e => { e.stopPropagation(); setFolders(p => p.filter(f => f.id !== folder.id)); setFilesFolderMap(p => { const n = { ...p }; Object.keys(n).forEach(k => { if (n[k] === folder.id) delete n[k]; }); return n; }); }} title="Delete folder" style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                            <button onClick={e => { e.stopPropagation(); deleteFolderApi(folder.id); }} title="Delete folder" style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                               <MonoIcon name="trash" width={9} height={9} />
                             </button>
                           </div>
@@ -2585,15 +2901,20 @@ export default function Home() {
                   const extLabel = filename.includes('.') ? filename.split('.').pop()?.toUpperCase() : 'FILE';
                   const isRenamingThis = renamingUrl === url;
                   const isMovingThis = movingFileUrl === url;
+                  const isTaggingThis = taggingUrl === url;
                   const assignedFolder = filesFolderMap[url];
 
                   return (
-                    <div key={url} style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 52px 68px 88px 80px', gap: '0.5rem', padding: '0.58rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, alignItems: 'center', transition: 'background 0.12s' }}
+                    <div key={url} draggable onDragStart={e => e.dataTransfer.setData('text/plain', url)}
+                      style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 52px 68px 88px 80px', gap: '0.5rem', padding: '0.58rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, alignItems: 'center', transition: 'background 0.12s' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.surface; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                     >
                       {/* Name */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
+                        <input type="checkbox" checked={selectedUrls.has(url)} onClick={e => e.stopPropagation()} onChange={() => toggleSelected(url)}
+                          style={{ flexShrink: 0, width: '13px', height: '13px', cursor: 'pointer', accentColor: '#7ef4cb' }}
+                        />
                         {isImage && thumbKey
                           ? <img src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=64&h=64`} alt="" loading="lazy" style={{ width: '26px', height: '26px', borderRadius: '5px', objectFit: 'cover', border: `1px solid ${t.border}`, flexShrink: 0 }} />
                           : <div style={{ width: '26px', height: '26px', borderRadius: '5px', background: t.surface, border: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.42rem', fontWeight: 700, color: 'var(--c-dim)', letterSpacing: '0.04em', flexShrink: 0 }}>{extLabel?.slice(0,4)}</div>
@@ -2618,6 +2939,39 @@ export default function Home() {
                       <span style={{ fontSize: '0.71rem', color: 'var(--c-dim)' }}>{formatTimestamp(fileItem.timestamp)}</span>
                       {/* Actions */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.26rem', justifyContent: 'flex-end' }}>
+                        <button onClick={e => { e.stopPropagation(); toggleFavorite(url, fileItem.favorite); }} title={fileItem.favorite ? 'Remove favorite' : 'Add favorite'}
+                          style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${fileItem.favorite ? 'rgba(251,191,36,0.5)' : t.border}`, background: fileItem.favorite ? 'rgba(251,191,36,0.12)' : 'transparent', color: fileItem.favorite ? '#fbbf24' : 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill={fileItem.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.5l2.9 6.6 7.1.7-5.4 4.7 1.6 7-6.2-3.8-6.2 3.8 1.6-7-5.4-4.7 7.1-.7z"/></svg>
+                        </button>
+                        {/* Tags */}
+                        <div style={{ position: 'relative' }}>
+                          <button onClick={e => { e.stopPropagation(); setTaggingUrl(isTaggingThis ? null : url); setTagDraft((fileItem.tags || []).join(', ')); }} title="Edit tags"
+                            style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${isTaggingThis || (fileItem.tags && fileItem.tags.length > 0) ? 'rgba(126,244,203,0.4)' : t.border}`, background: isTaggingThis ? 'rgba(126,244,203,0.12)' : 'transparent', color: isTaggingThis || (fileItem.tags && fileItem.tags.length > 0) ? '#7ef4cb' : 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><circle cx="7" cy="7" r="1"/></svg>
+                          </button>
+                          {isTaggingThis && (
+                            <div style={{ position: 'absolute', right: 0, top: '28px', zIndex: 100, background: isDark ? '#16162a' : '#ffffff', border: `1px solid ${t.border}`, borderRadius: '10px', padding: '0.5rem', width: '190px', boxShadow: '0 8px 28px rgba(0,0,0,0.4)', backdropFilter: 'blur(14px)' }} onClick={e => e.stopPropagation()}>
+                              <input autoFocus value={tagDraft} onChange={e => setTagDraft(e.target.value)}
+                                placeholder="tag1, tag2, tag3"
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    const tags = tagDraft.split(',').map(s => s.trim()).filter(Boolean);
+                                    updateFileMetadata(url, { tags });
+                                    setTaggingUrl(null);
+                                  }
+                                  if (e.key === 'Escape') setTaggingUrl(null);
+                                }}
+                                style={{ width: '100%', background: t.input, border: `1px solid ${t.inputBorder}`, borderRadius: '6px', padding: '0.4rem 0.5rem', fontSize: '0.75rem', color: 'var(--c-text)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              />
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem', marginTop: '0.4rem' }}>
+                                <button onClick={() => setTaggingUrl(null)} style={{ fontSize: '0.68rem', color: 'var(--c-dim)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.2rem 0.4rem' }}>Cancel</button>
+                                <button onClick={() => { const tags = tagDraft.split(',').map(s => s.trim()).filter(Boolean); updateFileMetadata(url, { tags }); setTaggingUrl(null); }} style={{ fontSize: '0.68rem', color: '#7ef4cb', background: 'rgba(126,244,203,0.1)', border: '1px solid rgba(126,244,203,0.3)', borderRadius: '5px', cursor: 'pointer', padding: '0.2rem 0.5rem' }}>Save</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <button onClick={e => { e.stopPropagation(); copyToClipboard(url); }} title="Copy share link" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                           <MonoIcon name="share" width={10} height={10} />
                         </button>
@@ -2635,7 +2989,7 @@ export default function Home() {
                             <div style={{ position: 'absolute', right: 0, top: '28px', zIndex: 100, background: isDark ? '#16162a' : '#ffffff', border: `1px solid ${t.border}`, borderRadius: '10px', padding: '0.3rem', minWidth: '150px', boxShadow: '0 8px 28px rgba(0,0,0,0.4)', backdropFilter: 'blur(14px)' }}>
                               {folders.length === 0 && <div style={{ padding: '0.45rem 0.65rem', fontSize: '0.74rem', color: 'var(--c-dim)' }}>No folders — create one first</div>}
                               {folders.map(folder => (
-                                <button key={folder.id} onClick={e => { e.stopPropagation(); setFilesFolderMap(p => ({ ...p, [url]: folder.id })); setMovingFileUrl(null); }}
+                                <button key={folder.id} onClick={e => { e.stopPropagation(); assignFileToFolder(url, folder.id); setMovingFileUrl(null); }}
                                   style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '100%', padding: '0.4rem 0.6rem', background: assignedFolder === folder.id ? t.surface : 'transparent', border: 'none', borderRadius: '6px', color: 'var(--c-text)', fontSize: '0.78rem', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
                                 >
                                   <svg width="11" height="11" viewBox="0 0 24 24" fill="rgba(251,191,36,0.2)" stroke="rgba(251,191,36,0.85)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -2644,7 +2998,7 @@ export default function Home() {
                                 </button>
                               ))}
                               {assignedFolder && (
-                                <button onClick={e => { e.stopPropagation(); setFilesFolderMap(p => { const n = { ...p }; delete n[url]; return n; }); setMovingFileUrl(null); }}
+                                <button onClick={e => { e.stopPropagation(); assignFileToFolder(url, null); setMovingFileUrl(null); }}
                                   style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '100%', padding: '0.4rem 0.6rem', background: 'transparent', border: 'none', borderRadius: '6px', color: 'var(--c-dim)', fontSize: '0.74rem', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', marginTop: '0.15rem', borderTop: `1px solid ${t.borderSub}` }}
                                 >
                                   Remove from folder
@@ -2653,6 +3007,12 @@ export default function Home() {
                             </div>
                           )}
                         </div>
+                        {/* Replace */}
+                        <button onClick={e => { e.stopPropagation(); requestReplaceFile(url); }} disabled={replacingUrls.has(url)} title="Replace file (overwrites in place, no version history)"
+                          style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: replacingUrls.has(url) ? 'not-allowed' : 'pointer' }}
+                        >
+                          {replacingUrls.has(url) ? <span style={{ fontSize: '0.55rem' }}>…</span> : <LordIcon name="spinner" size={10} />}
+                        </button>
                         {/* Delete */}
                         <button onClick={e => { e.stopPropagation(); deleteUploadedFile(url); }} disabled={deletingUrls.has(url)} title="Delete"
                           style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: deletingUrls.has(url) ? 'rgba(242,100,100,0.4)' : '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: deletingUrls.has(url) ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}
@@ -2690,10 +3050,14 @@ export default function Home() {
                       const extLabel = filename.includes('.') ? filename.split('.').pop()?.toUpperCase() : 'FILE';
                       const isRenamingThis = renamingUrl === url;
                       return (
-                        <div key={url} style={{ borderRadius: '10px', border: `1px solid ${t.border}`, background: t.surface, padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', position: 'relative', transition: 'background 0.12s' }}
+                        <div key={url} draggable onDragStart={e => e.dataTransfer.setData('text/plain', url)}
+                          style={{ borderRadius: '10px', border: `1px solid ${t.border}`, background: t.surface, padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', position: 'relative', transition: 'background 0.12s' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.card; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = t.surface; }}
                         >
+                          <input type="checkbox" checked={selectedUrls.has(url)} onClick={e => e.stopPropagation()} onChange={() => toggleSelected(url)}
+                            style={{ position: 'absolute', top: '0.45rem', left: '0.45rem', zIndex: 2, width: '13px', height: '13px', cursor: 'pointer', accentColor: '#7ef4cb' }}
+                          />
                           {isImage && thumbKey
                             ? <img src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=200&h=200`} alt="" loading="lazy" style={{ width: '100%', height: '72px', objectFit: 'cover', borderRadius: '6px', border: `1px solid ${t.border}` }} />
                             : <div style={{ width: '100%', height: '72px', borderRadius: '6px', background: t.card, border: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 700, color: 'var(--c-dim)', letterSpacing: '0.06em' }}>{extLabel?.slice(0,5)}</div>
@@ -2710,6 +3074,7 @@ export default function Home() {
                             >{displayName}</span>
                           )}
                           <div style={{ display: 'flex', justifyContent: 'center', gap: '0.28rem' }}>
+                            <button onClick={e => { e.stopPropagation(); toggleFavorite(url, fileItem.favorite); }} title={fileItem.favorite ? 'Remove favorite' : 'Add favorite'} style={{ width: '22px', height: '22px', borderRadius: '5px', border: `1px solid ${fileItem.favorite ? 'rgba(251,191,36,0.5)' : t.border}`, background: fileItem.favorite ? 'rgba(251,191,36,0.12)' : 'transparent', color: fileItem.favorite ? '#fbbf24' : 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><svg width="10" height="10" viewBox="0 0 24 24" fill={fileItem.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.5l2.9 6.6 7.1.7-5.4 4.7 1.6 7-6.2-3.8-6.2 3.8 1.6-7-5.4-4.7 7.1-.7z"/></svg></button>
                             <button onClick={e => { e.stopPropagation(); copyToClipboard(url); }} title="Copy link" style={{ width: '22px', height: '22px', borderRadius: '5px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><MonoIcon name="share" width={9} height={9} /></button>
                             <button onClick={e => { e.stopPropagation(); setQrPopoverUrl(toDownloadPageUrl(url)); }} title="QR code" style={{ width: '22px', height: '22px', borderRadius: '5px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><MonoIcon name="qrCode" width={9} height={9} /></button>
                             <button onClick={e => { e.stopPropagation(); deleteUploadedFile(url); }} disabled={deletingUrls.has(url)} title="Delete" style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><MonoIcon name="trash" width={9} height={9} /></button>

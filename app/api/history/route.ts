@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, pruneMissingHistoryEntries, RETENTION_MS } from '@/app/lib/storage/retention';
 import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
-import { addUploadRecord, loadUploadHistory, saveUploadHistory, type UploadRecord } from '@/app/lib/data/upload-history-store';
+import { addUploadRecord, loadUploadHistory, saveUploadHistory, updateUploadRecordByUrl, type UploadRecord } from '@/app/lib/data/upload-history-store';
 import { isAdminRequest, requireAdmin } from '@/app/lib/auth/admin-auth';
 
 export const dynamic = 'force-dynamic';
@@ -198,6 +198,89 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to add to history' },
       { status: 500 }
     );
+  }
+}
+
+const MAX_TAGS = 20;
+const MAX_TAG_LENGTH = 40;
+
+// PATCH: update per-file metadata (favorite, tags, folder, display name).
+// No auth beyond knowing the file's URL — same capability model as
+// DELETE /api/delete, which already allows anyone with the URL to remove
+// the file outright, so this isn't a new trust boundary.
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const url = typeof body?.url === 'string' ? body.url.trim() : '';
+    if (!url) {
+      return NextResponse.json({ error: 'url is required' }, { status: 400 });
+    }
+
+    const update: Partial<Pick<UploadRecord, 'folder' | 'tags' | 'favorite' | 'displayName' | 'size'>> = {};
+    let hasUpdate = false;
+
+    if ('favorite' in body) {
+      update.favorite = Boolean(body.favorite);
+      hasUpdate = true;
+    }
+
+    if ('size' in body) {
+      const size = Number(body.size);
+      if (!Number.isFinite(size) || size < 0) {
+        return NextResponse.json({ error: 'size must be a non-negative number' }, { status: 400 });
+      }
+      update.size = size;
+      hasUpdate = true;
+    }
+
+    if ('folder' in body) {
+      update.folder = body.folder === null ? undefined : String(body.folder).trim() || undefined;
+      hasUpdate = true;
+    }
+
+    if ('displayName' in body) {
+      update.displayName = body.displayName === null ? undefined : String(body.displayName).trim().slice(0, 200) || undefined;
+      hasUpdate = true;
+    }
+
+    if ('tags' in body) {
+      if (body.tags === null) {
+        update.tags = undefined;
+      } else if (Array.isArray(body.tags)) {
+        update.tags = body.tags
+          .filter((t: unknown): t is string => typeof t === 'string')
+          .map((t: string) => t.trim().slice(0, MAX_TAG_LENGTH))
+          .filter(Boolean)
+          .slice(0, MAX_TAGS);
+      } else {
+        return NextResponse.json({ error: 'tags must be an array of strings' }, { status: 400 });
+      }
+      hasUpdate = true;
+    }
+
+    if (!hasUpdate) {
+      return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
+    }
+
+    const applyUpdate = (record: UploadRecord): UploadRecord => ({
+      ...record,
+      ...update,
+      updatedAt: Date.now(),
+    });
+
+    let updated = await updateUploadRecordByUrl(url, applyUpdate, 'public');
+    if (!updated) {
+      updated = await updateUploadRecordByUrl(url, applyUpdate, 'premium');
+    }
+
+    if (!updated) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, record: stripOwnershipFields(updated) });
+  } catch (error) {
+    console.error('Error updating history record:', error);
+    return NextResponse.json({ error: 'Failed to update file' }, { status: 500 });
   }
 }
 
