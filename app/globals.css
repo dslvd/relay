@@ -9,6 +9,137 @@
   --c-dim: #8a92a1;
   --c-dim-ch: 138, 146, 161;
   --c-sub: #b5bcc9;
+
+  /* Backdrop wash */
+  --wash-violet: #1a1035;
+  --wash-teal: #0d1f2d;
+  --wash-base: #0a0a0a;
+
+  /* Accents */
+  --c-accent-mint: #7ef4cb;
+  --c-accent-mint-strong: #4ff8c0;
+  --c-accent-error: #ff9e9e;
+  --c-accent-error-strong: #ffb4b4;
+
+  /* Glass surfaces */
+  --surface-card: rgba(255, 255, 255, 0.04);
+  --surface-card-strong: rgba(255, 255, 255, 0.07);
+  --surface-hover: rgba(255, 255, 255, 0.075);
+  --surface-input: rgba(255, 255, 255, 0.06);
+  --surface-well: rgba(128, 128, 128, 0.05);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-input: rgba(255, 255, 255, 0.15);
+
+  /* Semantic status */
+  --status-queued-bg: rgba(255, 255, 255, 0.04);
+  --status-queued-fg: rgba(199, 206, 219, 0.95);
+  --status-uploading-bg: rgba(255, 255, 255, 0.06);
+  --status-uploading-fg: #eef1f6;
+  --status-success-bg: rgba(126, 244, 203, 0.1);
+  --status-success-fg: #7ef4cb;
+  --status-success-border: rgba(126, 244, 203, 0.18);
+  --status-error-bg: rgba(255, 117, 117, 0.09);
+  --status-error-fg: #ff9e9e;
+  --status-error-border: rgba(255, 117, 117, 0.18);
+
+  /* Brand primary action (pill button) */
+  --btn-primary-bg: rgba(233, 236, 242, 0.18);
+  --btn-primary-border: rgba(233, 236, 242, 0.4);
+  --btn-primary-fg: #eef1f6;
+
+  --btn-download-bg: rgba(126, 244, 203, 0.14);
+  --btn-download-bg-hover: rgba(126, 244, 203, 0.22);
+  --btn-download-border: rgba(126, 244, 203, 0.32);
+  --btn-download-fg: #7ef4cb;
+
+  /* Type scale */
+  --text-2xs: 0.65rem;
+  --text-xs: 0.7rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.85rem;
+  --text-md: 0.95rem;
+  --text-lg: 1.1rem;
+  --text-xl: 1.4rem;
+  --text-display-sm: clamp(1.7rem, 4vw, 2.35rem);
+  --text-display-md: clamp(2rem, 3.5vw, 3rem);
+  --text-display-lg: clamp(5rem, 18vw, 10rem);
+
+  --tracking-tight: -0.04em;
+  --tracking-snug: -0.02em;
+  --tracking-normal: -0.01em;
+  --tracking-wide: 0.1em;
+  --tracking-wider: 0.12em;
+  --tracking-widest: 0.18em;
+  --tracking-max: 0.3em;
+
+  --leading-tight: 0.9;
+  --leading-snug: 1.3;
+  --leading-normal: 1.45;
+  --leading-relaxed: 1.6;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.35rem;
+  --space-3: 0.5rem;
+  --space-4: 0.6rem;
+  --space-5: 0.75rem;
+  --space-6: 0.85rem;
+  --space-7: 1rem;
+  --space-8: 1.2rem;
+  --space-9: 1.5rem;
+  --space-10: 2rem;
+  --space-11: 3rem;
+
+  --container-narrow: 420px;
+  --container-card: 500px;
+  --container-legal: min(980px, 92vw);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 18px;
+  --radius-4xl: 20px;
+  --radius-5xl: 28px;
+  --radius-pill: 999px;
+
+  /* Blur */
+  --blur-sm: 10px;
+  --blur-md: 12px;
+  --blur-lg: 14px;
+  --blur-xl: 20px;
+  --blur-2xl: 28px;
+
+  /* Shadows */
+  --shadow-card: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --shadow-card-lg: 0 22px 60px rgba(0, 0, 0, 0.25);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.7);
+  --shadow-btn: 0 2px 16px rgba(0, 0, 0, 0.3);
+  --shadow-inset-hairline: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --shadow-glow-mint: 0 0 24px rgba(79, 248, 192, 0.28);
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 400ms;
+  --duration-route: 180ms;
+
+  --ease-standard: ease;
+  --ease-out: ease-out;
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-reveal: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --font-body: var(--font-sora), system-ui, -apple-system, sans-serif;
 }
 
 [data-theme="light"] {
@@ -19,6 +150,28 @@
   --c-dim: #555f70;
   --c-dim-ch: 85, 95, 112;
   --c-sub: #374151;
+
+  --wash-violet: #ece9f8;
+  --wash-teal: #e5edf5;
+  --wash-base: #f0f2f7;
+
+  --surface-card: rgba(0, 0, 0, 0.025);
+  --surface-card-strong: rgba(0, 0, 0, 0.045);
+  --surface-hover: rgba(0, 0, 0, 0.07);
+  --surface-input: rgba(0, 0, 0, 0.045);
+  --surface-well: rgba(0, 0, 0, 0.04);
+
+  --border-subtle: rgba(0, 0, 0, 0.07);
+  --border-default: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --border-input: rgba(0, 0, 0, 0.12);
+
+  --status-queued-bg: rgba(0, 0, 0, 0.04);
+  --status-queued-fg: rgba(55, 65, 81, 0.95);
+  --status-uploading-bg: rgba(0, 0, 0, 0.06);
+  --status-uploading-fg: #1a1f2e;
+
+  --c-accent-mint: #0d9488;
 }
 
 html {
