@@ -48,9 +48,9 @@ export default function AdminLogin() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%)',
+        background: 'radial-gradient(ellipse at 30% 20%, var(--wash-violet) 0%, var(--wash-base) 55%), radial-gradient(ellipse at 75% 80%, var(--wash-teal) 0%, var(--wash-base) 60%)',
         backgroundAttachment: 'fixed',
-        color: '#f5f5f5',
+        color: 'var(--c-text)',
         padding: '1.5rem'
       }}
     >
@@ -58,11 +58,11 @@ export default function AdminLogin() {
         style={{
           width: 'min(420px, 92vw)',
           borderRadius: '16px',
-          border: '1px solid rgba(255,255,255,0.13)',
-          background: 'rgba(255,255,255,0.07)',
+          border: '1px solid var(--border-default)',
+          background: 'var(--surface-card-strong)',
           backdropFilter: 'blur(28px) saturate(180%)',
           WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.1)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1)',
           padding: '1.2rem'
         }}
       >
@@ -74,12 +74,12 @@ export default function AdminLogin() {
             gap: '0.35rem',
             marginBottom: '1rem',
             fontSize: '0.78rem',
-            color: 'rgba(245,245,245,0.55)',
+            color: 'rgba(var(--c-text-ch),0.55)',
             textDecoration: 'none',
             transition: 'color 0.15s'
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = '#f5f5f5')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(245,245,245,0.55)')}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--c-text)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(var(--c-text-ch),0.55)')}
         >
           ← Back
         </Link>
@@ -88,7 +88,7 @@ export default function AdminLogin() {
           Admin login
         </h1>
 
-        <p style={{ margin: '0 0 1rem', color: 'rgba(245, 245, 245, 0.65)', fontSize: '0.8rem' }}>
+        <p style={{ margin: '0 0 1rem', color: 'rgba(var(--c-text-ch),0.65)', fontSize: '0.8rem' }}>
           Login to access the admin dashboard. Failed attempts are logged.
         </p>
 
@@ -102,18 +102,18 @@ export default function AdminLogin() {
               width: '100%',
               padding: '0.65rem 0.75rem',
               borderRadius: '10px',
-              border: '1px solid rgba(255,255,255,0.15)',
-              background: 'rgba(255,255,255,0.07)',
+              border: '1px solid var(--border-input)',
+              background: 'var(--surface-input)',
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
-              color: '#f5f5f5',
+              color: 'var(--c-text)',
               fontSize: '0.8rem',
               outline: 'none',
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
             }}
           />
 
-          {error && <div style={{ fontSize: '0.78rem', color: '#ffb4b4' }}>{error}</div>}
+          {error && <div style={{ fontSize: '0.78rem', color: 'var(--c-accent-error)' }}>{error}</div>}
 
           <button
             type="submit"
@@ -123,11 +123,11 @@ export default function AdminLogin() {
               width: '100%',
               padding: '0.65rem 0.8rem',
               borderRadius: '999px',
-              border: '1px solid rgba(233,236,242,0.4)',
-              background: 'rgba(233,236,242,0.18)',
+              border: '1px solid rgba(var(--c-text-ch),0.4)',
+              background: 'rgba(var(--c-text-ch),0.18)',
               backdropFilter: 'blur(14px)',
               WebkitBackdropFilter: 'blur(14px)',
-              color: '#eef1f6',
+              color: 'var(--c-text)',
               fontWeight: 700,
               fontSize: '0.8rem',
               cursor: loading ? 'not-allowed' : 'pointer',
