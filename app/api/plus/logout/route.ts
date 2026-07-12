@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { destroyPremiumSession } from '@/app/lib/auth/premium-auth';
+import { destroyPlusSession } from '@/app/lib/auth/plus-auth';
 
-const PREMIUM_COOKIE_NAME = 'premium_auth';
+const PLUS_COOKIE_NAME = 'plus_auth';
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
+  const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
   if (token) {
-    await destroyPremiumSession(token);
+    await destroyPlusSession(token);
   }
 
   const response = NextResponse.json({ success: true });
   response.cookies.set({
-    name: PREMIUM_COOKIE_NAME,
+    name: PLUS_COOKIE_NAME,
     value: '',
     httpOnly: true,
     sameSite: 'strict',

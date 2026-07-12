@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPremiumUserFromInvite } from '@/app/lib/auth/premium-auth';
+import { createPlusUserFromInvite } from '@/app/lib/auth/plus-auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
     }
 
-    const { user, error } = await createPremiumUserFromInvite({
+    const { user, error } = await createPlusUserFromInvite({
       inviteToken: String(token),
       email: String(email),
       password: String(password),
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('Premium register error:', error);
+    console.error('Plus register error:', error);
     return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
   }
 }

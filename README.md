@@ -47,7 +47,7 @@ CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
 CLOUDFLARE_D1_DATABASE_ID=your_d1_database_id
 CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
 REDIS_URL=redis://default:password@host:port
-PREMIUM_INVITE_SECRET=your_long_random_secret
+PLUS_INVITE_SECRET=your_long_random_secret
 ```
 
 ### 3. Run Development Server
@@ -160,13 +160,13 @@ In Vercel Dashboard → Settings → Environment Variables:
 | `R2_BUCKET` | R2 bucket name for uploads | Yes |
 | `R2_PUBLIC_BASE_URL` | Public R2/custom-domain base URL | Yes |
 | `MAX_UPLOAD_FILE_MB` | Per-file upload size limit in MB | No (default 100) |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID for D1 API | Yes (premium auth storage) |
-| `CLOUDFLARE_D1_DATABASE_ID` | D1 database ID | Yes (premium auth storage) |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with D1 edit permission | Yes (premium auth storage) |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID for D1 API | Yes (plus auth storage) |
+| `CLOUDFLARE_D1_DATABASE_ID` | D1 database ID | Yes (plus auth storage) |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with D1 edit permission | Yes (plus auth storage) |
 | `ADMIN_PASSWORD` | Admin dashboard password | Yes |
 | `CRON_SECRET` | Secret for cron authentication | Yes (for auto-cleanup) |
 | `REDIS_URL` | Redis connection URL (upload/history persistence) | Optional |
-| `PREMIUM_INVITE_SECRET` | HMAC secret for premium invite tokens | Yes (premium invites) |
+| `PLUS_INVITE_SECRET` | HMAC secret for plus invite tokens | Yes (plus invites) |
 | `NEXT_PUBLIC_ADSENSE_CLIENT_ID` | Google AdSense Publisher ID | No (for monetization) |
 
 ## 💰 Monetization (Optional)

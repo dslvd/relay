@@ -22,7 +22,7 @@ export async function DELETE(request: NextRequest) {
     await Promise.all([
       deleteObject(objectKey),
       removeUploadUrls([url], 'public'),
-      removeUploadUrls([url], 'premium'),
+      removeUploadUrls([url], 'plus'),
     ]);
 
     return NextResponse.json({ success: true });

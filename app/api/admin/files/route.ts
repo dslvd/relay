@@ -47,13 +47,13 @@ export async function GET(request: NextRequest) {
   const authError = requireAdmin(request);
   if (authError) return authError;
 
-  const [publicHistory, premiumHistory, quarantineMap] = await Promise.all([
+  const [publicHistory, plusHistory, quarantineMap] = await Promise.all([
     loadUploadHistory('public'),
-    loadUploadHistory('premium'),
+    loadUploadHistory('plus'),
     loadQuarantineMap(),
   ]);
 
-  const combined = [...publicHistory, ...premiumHistory]
+  const combined = [...publicHistory, ...plusHistory]
     .sort((a, b) => b.timestamp - a.timestamp);
 
   const mapped = await Promise.all(
@@ -129,7 +129,7 @@ export async function PATCH(request: NextRequest) {
       tags: Array.isArray(tags) ? tags : record.tags || [],
       updatedAt: nextTimestamp,
     }), 'public');
-    const premiumCount = await updateUploadRecordsByUrls(urls, (record) => ({
+    const plusCount = await updateUploadRecordsByUrls(urls, (record) => ({
       ...record,
       filename: filename ?? record.filename,
       folder: folder ?? record.folder ?? '',
@@ -137,9 +137,9 @@ export async function PATCH(request: NextRequest) {
       favorite: typeof favorite === 'boolean' ? favorite : Boolean(record.favorite),
       tags: Array.isArray(tags) ? tags : record.tags || [],
       updatedAt: nextTimestamp,
-    }), 'premium');
+    }), 'plus');
 
-    const updated = updateCount + premiumCount;
+    const updated = updateCount + plusCount;
 
     await appendAuditLog({
       id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       }
       await Promise.all([
         removeUploadUrls(urls, 'public'),
-        removeUploadUrls(urls, 'premium'),
+        removeUploadUrls(urls, 'plus'),
       ]);
       return NextResponse.json({ success: true, data: { deleted } });
     }
@@ -48,11 +48,11 @@ export async function POST(request: NextRequest) {
     if (action === 'move') {
       const folderRaw = body?.folder;
       const folder = folderRaw === null || folderRaw === undefined ? undefined : String(folderRaw).trim() || undefined;
-      const [publicCount, premiumCount] = await Promise.all([
+      const [publicCount, plusCount] = await Promise.all([
         updateUploadRecordsByUrls(urls, (r) => ({ ...r, folder, updatedAt: Date.now() }), 'public'),
-        updateUploadRecordsByUrls(urls, (r) => ({ ...r, folder, updatedAt: Date.now() }), 'premium'),
+        updateUploadRecordsByUrls(urls, (r) => ({ ...r, folder, updatedAt: Date.now() }), 'plus'),
       ]);
-      return NextResponse.json({ success: true, data: { updated: publicCount + premiumCount } });
+      return NextResponse.json({ success: true, data: { updated: publicCount + plusCount } });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

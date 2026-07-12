@@ -34,7 +34,7 @@ export default function DownloadPage() {
   const [isCdnCopied, setIsCdnCopied] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [isQrOpen, setIsQrOpen] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
+  const [isPlus, setIsPlus] = useState(false);
   const [downloadCount, setDownloadCount] = useState<number | null>(null);
 
   // This page lives at /d/{key} (the shareable page). The raw file bytes are
@@ -116,13 +116,13 @@ export default function DownloadPage() {
   }, [fileData, filename, notFound]);
 
   useEffect(() => {
-    fetch('/api/premium/me', { cache: 'no-store' })
+    fetch('/api/plus/me', { cache: 'no-store' })
       .then((response) => response.json())
       .then((data) => {
-        setIsPremium(Boolean(data.premium));
+        setIsPlus(Boolean(data.plus));
       })
       .catch(() => {
-        setIsPremium(false);
+        setIsPlus(false);
       });
   }, []);
 
@@ -940,7 +940,7 @@ export default function DownloadPage() {
                 )}
 
                 {/* Ad Banner */}
-                {!isPremium && (
+                {!isPlus && (
                   <AdBanner
                     dataAdSlot="9876543210"
                     style={{ marginTop: '1rem' }}

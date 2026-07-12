@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { checkPremiumStorageHealth } from '@/app/lib/auth/premium-auth';
+import { checkPlusStorageHealth } from '@/app/lib/auth/plus-auth';
 
 export async function GET() {
-  const status = await checkPremiumStorageHealth();
+  const status = await checkPlusStorageHealth();
   return NextResponse.json(status, { status: status.ok ? 200 : 500 });
 }

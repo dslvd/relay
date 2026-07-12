@@ -66,7 +66,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
 
-    for (const scope of ['public', 'premium'] as const) {
+    for (const scope of ['public', 'plus'] as const) {
       const history = await loadUploadHistory(scope);
       const urls = history.filter((r) => r.folder === id).map((r) => r.url);
       if (urls.length > 0) {

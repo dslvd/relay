@@ -12,7 +12,7 @@ interface UploadRecord {
   size: number;
 }
 
-export default function PremiumDashboard() {
+export default function PlusDashboard() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
@@ -39,15 +39,15 @@ export default function PremiumDashboard() {
           setError(null);
         }
 
-        const meResponse = await fetch('/api/premium/me', { cache: 'no-store' });
+        const meResponse = await fetch('/api/plus/me', { cache: 'no-store' });
         if (!mountedRef.current || requestId !== syncRequestIdRef.current) return;
         const me = await meResponse.json();
-        if (!me?.premium) {
-          window.location.href = '/premium';
+        if (!me?.plus) {
+          window.location.href = '/plus';
           return;
         }
 
-        const uploadsResponse = await fetch('/api/premium/uploads', { cache: 'no-store' });
+        const uploadsResponse = await fetch('/api/plus/uploads', { cache: 'no-store' });
         if (!mountedRef.current || requestId !== syncRequestIdRef.current) return;
         if (!uploadsResponse.ok) {
           throw new Error('Failed to load uploads');
@@ -132,15 +132,15 @@ export default function PremiumDashboard() {
         setError(null);
       }
 
-      const meResponse = await fetch('/api/premium/me', { cache: 'no-store' });
+      const meResponse = await fetch('/api/plus/me', { cache: 'no-store' });
       if (!mountedRef.current || requestId !== syncRequestIdRef.current) return;
       const me = await meResponse.json();
-      if (!me?.premium) {
-        window.location.href = '/premium';
+      if (!me?.plus) {
+        window.location.href = '/plus';
         return;
       }
 
-      const uploadsResponse = await fetch('/api/premium/uploads', { cache: 'no-store' });
+      const uploadsResponse = await fetch('/api/plus/uploads', { cache: 'no-store' });
       if (!mountedRef.current || requestId !== syncRequestIdRef.current) return;
       if (!uploadsResponse.ok) {
         throw new Error('Failed to load uploads');
@@ -167,7 +167,7 @@ export default function PremiumDashboard() {
 
     try {
       setDeletingUrl(url);
-      const response = await fetch('/api/premium/uploads', {
+      const response = await fetch('/api/plus/uploads', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
@@ -251,7 +251,7 @@ export default function PremiumDashboard() {
                 textTransform: 'uppercase',
                 color: '#8a92a1'
               }}>
-                Premium vault
+                Plus vault
               </div>
               <h1 style={{
                 margin: '0.35rem 0 0',
@@ -266,7 +266,7 @@ export default function PremiumDashboard() {
                 fontSize: '0.9rem',
                 maxWidth: '52ch'
               }}>
-                Browse, sync, and manage the files attached to your premium account.
+                Browse, sync, and manage the files attached to your plus account.
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -483,7 +483,7 @@ export default function PremiumDashboard() {
               textAlign: 'center'
             }}>
               {uploads.length === 0
-                ? 'No uploads yet. Premium uploads will appear here automatically once they sync.'
+                ? 'No uploads yet. Plus uploads will appear here automatically once they sync.'
                 : 'No matches for your search. Try a different filename or clear the filter.'}
             </div>
           ) : (

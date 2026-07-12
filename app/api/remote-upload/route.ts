@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
 import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/retention';
-import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
+import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024;
-const PREMIUM_MAX_FILE_BYTES = 500 * 1024 * 1024;
-const PREMIUM_COOKIE_NAME = 'premium_auth';
+const PLUS_MAX_FILE_BYTES = 500 * 1024 * 1024;
+const PLUS_COOKIE_NAME = 'plus_auth';
 
 type RateEntry = {
   windowStart: number;
@@ -108,9 +108,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'URL must start with http:// or https://' }, { status: 400 });
     }
 
-    const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
-    const premiumUser = token ? await getPremiumUserFromSession(token) : null;
-    const maxFileBytes = premiumUser ? PREMIUM_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES;
+    const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
+    const plusUser = token ? await getPlusUserFromSession(token) : null;
+    const maxFileBytes = plusUser ? PLUS_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES;
 
     const allowedHeaderNames = new Set(['authorization', 'cookie', 'referer']);
     const extraHeaders: Record<string, string> = {};

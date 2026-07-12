@@ -158,7 +158,7 @@ function MonoIcon({
 }
 
 const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
-const PREMIUM_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+const PLUS_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
 const IDB_NAME = 'relay_uploads_v1';
 const IDB_STORE = 'files';
@@ -366,8 +366,8 @@ export default function Home() {
   const [activeView, setActiveView] = useState<'upload' | 'history'>('upload');
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'error' | 'info' }>>([]);
   const [toastsExpanded, setToastsExpanded] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
-  const [premiumEmail, setPremiumEmail] = useState('');
+  const [isPlus, setIsPlus] = useState(false);
+  const [plusEmail, setPlusEmail] = useState('');
   const toastTimeoutRefs = useRef<Record<number, number>>({});
   const toastIdRef = useRef(0);
   const cancelUploadRef = useRef(false);
@@ -386,7 +386,7 @@ export default function Home() {
   const remoteProgressRafRef = useRef<number | null>(null);
   const remoteProgressPendingRef = useRef<{ loaded: number; total: number | null; status: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const maxUploadBytes = isPremium ? PREMIUM_MAX_UPLOAD_BYTES : FREE_MAX_UPLOAD_BYTES;
+  const maxUploadBytes = isPlus ? PLUS_MAX_UPLOAD_BYTES : FREE_MAX_UPLOAD_BYTES;
   const [showRemoteUpload, setShowRemoteUpload] = useState(false);
   const [remoteUrl, setRemoteUrl] = useState('');
   const [remoteAuthHeader, setRemoteAuthHeader] = useState('');
@@ -688,15 +688,15 @@ export default function Home() {
   }, [uploadQueue]);
 
   useEffect(() => {
-    fetch('/api/premium/me', { cache: 'no-store' })
+    fetch('/api/plus/me', { cache: 'no-store' })
       .then((response) => response.json())
       .then((data) => {
-        setIsPremium(Boolean(data.premium));
-        setPremiumEmail(data?.user?.email || '');
+        setIsPlus(Boolean(data.plus));
+        setPlusEmail(data?.user?.email || '');
       })
       .catch(() => {
-        setIsPremium(false);
-        setPremiumEmail('');
+        setIsPlus(false);
+        setPlusEmail('');
       });
 
     // Track page view
@@ -708,14 +708,14 @@ export default function Home() {
     
   }, []);
 
-  const logoutPremium = async () => {
+  const logoutPlus = async () => {
     try {
-      await fetch('/api/premium/logout', { method: 'POST' });
-      setIsPremium(false);
-      setPremiumEmail('');
-      showToast('Premium logout successful', 'info');
+      await fetch('/api/plus/logout', { method: 'POST' });
+      setIsPlus(false);
+      setPlusEmail('');
+      showToast('Plus logout successful', 'info');
     } catch {
-      showToast('Failed to logout premium account', 'error');
+      showToast('Failed to logout Plus account', 'error');
     }
   };
 
@@ -2037,21 +2037,21 @@ export default function Home() {
                 letterSpacing: '0.01em'
               }}
             >
-              {isPremium ? (
+              {isPlus ? (
                 <span style={{ color: 'var(--c-dim)' }}>
-                  {premiumEmail || 'Active'}
+                  {plusEmail || 'Active'}
                 </span>
               ) : (
                 <span style={{ color: 'var(--c-dim)' }}>
-                  Premium = higher limits + no ads
+                  Plus = higher limits + no ads
                 </span>
               )}
             </div>
 
-            {isPremium ? (
+            {isPlus ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                 <a
-                  href="/premium/dashboard"
+                  href="/plus/dashboard"
                   style={{
                     padding: '0.34rem 0.72rem',
                     borderRadius: '999px',
@@ -2069,7 +2069,7 @@ export default function Home() {
                   Dashboard
                 </a>
                 <button
-                  onClick={logoutPremium}
+                  onClick={logoutPlus}
                   style={{
                     padding: '0.34rem 0.72rem',
                     borderRadius: '999px',
@@ -2088,7 +2088,7 @@ export default function Home() {
               </div>
             ) : (
               <a
-                href="/premium"
+                href="/plus"
               style={{
                   padding: '0.36rem 0.75rem',
                   borderRadius: '999px',
@@ -2104,7 +2104,7 @@ export default function Home() {
                   boxShadow: '0 6px 18px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.08)'
                 }}
               >
-                Premium login
+                Plus login
               </a>
             )}
           </div>
@@ -2401,7 +2401,7 @@ export default function Home() {
           textAlign: 'center',
           letterSpacing: '0.02em'
         }}>
-          {/* Max upload size: {formatFileSize(maxUploadBytes)} per file {isPremium ? '• Premium' : '• Free'} */}
+          {/* Max upload size: {formatFileSize(maxUploadBytes)} per file {isPlus ? '• Plus' : '• Free'} */}
         </p>
         )}
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, pruneMissingHistoryEntries, RETENTION_MS } from '@/app/lib/storage/retention';
-import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
+import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { addUploadRecord, loadUploadHistory, saveUploadHistory, updateUploadRecordByUrl, type UploadRecord } from '@/app/lib/data/upload-history-store';
 import { isAdminRequest, requireAdmin } from '@/app/lib/auth/admin-auth';
 
@@ -11,7 +11,7 @@ export const fetchCache = 'force-no-store';
 const MAX_DAILY_BYTES = 1024 * 1024 * 1024; // 1GB per IP
 const MAX_DAILY_UPLOADS = 100;
 
-const PREMIUM_COOKIE_NAME = 'premium_auth';
+const PLUS_COOKIE_NAME = 'plus_auth';
 
 interface UploadQuota {
   dayStart: number;
@@ -51,8 +51,8 @@ function stripOwnershipFields(record: UploadRecord) {
   };
 }
 
-async function runBestEffortHistoryMaintenance(options?: { includePremium?: boolean }) {
-  const includePremium = options?.includePremium ?? false;
+async function runBestEffortHistoryMaintenance(options?: { includePlus?: boolean }) {
+  const includePlus = options?.includePlus ?? false;
 
   const tasks: Promise<unknown>[] = [
     deleteExpiredBlobs(),
@@ -60,8 +60,8 @@ async function runBestEffortHistoryMaintenance(options?: { includePremium?: bool
     pruneMissingHistoryEntries({ scope: 'public' }),
   ];
 
-  if (includePremium) {
-    tasks.push(pruneMissingHistoryEntries({ scope: 'premium' }));
+  if (includePlus) {
+    tasks.push(pruneMissingHistoryEntries({ scope: 'plus' }));
   }
 
   const results = await Promise.allSettled(tasks);
@@ -81,25 +81,25 @@ export async function GET(request: NextRequest) {
     const authError = requireAdmin(request);
     if (authError) return authError;
 
-    const includePremiumRequested = request.nextUrl.searchParams.get('includePremium') === '1';
-    const includePremium = includePremiumRequested && isAdminRequest(request);
-    await runBestEffortHistoryMaintenance({ includePremium });
+    const includePlusRequested = request.nextUrl.searchParams.get('includePlus') === '1';
+    const includePlus = includePlusRequested && isAdminRequest(request);
+    await runBestEffortHistoryMaintenance({ includePlus });
 
     const publicHistory = await loadUploadHistory('public');
     const publicFiltered = publicHistory.filter((record) => !isExpired(record.lastAccessTime));
 
-    const premiumHistory = includePremium ? await loadUploadHistory('premium') : [];
-    const premiumFiltered = premiumHistory.filter((record) => !isExpired(record.lastAccessTime));
+    const plusHistory = includePlus ? await loadUploadHistory('plus') : [];
+    const plusFiltered = plusHistory.filter((record) => !isExpired(record.lastAccessTime));
 
     if (publicFiltered.length !== publicHistory.length) {
       await saveUploadHistory(publicFiltered, 'public');
     }
 
-    if (includePremium && premiumFiltered.length !== premiumHistory.length) {
-      await saveUploadHistory(premiumFiltered, 'premium');
+    if (includePlus && plusFiltered.length !== plusHistory.length) {
+      await saveUploadHistory(plusFiltered, 'plus');
     }
 
-    const combined = [...publicFiltered, ...premiumFiltered]
+    const combined = [...publicFiltered, ...plusFiltered]
       .sort((a, b) => b.timestamp - a.timestamp)
       .map(stripOwnershipFields);
 
@@ -167,8 +167,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
-    const premiumUser = token ? await getPremiumUserFromSession(token) : null;
+    const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
+    const plusUser = token ? await getPlusUserFromSession(token) : null;
 
     const record: UploadRecord = {
       url,
@@ -178,15 +178,15 @@ export async function POST(request: NextRequest) {
       lastAccessTime: now, // Initialize with upload time
       expiresAt: now + RETENTION_MS,
       ip,
-      ownerId: premiumUser?.id,
-      ownerEmail: premiumUser?.email
+      ownerId: plusUser?.id,
+      ownerEmail: plusUser?.email
     };
 
     quota.bytes += uploadSize;
     quota.count += 1;
     global.uploadQuota[ip] = quota;
 
-    await addUploadRecord(record, premiumUser ? 'premium' : 'public');
+    await addUploadRecord(record, plusUser ? 'plus' : 'public');
 
     return NextResponse.json({ 
       success: true,
@@ -247,7 +247,7 @@ export async function PATCH(request: NextRequest) {
 
     let updated = await updateUploadRecordByUrl(url, applyUpdate, 'public');
     if (!updated) {
-      updated = await updateUploadRecordByUrl(url, applyUpdate, 'premium');
+      updated = await updateUploadRecordByUrl(url, applyUpdate, 'plus');
     }
 
     if (!updated) {

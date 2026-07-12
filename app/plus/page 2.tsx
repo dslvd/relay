@@ -151,7 +151,7 @@ export default function PlusPage() {
         <p style={{ margin: '0 0 1rem', color: 'rgba(245, 245, 245, 0.65)', fontSize: '0.8rem' }}>
           {hasInvite
             ? 'This invite link can only be used once and expires automatically.'
-            : 'Login with your Plus account to unlock Plus features.'}
+            : 'Login with your plus account to unlock plus features.'}
         </p>
 
         <div style={{ display: 'grid', gap: '0.6rem' }}>

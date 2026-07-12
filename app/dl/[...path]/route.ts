@@ -27,7 +27,7 @@ function buildContentDispositionAttachment(filename: string): string {
 }
 
 async function findOriginalFilenameByKey(key: string): Promise<string | null> {
-  const histories = await Promise.all([loadUploadHistory('public'), loadUploadHistory('premium')]);
+  const histories = await Promise.all([loadUploadHistory('public'), loadUploadHistory('plus')]);
 
   for (const history of histories) {
     for (const record of history) {

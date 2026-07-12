@@ -17,11 +17,11 @@ export interface UploadRecord {
   updatedAt?: number;
 }
 
-export type UploadHistoryScope = 'public' | 'premium';
+export type UploadHistoryScope = 'public' | 'plus';
 
 const HISTORY_KEY_BY_SCOPE: Record<UploadHistoryScope, string> = {
   public: 'upload:history:public',
-  premium: 'upload:history:premium'
+  plus: 'upload:history:plus'
 };
 const LEGACY_HISTORY_KEY = 'upload:history';
 const HISTORY_LIMIT = 100;
@@ -30,7 +30,7 @@ function getGlobalHistory(scope: UploadHistoryScope): UploadRecord[] {
   if (typeof global.uploadHistoryByScope === 'undefined') {
     global.uploadHistoryByScope = {
       public: [],
-      premium: []
+      plus: []
     };
   }
   return global.uploadHistoryByScope[scope] as UploadRecord[];
@@ -74,7 +74,7 @@ export async function saveUploadHistory(
   if (typeof global.uploadHistoryByScope === 'undefined') {
     global.uploadHistoryByScope = {
       public: [],
-      premium: []
+      plus: []
     };
   }
 

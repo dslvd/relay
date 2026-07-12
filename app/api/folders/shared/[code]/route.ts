@@ -20,12 +20,12 @@ export async function GET(
       return NextResponse.json({ error: 'Shared folder not found' }, { status: 404 });
     }
 
-    const [publicHistory, premiumHistory] = await Promise.all([
+    const [publicHistory, plusHistory] = await Promise.all([
       loadUploadHistory('public'),
-      loadUploadHistory('premium'),
+      loadUploadHistory('plus'),
     ]);
 
-    const files = [...publicHistory, ...premiumHistory]
+    const files = [...publicHistory, ...plusHistory]
       .filter((r) => r.folder === folder.id && !isExpired(r.lastAccessTime))
       .sort((a, b) => b.timestamp - a.timestamp)
       .map((r) => ({

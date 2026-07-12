@@ -71,7 +71,7 @@ export async function DELETE(request: NextRequest) {
     await removeQuarantineRecord(targetKey);
 
     const publicHistory = await loadUploadHistory('public');
-    const premiumHistory = await loadUploadHistory('premium');
+    const plusHistory = await loadUploadHistory('plus');
 
     const resolveKey = async (recordUrl: string): Promise<string | null> => {
       const rawKey = toObjectKeyFromAppUrl(recordUrl);
@@ -85,13 +85,13 @@ export async function DELETE(request: NextRequest) {
       const key = await resolveKey(record.url);
       return key !== targetKey;
     }));
-    const premiumFlags = await Promise.all(premiumHistory.map(async (record) => {
+    const plusFlags = await Promise.all(plusHistory.map(async (record) => {
       const key = await resolveKey(record.url);
       return key !== targetKey;
     }));
 
     await saveUploadHistory(publicHistory.filter((_, idx) => publicFlags[idx]), 'public');
-    await saveUploadHistory(premiumHistory.filter((_, idx) => premiumFlags[idx]), 'premium');
+    await saveUploadHistory(plusHistory.filter((_, idx) => plusFlags[idx]), 'plus');
 
     await appendAuditLog({
       id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     if (action === 'clear_all') {
       const deleted = await deleteAllBlobs();
       await saveUploadHistory([], 'public');
-      await saveUploadHistory([], 'premium');
+      await saveUploadHistory([], 'plus');
       await saveQuarantineRecords([]);
 
       await appendAuditLog({

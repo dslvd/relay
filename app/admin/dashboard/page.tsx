@@ -50,7 +50,7 @@ interface AnalyticsData {
   }>;
 }
 
-interface PremiumInvite {
+interface PlusInvite {
   id: string;
   token: string;
   createdAt: number;
@@ -59,7 +59,7 @@ interface PremiumInvite {
   usedByUserId?: string;
 }
 
-interface PremiumUser {
+interface PlusUser {
   id: string;
   email: string;
   createdAt: number;
@@ -131,8 +131,8 @@ export default function AdminDashboard() {
   const [bulkMoveFolder, setBulkMoveFolder] = useState('');
   const [bulkTags, setBulkTags] = useState('');
   const [showAnalytics, setShowAnalytics] = useState(true);
-  const [premiumInvites, setPremiumInvites] = useState<PremiumInvite[]>([]);
-  const [premiumUsers, setPremiumUsers] = useState<PremiumUser[]>([]);
+  const [plusInvites, setPlusInvites] = useState<PlusInvite[]>([]);
+  const [plusUsers, setPlusUsers] = useState<PlusUser[]>([]);
   const [inviteTtlHours, setInviteTtlHours] = useState(24);
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [deletingSilent, setDeletingSilent] = useState<Set<string>>(new Set());
@@ -164,16 +164,16 @@ export default function AdminDashboard() {
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const [filesResponse, analyticsResponse, premiumResponse, statsResponse, abuseResponse, auditResponse] = await Promise.all([
+      const [filesResponse, analyticsResponse, plusResponse, statsResponse, abuseResponse, auditResponse] = await Promise.all([
         fetch('/api/admin/files', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/analytics', { cache: 'no-store', credentials: 'include' }),
-        fetch('/api/admin/premium', { cache: 'no-store', credentials: 'include' }),
+        fetch('/api/admin/plus', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/admin/stats', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/admin/abuse', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/admin/audit?limit=200', { cache: 'no-store', credentials: 'include' }),
       ]);
 
-      const responses = [filesResponse, analyticsResponse, premiumResponse, statsResponse, abuseResponse, auditResponse];
+      const responses = [filesResponse, analyticsResponse, plusResponse, statsResponse, abuseResponse, auditResponse];
       if (responses.some((res) => res.status === 401)) {
         sessionStorage.removeItem('admin_authenticated');
         router.push('/admin');
@@ -190,10 +190,10 @@ export default function AdminDashboard() {
         setAnalytics(data);
       }
 
-      if (premiumResponse.ok) {
-        const data = await premiumResponse.json();
-        setPremiumInvites(data.invites || []);
-        setPremiumUsers(data.users || []);
+      if (plusResponse.ok) {
+        const data = await plusResponse.json();
+        setPlusInvites(data.invites || []);
+        setPlusUsers(data.users || []);
       }
 
       if (statsResponse.ok) {
@@ -218,10 +218,10 @@ export default function AdminDashboard() {
     }
   };
 
-  const createPremiumInvite = async () => {
+  const createPlusInvite = async () => {
     try {
       setCreatingInvite(true);
-      const response = await fetch('/api/admin/premium', {
+      const response = await fetch('/api/admin/plus', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -229,23 +229,23 @@ export default function AdminDashboard() {
       });
 
       if (!response.ok) {
-        alert('Failed to create premium invite');
+        alert('Failed to create Plus invite');
         return;
       }
 
       await fetchFiles();
-      alert('Premium invite created');
+      alert('Plus invite created');
     } catch (error) {
-      console.error('Failed to create premium invite:', error);
-      alert('Failed to create premium invite');
+      console.error('Failed to create Plus invite:', error);
+      alert('Failed to create Plus invite');
     } finally {
       setCreatingInvite(false);
     }
   };
 
-  const deletePremiumInvite = async (inviteId: string) => {
+  const deletePlusInvite = async (inviteId: string) => {
     try {
-      const response = await fetch('/api/admin/premium', {
+      const response = await fetch('/api/admin/plus', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -263,11 +263,11 @@ export default function AdminDashboard() {
     }
   };
 
-  const deletePremiumUser = async (userId: string, email: string) => {
-    if (!confirm(`Delete premium user ${email}?`)) return;
+  const deletePlusUser = async (userId: string, email: string) => {
+    if (!confirm(`Delete plus user ${email}?`)) return;
 
     try {
-      const response = await fetch('/api/admin/premium', {
+      const response = await fetch('/api/admin/plus', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -277,11 +277,11 @@ export default function AdminDashboard() {
       if (response.ok) {
         await fetchFiles();
       } else {
-        alert('Failed to delete premium user');
+        alert('Failed to delete Plus user');
       }
     } catch (error) {
-      console.error('Failed to delete premium user:', error);
-      alert('Failed to delete premium user');
+      console.error('Failed to delete Plus user:', error);
+      alert('Failed to delete Plus user');
     }
   };
 
@@ -909,7 +909,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Premium Access Manager */}
+        {/* Plus Access Manager */}
         <div style={{
           background: 'rgba(255, 255, 255, 0.04)',
           border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -923,7 +923,7 @@ export default function AdminDashboard() {
             marginBottom: '0.75rem',
             color: '#f5f5f5'
           }}>
-            ⭐ Manage Premium Access 
+            ⭐ Manage Plus Access 
           </h3>
 
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -944,7 +944,7 @@ export default function AdminDashboard() {
               }}
             />
             <button
-              onClick={createPremiumInvite}
+              onClick={createPlusInvite}
               disabled={creatingInvite}
               style={{
                 padding: '0.55rem 1rem',
@@ -960,7 +960,7 @@ export default function AdminDashboard() {
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
-              {creatingInvite ? 'Creating...' : 'Generate premium signup link'}
+              {creatingInvite ? 'Creating...' : 'Generate Plus signup link'}
             </button>
           </div>
 
@@ -971,13 +971,13 @@ export default function AdminDashboard() {
               borderRadius: '12px',
               padding: '1rem'
             }}>
-              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>Signup Links ({premiumInvites.length})</div>
+              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>Signup Links ({plusInvites.length})</div>
               <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
-                {premiumInvites.length === 0 && (
-                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No premium invites yet</div>
+                {plusInvites.length === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No plus invites yet</div>
                 )}
-                {premiumInvites.map((invite) => {
-                  const inviteLink = `${window.location.origin}/premium?invite=${invite.token}`;
+                {plusInvites.map((invite) => {
+                  const inviteLink = `${window.location.origin}/plus?invite=${invite.token}`;
                   const isExpired = invite.expiresAt <= Date.now();
                   const isUsed = Boolean(invite.usedAt);
 
@@ -1009,7 +1009,7 @@ export default function AdminDashboard() {
                           Copy link
                         </button>
                         <button
-                          onClick={() => deletePremiumInvite(invite.id)}
+                          onClick={() => deletePlusInvite(invite.id)}
                           style={{
                             padding: '0.4rem 0.65rem',
                             background: 'transparent',
@@ -1035,12 +1035,12 @@ export default function AdminDashboard() {
               borderRadius: '12px',
               padding: '1rem'
             }}>
-              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>Premium Accounts ({premiumUsers.length})</div>
+              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>Plus Accounts ({plusUsers.length})</div>
               <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
-                {premiumUsers.length === 0 && (
-                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No premium users yet</div>
+                {plusUsers.length === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No plus users yet</div>
                 )}
-                {premiumUsers.map((user) => (
+                {plusUsers.map((user) => (
                   <div key={user.id} style={{
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
@@ -1057,7 +1057,7 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <button
-                      onClick={() => deletePremiumUser(user.id, user.email)}
+                      onClick={() => deletePlusUser(user.id, user.email)}
                       style={{
                         padding: '0.38rem 0.62rem',
                         background: 'transparent',

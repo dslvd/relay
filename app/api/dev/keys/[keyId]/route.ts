@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiKey, revokeApiKey, deleteApiKey, updateApiKey } from '@/app/lib/data/api-key-store';
-import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
+import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 
-const PREMIUM_COOKIE_NAME = 'premium_auth';
+const PLUS_COOKIE_NAME = 'plus_auth';
 
 async function getAuthenticatedUser(request: NextRequest) {
-  const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
+  const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
   if (!token) return null;
 
-  const premiumUser = await getPremiumUserFromSession(token);
-  return premiumUser;
+  const plusUser = await getPlusUserFromSession(token);
+  return plusUser;
 }
 
 // GET /api/dev/keys/[keyId] - Get a specific API key

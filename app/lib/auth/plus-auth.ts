@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { getRedisClient, hasRedisConfigured } from '@/app/lib/data/redis-client';
 
-export interface PremiumUserRecord {
+export interface PlusUserRecord {
   id: string;
   email: string;
   passwordHash: string;
@@ -10,7 +10,7 @@ export interface PremiumUserRecord {
   lastLoginAt?: number;
 }
 
-export interface PremiumInviteRecord {
+export interface PlusInviteRecord {
   id: string;
   token: string;
   createdAt: number;
@@ -19,7 +19,7 @@ export interface PremiumInviteRecord {
   usedByUserId?: string;
 }
 
-interface PremiumSessionRecord {
+interface PlusSessionRecord {
   id: string;
   token: string;
   userId: string;
@@ -28,16 +28,16 @@ interface PremiumSessionRecord {
 }
 
 interface FallbackStore {
-  premiumUsers?: PremiumUserRecord[];
-  premiumInvites?: PremiumInviteRecord[];
-  premiumSessions?: PremiumSessionRecord[];
-  premiumUsedInviteHashes?: string[];
-  premiumRevokedInviteIds?: string[];
+  plusUsers?: PlusUserRecord[];
+  plusInvites?: PlusInviteRecord[];
+  plusSessions?: PlusSessionRecord[];
+  plusUsedInviteHashes?: string[];
+  plusRevokedInviteIds?: string[];
 }
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const INVITE_SECRET = process.env.PREMIUM_INVITE_SECRET ?? process.env.ADMIN_PASSWORD ?? 'premium-invite-secret';
-const PREMIUM_AUTH_STATE_KEY = 'premium_auth_state';
+const INVITE_SECRET = process.env.PLUS_INVITE_SECRET ?? process.env.ADMIN_PASSWORD ?? 'plus-invite-secret';
+const PLUS_AUTH_STATE_KEY = 'plus_auth_state';
 
 interface D1QueryResponse<T = unknown> {
   success?: boolean;
@@ -54,15 +54,15 @@ interface InviteTokenPayload {
   exp: number;
 }
 
-interface PremiumAuthState {
-  users: PremiumUserRecord[];
-  invites: PremiumInviteRecord[];
-  sessions: PremiumSessionRecord[];
+interface PlusAuthState {
+  users: PlusUserRecord[];
+  invites: PlusInviteRecord[];
+  sessions: PlusSessionRecord[];
   usedInviteHashes: string[];
   revokedInviteIds: string[];
 }
 
-const EMPTY_AUTH_STATE: PremiumAuthState = {
+const EMPTY_AUTH_STATE: PlusAuthState = {
   users: [],
   invites: [],
   sessions: [],
@@ -73,11 +73,11 @@ const EMPTY_AUTH_STATE: PremiumAuthState = {
 function getStore() {
   const holder = global as FallbackStore;
 
-  if (!holder.premiumUsers) holder.premiumUsers = [];
-  if (!holder.premiumInvites) holder.premiumInvites = [];
-  if (!holder.premiumSessions) holder.premiumSessions = [];
-  if (!holder.premiumUsedInviteHashes) holder.premiumUsedInviteHashes = [];
-  if (!holder.premiumRevokedInviteIds) holder.premiumRevokedInviteIds = [];
+  if (!holder.plusUsers) holder.plusUsers = [];
+  if (!holder.plusInvites) holder.plusInvites = [];
+  if (!holder.plusSessions) holder.plusSessions = [];
+  if (!holder.plusUsedInviteHashes) holder.plusUsedInviteHashes = [];
+  if (!holder.plusRevokedInviteIds) holder.plusRevokedInviteIds = [];
 
   return holder;
 }
@@ -146,8 +146,8 @@ async function ensureD1Schema(): Promise<void> {
   );
 }
 
-function normalizeAuthState(input: unknown): PremiumAuthState {
-  const parsed = (input || {}) as Partial<PremiumAuthState>;
+function normalizeAuthState(input: unknown): PlusAuthState {
+  const parsed = (input || {}) as Partial<PlusAuthState>;
   return {
     users: Array.isArray(parsed.users) ? parsed.users : [],
     invites: Array.isArray(parsed.invites) ? parsed.invites : [],
@@ -157,9 +157,9 @@ function normalizeAuthState(input: unknown): PremiumAuthState {
   };
 }
 
-async function readAuthStateFromD1(): Promise<PremiumAuthState> {
+async function readAuthStateFromD1(): Promise<PlusAuthState> {
   await ensureD1Schema();
-  const rows = await d1Query<{ value: string }>('SELECT value FROM app_state WHERE key = ? LIMIT 1', [PREMIUM_AUTH_STATE_KEY]);
+  const rows = await d1Query<{ value: string }>('SELECT value FROM app_state WHERE key = ? LIMIT 1', [PLUS_AUTH_STATE_KEY]);
 
   if (!rows.length || !rows[0].value) {
     return { ...EMPTY_AUTH_STATE };
@@ -172,9 +172,9 @@ async function readAuthStateFromD1(): Promise<PremiumAuthState> {
   }
 }
 
-async function readAuthStateFromRedis(): Promise<PremiumAuthState> {
+async function readAuthStateFromRedis(): Promise<PlusAuthState> {
   const client = await getRedisClient();
-  const raw = await client.get(PREMIUM_AUTH_STATE_KEY);
+  const raw = await client.get(PLUS_AUTH_STATE_KEY);
   if (!raw) {
     return { ...EMPTY_AUTH_STATE };
   }
@@ -186,7 +186,7 @@ async function readAuthStateFromRedis(): Promise<PremiumAuthState> {
   }
 }
 
-async function writeAuthStateToD1(state: PremiumAuthState): Promise<void> {
+async function writeAuthStateToD1(state: PlusAuthState): Promise<void> {
   await ensureD1Schema();
   await d1Query(
     `INSERT INTO app_state (key, value, updated_at)
@@ -194,16 +194,16 @@ async function writeAuthStateToD1(state: PremiumAuthState): Promise<void> {
      ON CONFLICT(key) DO UPDATE SET
        value = excluded.value,
        updated_at = excluded.updated_at`,
-    [PREMIUM_AUTH_STATE_KEY, JSON.stringify(state), Date.now()]
+    [PLUS_AUTH_STATE_KEY, JSON.stringify(state), Date.now()]
   );
 }
 
-async function writeAuthStateToRedis(state: PremiumAuthState): Promise<void> {
+async function writeAuthStateToRedis(state: PlusAuthState): Promise<void> {
   const client = await getRedisClient();
-  await client.set(PREMIUM_AUTH_STATE_KEY, JSON.stringify(state));
+  await client.set(PLUS_AUTH_STATE_KEY, JSON.stringify(state));
 }
 
-async function readAuthState(): Promise<PremiumAuthState> {
+async function readAuthState(): Promise<PlusAuthState> {
   if (hasD1Configured()) {
     return readAuthStateFromD1();
   }
@@ -214,15 +214,15 @@ async function readAuthState(): Promise<PremiumAuthState> {
 
   const store = getStore();
   return {
-    users: [...(store.premiumUsers || [])],
-    invites: [...(store.premiumInvites || [])],
-    sessions: [...(store.premiumSessions || [])],
-    usedInviteHashes: [...(store.premiumUsedInviteHashes || [])],
-    revokedInviteIds: [...(store.premiumRevokedInviteIds || [])],
+    users: [...(store.plusUsers || [])],
+    invites: [...(store.plusInvites || [])],
+    sessions: [...(store.plusSessions || [])],
+    usedInviteHashes: [...(store.plusUsedInviteHashes || [])],
+    revokedInviteIds: [...(store.plusRevokedInviteIds || [])],
   };
 }
 
-async function writeAuthState(state: PremiumAuthState): Promise<void> {
+async function writeAuthState(state: PlusAuthState): Promise<void> {
   if (hasD1Configured()) {
     await writeAuthStateToD1(state);
     return;
@@ -234,14 +234,14 @@ async function writeAuthState(state: PremiumAuthState): Promise<void> {
   }
 
   const store = getStore();
-  store.premiumUsers = state.users;
-  store.premiumInvites = state.invites;
-  store.premiumSessions = state.sessions;
-  store.premiumUsedInviteHashes = state.usedInviteHashes;
-  store.premiumRevokedInviteIds = state.revokedInviteIds;
+  store.plusUsers = state.users;
+  store.plusInvites = state.invites;
+  store.plusSessions = state.sessions;
+  store.plusUsedInviteHashes = state.usedInviteHashes;
+  store.plusRevokedInviteIds = state.revokedInviteIds;
 }
 
-export async function checkPremiumStorageHealth(): Promise<{
+export async function checkPlusStorageHealth(): Promise<{
   configured: boolean;
   ok: boolean;
   pong?: string;
@@ -284,34 +284,34 @@ export async function checkPremiumStorageHealth(): Promise<{
   }
 }
 
-async function readUsers(): Promise<PremiumUserRecord[]> {
+async function readUsers(): Promise<PlusUserRecord[]> {
   const state = await readAuthState();
   return [...state.users];
 }
 
-async function writeUsers(users: PremiumUserRecord[]): Promise<void> {
+async function writeUsers(users: PlusUserRecord[]): Promise<void> {
   const state = await readAuthState();
   state.users = users;
   await writeAuthState(state);
 }
 
-async function readInvites(): Promise<PremiumInviteRecord[]> {
+async function readInvites(): Promise<PlusInviteRecord[]> {
   const state = await readAuthState();
   return [...state.invites];
 }
 
-async function writeInvites(invites: PremiumInviteRecord[]): Promise<void> {
+async function writeInvites(invites: PlusInviteRecord[]): Promise<void> {
   const state = await readAuthState();
   state.invites = invites;
   await writeAuthState(state);
 }
 
-async function readSessions(): Promise<PremiumSessionRecord[]> {
+async function readSessions(): Promise<PlusSessionRecord[]> {
   const state = await readAuthState();
   return [...state.sessions];
 }
 
-async function writeSessions(sessions: PremiumSessionRecord[]): Promise<void> {
+async function writeSessions(sessions: PlusSessionRecord[]): Promise<void> {
   const state = await readAuthState();
   state.sessions = sessions;
   await writeAuthState(state);
@@ -392,22 +392,22 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf);
 }
 
-export async function listPremiumUsers(): Promise<PremiumUserRecord[]> {
+export async function listPlusUsers(): Promise<PlusUserRecord[]> {
   const users = await readUsers();
   return [...users].sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function listPremiumInvites(): Promise<PremiumInviteRecord[]> {
+export async function listPlusInvites(): Promise<PlusInviteRecord[]> {
   const invites = await readInvites();
   return [...invites].sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function createPremiumInvite(ttlHours: number): Promise<PremiumInviteRecord> {
+export async function createPlusInvite(ttlHours: number): Promise<PlusInviteRecord> {
   const invites = await readInvites();
   const now = Date.now();
   const id = randomUUID();
   const expiresAt = now + Math.max(1, ttlHours) * 60 * 60 * 1000;
-  const invite: PremiumInviteRecord = {
+  const invite: PlusInviteRecord = {
     id,
     token: createInviteToken({ id, exp: expiresAt }),
     createdAt: now,
@@ -419,7 +419,7 @@ export async function createPremiumInvite(ttlHours: number): Promise<PremiumInvi
   return invite;
 }
 
-export async function revokePremiumInvite(inviteId: string): Promise<boolean> {
+export async function revokePlusInvite(inviteId: string): Promise<boolean> {
   const state = await readAuthState();
   const revokedIds = [...state.revokedInviteIds];
   const invites = [...state.invites];
@@ -438,7 +438,7 @@ export async function revokePremiumInvite(inviteId: string): Promise<boolean> {
   return filteredInvites.length !== before;
 }
 
-export async function deletePremiumUser(userId: string): Promise<boolean> {
+export async function deletePlusUser(userId: string): Promise<boolean> {
   const state = await readAuthState();
   const users = [...state.users];
   const sessions = [...state.sessions];
@@ -453,11 +453,11 @@ export async function deletePremiumUser(userId: string): Promise<boolean> {
   return filteredUsers.length !== before;
 }
 
-export async function createPremiumUserFromInvite(input: {
+export async function createPlusUserFromInvite(input: {
   inviteToken: string;
   email: string;
   password: string;
-}): Promise<{ user?: PremiumUserRecord; error?: string }> {
+}): Promise<{ user?: PlusUserRecord; error?: string }> {
   const state = await readAuthState();
   const usedInviteHashes = [...state.usedInviteHashes];
   const revokedInviteIds = [...state.revokedInviteIds];
@@ -488,7 +488,7 @@ export async function createPremiumUserFromInvite(input: {
   if (existing) return { error: 'Email already registered' };
 
   const salt = randomBytes(16).toString('hex');
-  const user: PremiumUserRecord = {
+  const user: PlusUserRecord = {
     id: randomUUID(),
     email: normalizedEmail,
     salt,
@@ -513,7 +513,7 @@ export async function createPremiumUserFromInvite(input: {
   return { user };
 }
 
-export async function authenticatePremiumUser(email: string, password: string): Promise<PremiumUserRecord | null> {
+export async function authenticatePlusUser(email: string, password: string): Promise<PlusUserRecord | null> {
   const users = await readUsers();
   const normalizedEmail = email.trim().toLowerCase();
   const user = users.find((candidate) => candidate.email === normalizedEmail);
@@ -532,7 +532,7 @@ export async function authenticatePremiumUser(email: string, password: string): 
   return updatedUsers.find((candidate) => candidate.id === user.id) || null;
 }
 
-export async function createPremiumSession(userId: string): Promise<string> {
+export async function createPlusSession(userId: string): Promise<string> {
   const sessions = await readSessions();
   const now = Date.now();
   const token = generateToken();
@@ -552,7 +552,7 @@ export async function createPremiumSession(userId: string): Promise<string> {
   return token;
 }
 
-export async function getPremiumUserFromSession(token: string): Promise<PremiumUserRecord | null> {
+export async function getPlusUserFromSession(token: string): Promise<PlusUserRecord | null> {
   const [sessions, users] = await Promise.all([readSessions(), readUsers()]);
   const now = Date.now();
   const activeSessions = sessions.filter((session) => session.expiresAt > now);
@@ -567,7 +567,7 @@ export async function getPremiumUserFromSession(token: string): Promise<PremiumU
   return users.find((user) => user.id === session.userId) ?? null;
 }
 
-export async function destroyPremiumSession(token: string): Promise<void> {
+export async function destroyPlusSession(token: string): Promise<void> {
   const sessions = await readSessions();
   const filteredSessions = sessions.filter((session) => !safeEqual(session.token, token));
   await writeSessions(filteredSessions);

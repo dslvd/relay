@@ -1,31 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPremiumUserFromSession } from '@/app/lib/auth/premium-auth';
+import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isExpired, pruneMissingHistoryEntries } from '@/app/lib/storage/retention';
 import { loadUploadHistory, saveUploadHistory } from '@/app/lib/data/upload-history-store';
 import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
-const PREMIUM_COOKIE_NAME = 'premium_auth';
+const PLUS_COOKIE_NAME = 'plus_auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
+  const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await getPremiumUserFromSession(token);
+  const user = await getPlusUserFromSession(token);
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  await pruneMissingHistoryEntries({ scope: 'premium', force: true });
-  const history = await loadUploadHistory('premium');
+  await pruneMissingHistoryEntries({ scope: 'plus', force: true });
+  const history = await loadUploadHistory('plus');
   const filtered = history.filter((record) => !isExpired(record.lastAccessTime));
   if (filtered.length !== history.length) {
-    await saveUploadHistory(filtered, 'premium');
+    await saveUploadHistory(filtered, 'plus');
   }
 
   const userUploads = filtered
@@ -40,12 +40,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const token = request.cookies.get(PREMIUM_COOKIE_NAME)?.value;
+  const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await getPremiumUserFromSession(token);
+  const user = await getPlusUserFromSession(token);
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -56,7 +56,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    const history = await loadUploadHistory('premium');
+    const history = await loadUploadHistory('plus');
     const target = history.find((record) => record.url === url);
 
     if (!target) {
@@ -75,11 +75,11 @@ export async function DELETE(request: NextRequest) {
     await deleteObject(objectKey);
 
     const updated = history.filter((record) => record.url !== url);
-    await saveUploadHistory(updated, 'premium');
+    await saveUploadHistory(updated, 'plus');
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Premium upload delete error:', error);
+    console.error('Plus upload delete error:', error);
     return NextResponse.json({ error: 'Failed to delete upload' }, { status: 500 });
   }
 }

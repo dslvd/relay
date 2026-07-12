@@ -72,11 +72,11 @@ export async function POST(request: NextRequest) {
         folder,
         updatedAt: nextTimestamp,
       }), 'public');
-      const premiumMoved = await updateUploadRecordsByUrls(urls, (record) => ({
+      const plusMoved = await updateUploadRecordsByUrls(urls, (record) => ({
         ...record,
         folder,
         updatedAt: nextTimestamp,
-      }), 'premium');
+      }), 'plus');
 
       await appendAuditLog({
         id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -84,10 +84,10 @@ export async function POST(request: NextRequest) {
         action: 'bulk.move',
         actorIp: getClientIp(request),
         userAgent: getUserAgent(request),
-        meta: { count: publicMoved + premiumMoved, folder },
+        meta: { count: publicMoved + plusMoved, folder },
       });
 
-      return NextResponse.json({ success: true, moved: publicMoved + premiumMoved, folder });
+      return NextResponse.json({ success: true, moved: publicMoved + plusMoved, folder });
     }
 
     if (action === 'delete' || action === 'expire') {
@@ -100,19 +100,19 @@ export async function POST(request: NextRequest) {
         await removeQuarantineRecord(objectKey);
       }
 
-      const [publicHistory, premiumHistory] = await Promise.all([
+      const [publicHistory, plusHistory] = await Promise.all([
         loadUploadHistory('public'),
-        loadUploadHistory('premium'),
+        loadUploadHistory('plus'),
       ]);
 
-      const [nextPublic, nextPremium] = await Promise.all([
+      const [nextPublic, nextPlus] = await Promise.all([
         filterHistoryByObjectKeys(publicHistory, objectKeys),
-        filterHistoryByObjectKeys(premiumHistory, objectKeys),
+        filterHistoryByObjectKeys(plusHistory, objectKeys),
       ]);
 
       await Promise.all([
         saveUploadHistory(nextPublic, 'public'),
-        saveUploadHistory(nextPremium, 'premium'),
+        saveUploadHistory(nextPlus, 'plus'),
       ]);
 
       await appendAuditLog({

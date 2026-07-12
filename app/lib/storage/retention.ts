@@ -7,7 +7,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const RETENTION_DAYS = 15;
 export const RETENTION_MS = RETENTION_DAYS * DAY_MS;
-const HISTORY_SCOPES: UploadHistoryScope[] = ['public', 'premium'];
+const HISTORY_SCOPES: UploadHistoryScope[] = ['public', 'plus'];
 const EXISTENCE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
 async function resolveObjectKeyFromAppUrl(url: string): Promise<string | null> {
@@ -31,7 +31,7 @@ export async function pruneMissingHistoryEntries(input?: {
   if (typeof global.lastHistoryExistenceCheckByScope === 'undefined') {
     global.lastHistoryExistenceCheckByScope = {
       public: 0,
-      premium: 0,
+      plus: 0,
     };
   }
 

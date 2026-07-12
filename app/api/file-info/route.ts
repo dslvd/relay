@@ -31,14 +31,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'key is required' }, { status: 400 });
     }
 
-    const [publicHistory, premiumHistory] = await Promise.all([
+    const [publicHistory, plusHistory] = await Promise.all([
       loadUploadHistory('public'),
-      loadUploadHistory('premium'),
+      loadUploadHistory('plus'),
     ]);
 
     const record =
       findRecordByKey(publicHistory, key) ||
-      findRecordByKey(premiumHistory, key);
+      findRecordByKey(plusHistory, key);
 
     if (record) {
       return NextResponse.json(

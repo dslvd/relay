@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticatePremiumUser, createPremiumSession } from '@/app/lib/auth/premium-auth';
+import { authenticatePlusUser, createPlusSession } from '@/app/lib/auth/plus-auth';
 
-const PREMIUM_COOKIE_NAME = 'premium_auth';
+const PLUS_COOKIE_NAME = 'plus_auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,12 +11,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    const user = await authenticatePremiumUser(email, password);
+    const user = await authenticatePlusUser(email, password);
     if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const sessionToken = await createPremiumSession(user.id);
+    const sessionToken = await createPlusSession(user.id);
     const response = NextResponse.json({
       success: true,
       user: {
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     });
 
     response.cookies.set({
-      name: PREMIUM_COOKIE_NAME,
+      name: PLUS_COOKIE_NAME,
       value: sessionToken,
       httpOnly: true,
       sameSite: 'strict',
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error('Premium login error:', error);
+    console.error('Plus login error:', error);
     return NextResponse.json({ error: 'Failed to login' }, { status: 500 });
   }
 }
