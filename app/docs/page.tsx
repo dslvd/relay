@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTheme } from '@/app/components/ThemeProvider';
 
@@ -227,6 +227,14 @@ export default function ApiDocumentation() {
   const { isDark, toggleTheme } = useTheme();
   const [section, setSection] = useState<SectionId>('welcome');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isPlus, setIsPlus] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/plus/me', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => setIsPlus(Boolean(data?.plus)))
+      .catch(() => {});
+  }, []);
 
   const navigate = (s: SectionId) => {
     setSection(s);
@@ -269,6 +277,14 @@ export default function ApiDocumentation() {
             >
               {isDark ? '☀️' : '🌙'}
             </button> */}
+            {isPlus && (
+              <Link
+                href="/plus/dashboard"
+                className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-[var(--c-dim)] hover:text-[var(--foreground)] rounded-xl transition-all duration-200"
+              >
+                ← Plus vault
+              </Link>
+            )}
             <Link
               href="/"
               className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-[var(--c-dim)] hover:text-[var(--foreground)] rounded-xl transition-all duration-200"

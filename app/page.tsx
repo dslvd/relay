@@ -2070,7 +2070,7 @@ export default function Home() {
                     boxShadow: '0 3px 12px rgba(0,0,0,0.16)'
                   }}
                 >
-                  Dashboard
+                  ← Plus vault
                 </a>
                 <button
                   onClick={logoutPlus}

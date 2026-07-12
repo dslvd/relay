@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface ApiKey {
   id: string;
@@ -80,9 +81,14 @@ export default function DeveloperDashboard() {
   const [requestsPerHour, setRequestsPerHour] = useState(1000);
   const [uploadSizeMB, setUploadSizeMB] = useState(100);
   const [expiresInDays, setExpiresInDays] = useState<number | undefined>(undefined);
+  const [isPlus, setIsPlus] = useState(false);
 
   useEffect(() => {
     loadKeys();
+    fetch('/api/plus/me', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => setIsPlus(Boolean(data?.plus)))
+      .catch(() => {});
   }, []);
 
   async function loadKeys() {
@@ -220,6 +226,14 @@ export default function DeveloperDashboard() {
     >
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
+          {isPlus && (
+            <Link
+              href="/plus/dashboard"
+              className="inline-flex items-center gap-1 text-xs text-[var(--c-dim)] hover:text-[var(--foreground)] transition-colors mb-3"
+            >
+              ← Plus vault
+            </Link>
+          )}
           <h1 className="text-2xl font-semibold mb-1.5">Relay API</h1>
           <p className="text-[var(--c-dim)] text-sm">Manage your API keys and integrate with Relay.</p>
         </div>
