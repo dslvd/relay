@@ -140,8 +140,20 @@ export async function objectExists(objectKey: string): Promise<boolean> {
     });
     await getR2Client().send(command);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    // Only a confirmed 404 means the object is actually gone. Callers use
+    // this to decide whether to prune history/dedupe records, so any other
+    // failure (network blip, throttling, misconfiguration) must not be
+    // treated the same as "missing" - that would silently delete valid
+    // records. Fail open (assume it still exists) instead.
+    const status =
+      (error as { $metadata?: { httpStatusCode?: number } } | undefined)?.$metadata?.httpStatusCode;
+    const name = (error as { name?: string } | undefined)?.name;
+    if (status === 404 || name === 'NotFound') {
+      return false;
+    }
+    console.warn('objectExists check failed (treating as still-existing):', objectKey, error);
+    return true;
   }
 }
 

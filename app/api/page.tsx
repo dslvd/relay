@@ -220,7 +220,7 @@ export default function DeveloperDashboard() {
     >
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold mb-1.5">API keys</h1>
+          <h1 className="text-2xl font-semibold mb-1.5">Relay API</h1>
           <p className="text-[var(--c-dim)] text-sm">Manage your API keys and integrate with Relay.</p>
         </div>
 

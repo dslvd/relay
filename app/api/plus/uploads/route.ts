@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
-import { isExpired, pruneMissingHistoryEntries } from '@/app/lib/storage/retention';
+import { isExpired } from '@/app/lib/storage/retention';
 import { loadUploadHistory, saveUploadHistory } from '@/app/lib/data/upload-history-store';
 import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
@@ -21,7 +21,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  await pruneMissingHistoryEntries({ scope: 'plus', force: true });
+  // Missing-object cleanup runs on the daily cron (app/api/cron/cleanup) and
+  // on explicit delete - not here, since force-checking every file against
+  // R2 on every page load/poll was both expensive and, prior to the safer
+  // objectExists() error handling, capable of wiping valid entries on a
+  // single transient R2 error.
   const history = await loadUploadHistory('plus');
   const filtered = history.filter((record) => !isExpired(record.lastAccessTime));
   if (filtered.length !== history.length) {
