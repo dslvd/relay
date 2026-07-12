@@ -20,7 +20,7 @@ export default function PlusPage() {
     setInviteToken(params.get('invite') || '');
   }, []);
 
-  const title = hasInvite ? 'Create Plus account' : 'Plus login';
+  const title = hasInvite ? 'Create Relay Plus account' : 'Relay Plus login';
 
   const handleRegister = async () => {
     setError('');

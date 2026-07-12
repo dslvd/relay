@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Space Mono backs the `font-mono` utility everywhere (code, IDs, stats,
+   API keys) — an accent for data-like text, not a site-wide font swap. */
+@theme {
+  --font-mono: var(--font-space-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
 :root {
   --background: #0a0a0a;
   --foreground: #eef1f6;

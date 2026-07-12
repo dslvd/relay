@@ -262,15 +262,15 @@ export default function ApiDocumentation() {
             <span className="hidden sm:inline text-xs text-[var(--c-dim)]">/ API Docs</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
+            {/* <button
               onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-[var(--surface-hover)] transition-colors cursor-pointer text-[var(--c-dim)]"
               aria-label="Toggle theme"
             >
               {isDark ? '☀️' : '🌙'}
-            </button>
+            </button> */}
             <Link
-              href="/developers"
+              href="/"
               className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-[var(--c-dim)] hover:text-[var(--foreground)] rounded-xl transition-all duration-200"
             >
               Back to app →
@@ -344,7 +344,7 @@ export default function ApiDocumentation() {
 
                 <Section title="Authentication">
                   <p className="text-[var(--c-dim)]">
-                    Create an API key from the <Link href="/developers" className="underline hover:text-[var(--foreground)]">Developer Dashboard</Link>.
+                    Create an API key from the <Link href="/api" className="underline hover:text-[var(--foreground)]">API dashboard</Link>.
                     Include it in the <InlineCode>Authorization</InlineCode> header using the Bearer token format:
                   </p>
                   <CodeBlock code="Authorization: Bearer YOUR_API_KEY" />
@@ -360,7 +360,7 @@ export default function ApiDocumentation() {
                 </Section>
 
                 <Section title="Base URL">
-                  <CodeBlock code="https://your-domain.com/api" />
+                  <CodeBlock code="https://relay.xstlo.com/api" />
                 </Section>
 
                 <Section title="Legacy v1 API">
@@ -379,7 +379,7 @@ export default function ApiDocumentation() {
                 <p className="text-[var(--c-dim)] text-lg">Upload files to Relay using the API.</p>
 
                 <h2 className="text-2xl font-semibold mt-12 mb-4">Endpoint</h2>
-                <Endpoint method="POST" path="https://your-domain.com/api/files/upload" />
+                <Endpoint method="POST" path="https://relay.xstlo.com/api/files/upload" />
                 <p className="text-sm text-[var(--c-dim)] mt-2">
                   Direct upload for files under ~4MB. For larger files, use the multipart flow below.
                 </p>
@@ -395,15 +395,15 @@ export default function ApiDocumentation() {
                 <Section title="Request examples">
                   <CodeTabs
                     samples={{
-                      curl: `curl -L -X POST https://your-domain.com/api/files/upload \\
+                      curl: `curl -L -X POST https://relay.xstlo.com/api/files/upload \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
-  -F "file=@/path/to/document.pdf"
+  -F "file=@/path/to/presentation.pdf"
 
 # Anonymous (not saved to your account, expires in 15 days)
-curl -L -X POST https://your-domain.com/api/files/upload \\
-  -F "file=@/path/to/document.pdf"`,
+curl -L -X POST https://relay.xstlo.com/api/files/upload \\
+  -F "file=@/path/to/presentation.pdf"`,
                       javascript: `const API_KEY = 'YOUR_API_KEY'; // optional
-const BASE_URL = 'https://your-domain.com';
+const BASE_URL = 'https://relay.xstlo.com';
 
 async function uploadFile(file, folderId = null) {
   const formData = new FormData();
@@ -426,7 +426,7 @@ async function uploadFile(file, folderId = null) {
                       python: `import requests
 
 API_KEY = 'YOUR_API_KEY'  # optional
-BASE_URL = 'https://your-domain.com'
+BASE_URL = 'https://relay.xstlo.com'
 
 def upload_file(file_path, folder_id=None):
     headers = {}
@@ -460,15 +460,15 @@ def upload_file(file_path, folder_id=None):
                     code={`{
   "success": true,
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "document.pdf",
-    "size": 1048576,
+    "id": "7f3a1c9e-4b82-4d15-9a67-2e8c5f1d3b90",
+    "name": "presentation.pdf",
+    "size": 2458624,
     "url": "https://signed-url...",
     "mimeType": "application/pdf",
     "createdAt": "2026-07-12T12:00:00.000Z",
     "isAnonymous": false,
     "expiresAt": null,
-    "shortId": "aB3xY9pQ"
+    "shortId": "k7Qm2Xrs"
   }
 }`}
                   />
@@ -483,18 +483,18 @@ def upload_file(file_path, folder_id=None):
                     For files at or above the direct-upload threshold, initiate a multipart upload, fetch
                     presigned part URLs, upload each part, then complete it.
                   </p>
-                  <Endpoint method="POST" path="https://your-domain.com/api/files/multipart/init" />
+                  <Endpoint method="POST" path="https://relay.xstlo.com/api/files/multipart/init" />
                   <CodeBlock
                     code={`// Body: { fileName, fileSize, fileType, folderId? }
 // Response: { success, uploadId, key, chunkSize, totalParts }`}
                   />
-                  <Endpoint method="POST" path="https://your-domain.com/api/files/multipart/batch-urls" />
+                  <Endpoint method="POST" path="https://relay.xstlo.com/api/files/multipart/batch-urls" />
                   <CodeBlock
                     code={`// Body: { key, uploadId, totalParts }
 // Response: { success, urls: { "1": "https://...", "2": "https://...", ... } }
 // PUT each file chunk directly to its URL and collect the returned ETag per part.`}
                   />
-                  <Endpoint method="POST" path="https://your-domain.com/api/files/multipart/complete" />
+                  <Endpoint method="POST" path="https://relay.xstlo.com/api/files/multipart/complete" />
                   <CodeBlock
                     code={`// Body: { key, uploadId, parts: [{ partNumber, etag }], fileName, fileSize, contentType, folderId? }
 // Response: { success, file: { id, name, size, url, mimeType, createdAt, isAnonymous, expiresAt, shortId } }`}
@@ -516,7 +516,7 @@ def upload_file(file_path, folder_id=None):
                 <p className="text-[var(--c-dim)] text-lg">Upload a file from a remote URL to Relay.</p>
 
                 <h2 className="text-2xl font-semibold mt-12 mb-4">Endpoint</h2>
-                <Endpoint method="POST" path="https://your-domain.com/api/files/remote-upload" />
+                <Endpoint method="POST" path="https://relay.xstlo.com/api/files/remote-upload" />
                 <p className="text-sm text-[var(--c-dim)] mt-2">
                   Relay downloads the file from the given URL server-side and re-uploads it to storage.
                 </p>
@@ -540,20 +540,20 @@ def upload_file(file_path, folder_id=None):
                 <Section title="Request examples">
                   <CodeTabs
                     samples={{
-                      curl: `curl -X POST https://your-domain.com/api/files/remote-upload \\
+                      curl: `curl -X POST https://relay.xstlo.com/api/files/remote-upload \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "url": "https://example.com/video.mp4",
+    "url": "https://cdn.example.com/standup-recording.mp4",
     "folderId": null
   }'`,
-                      javascript: `const response = await fetch('https://your-domain.com/api/files/remote-upload', {
+                      javascript: `const response = await fetch('https://relay.xstlo.com/api/files/remote-upload', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer YOUR_API_KEY',
   },
-  body: JSON.stringify({ url: 'https://example.com/video.mp4' }),
+  body: JSON.stringify({ url: 'https://cdn.example.com/standup-recording.mp4' }),
 });
 const result = await response.json();
 if (!result.success) throw new Error(result.error);
@@ -561,9 +561,9 @@ console.log(result.data.url);`,
                       python: `import requests
 
 response = requests.post(
-    'https://your-domain.com/api/files/remote-upload',
+    'https://relay.xstlo.com/api/files/remote-upload',
     headers={'Authorization': 'Bearer YOUR_API_KEY'},
-    json={'url': 'https://example.com/video.mp4'},
+    json={'url': 'https://cdn.example.com/standup-recording.mp4'},
 )
 result = response.json()
 if not result.get('success'):
@@ -587,15 +587,15 @@ print(result['data']['url'])`,
                   <CodeBlock code={`{
   "success": true,
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "video.mp4",
+    "id": "9d2b6e47-1a53-4c88-b6f0-3c7d9a412e65",
+    "name": "standup-recording.mp4",
     "size": 52428800,
     "url": "https://signed-url...",
     "mimeType": "video/mp4",
     "createdAt": "2026-07-12T12:00:00.000Z",
     "isAnonymous": true,
     "expiresAt": "2026-07-19T12:00:00.000Z",
-    "shortId": "kL9mN2wZ"
+    "shortId": "r5Nx9Lqe"
   }
 }`} />
                 </Section>
@@ -624,7 +624,7 @@ print(result['data']['url'])`,
                 <p className="text-[var(--c-dim)] text-lg">Get a signed download URL for a file.</p>
 
                 <h2 className="text-2xl font-semibold mt-12 mb-4">Endpoint</h2>
-                <Endpoint method="GET" path="https://your-domain.com/api/files/download/{fileId}" />
+                <Endpoint method="GET" path="https://relay.xstlo.com/api/files/download/{fileId}" />
 
                 <Section title="Authentication">
                   <p className="text-[var(--c-dim)]">None required. Anyone with the file ID can retrieve a download URL.</p>
@@ -633,13 +633,13 @@ print(result['data']['url'])`,
                 <Section title="Request examples">
                   <CodeTabs
                     samples={{
-                      curl: `curl https://your-domain.com/api/files/download/550e8400-e29b-41d4-a716-446655440000`,
-                      javascript: `const res = await fetch('https://your-domain.com/api/files/download/550e8400-e29b-41d4-a716-446655440000');
+                      curl: `curl https://relay.xstlo.com/api/files/download/7f3a1c9e-4b82-4d15-9a67-2e8c5f1d3b90`,
+                      javascript: `const res = await fetch('https://relay.xstlo.com/api/files/download/7f3a1c9e-4b82-4d15-9a67-2e8c5f1d3b90');
 const result = await res.json();
 console.log('Download URL (expires in 1h):', result.data.url);`,
                       python: `import requests
 
-res = requests.get('https://your-domain.com/api/files/download/550e8400-e29b-41d4-a716-446655440000')
+res = requests.get('https://relay.xstlo.com/api/files/download/7f3a1c9e-4b82-4d15-9a67-2e8c5f1d3b90')
 result = res.json()
 print('Download URL (expires in 1h):', result['data']['url'])`,
                     }}
@@ -659,14 +659,14 @@ print('Download URL (expires in 1h):', result['data']['url'])`,
   "success": true,
   "data": {
     "url": "https://signed-url...",
-    "fileName": "document.pdf",
-    "size": 1048576,
+    "fileName": "presentation.pdf",
+    "size": 2458624,
     "mimeType": "application/pdf",
     "expiresIn": 3600,
     "expiresAt": null,
-    "downloads": 42,
+    "downloads": 128,
     "canDelete": false,
-    "shortId": "aB3xY9pQ"
+    "shortId": "k7Qm2Xrs"
   }
 }`} />
                   <p className="text-[var(--c-dim)] text-sm mt-2">
@@ -688,7 +688,7 @@ print('Download URL (expires in 1h):', result['data']['url'])`,
                 </p>
 
                 <h2 className="text-2xl font-semibold mt-12 mb-4">Endpoint</h2>
-                <Endpoint method="GET" path="https://your-domain.com/api/files/info?file_code=shortId1,shortId2" />
+                <Endpoint method="GET" path="https://relay.xstlo.com/api/files/info?file_code=shortId1,shortId2" />
 
                 <Section title="Authentication">
                   <p className="text-[var(--c-dim)]">
@@ -699,11 +699,11 @@ print('Download URL (expires in 1h):', result['data']['url'])`,
                 <Section title="Request examples">
                   <CodeTabs
                     samples={{
-                      curl: `curl "https://your-domain.com/api/files/info?file_code=aB3xY9pQ"
+                      curl: `curl "https://relay.xstlo.com/api/files/info?file_code=k7Qm2Xrs"
 
 # Multiple files at once
-curl "https://your-domain.com/api/files/info?file_code=aB3xY9pQ,kL9mN2wZ"`,
-                      javascript: `const res = await fetch('https://your-domain.com/api/files/info?file_code=aB3xY9pQ,kL9mN2wZ');
+curl "https://relay.xstlo.com/api/files/info?file_code=k7Qm2Xrs,r5Nx9Lqe"`,
+                      javascript: `const res = await fetch('https://relay.xstlo.com/api/files/info?file_code=k7Qm2Xrs,r5Nx9Lqe');
 const result = await res.json();
 result.result.forEach((file) => {
   if (file.status === 200) {
@@ -714,7 +714,7 @@ result.result.forEach((file) => {
 });`,
                       python: `import requests
 
-res = requests.get('https://your-domain.com/api/files/info', params={'file_code': 'aB3xY9pQ,kL9mN2wZ'})
+res = requests.get('https://relay.xstlo.com/api/files/info', params={'file_code': 'k7Qm2Xrs,r5Nx9Lqe'})
 result = res.json()
 for file in result['result']:
     if file['status'] == 200:
@@ -741,11 +741,20 @@ for file in result['result']:
   "result": [
     {
       "status": 200,
-      "filecode": "aB3xY9pQ",
-      "name": "document.pdf",
-      "size": "1048576",
+      "filecode": "k7Qm2Xrs",
+      "name": "presentation.pdf",
+      "size": "2458624",
       "uploaded": "2026-07-12 10:00:00",
-      "download": "42",
+      "download": "128",
+      "status_field": "active"
+    },
+    {
+      "status": 200,
+      "filecode": "r5Nx9Lqe",
+      "name": "standup-recording.mp4",
+      "size": "52428800",
+      "uploaded": "2026-07-12 11:15:00",
+      "download": "7",
       "status_field": "active"
     },
     { "status": 404, "filecode": "unknown123" }
@@ -771,7 +780,7 @@ for file in result['result']:
                 </p>
 
                 <h2 className="text-2xl font-semibold mt-12 mb-4">Endpoint</h2>
-                <Endpoint method="GET" path="https://your-domain.com/api/files/list" />
+                <Endpoint method="GET" path="https://relay.xstlo.com/api/files/list" />
 
                 <Section title="Authentication">
                   <p className="text-[var(--c-dim)]">
@@ -784,13 +793,13 @@ for file in result['result']:
                 <Section title="Request examples">
                   <CodeTabs
                     samples={{
-                      curl: `curl https://your-domain.com/api/files/list \\
+                      curl: `curl https://relay.xstlo.com/api/files/list \\
   -H "Authorization: Bearer YOUR_API_KEY"
 
 # With pagination and a folder filter
-curl "https://your-domain.com/api/files/list?page=2&limit=25&folderId=null" \\
+curl "https://relay.xstlo.com/api/files/list?page=2&limit=25&folderId=null" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
-                      javascript: `const res = await fetch('https://your-domain.com/api/files/list?page=1&limit=50', {
+                      javascript: `const res = await fetch('https://relay.xstlo.com/api/files/list?page=1&limit=50', {
   headers: { 'Authorization': 'Bearer YOUR_API_KEY' },
 });
 const result = await res.json();
@@ -799,7 +808,7 @@ result.data.forEach((f) => console.log(f.name, f.size));`,
                       python: `import requests
 
 res = requests.get(
-    'https://your-domain.com/api/files/list',
+    'https://relay.xstlo.com/api/files/list',
     headers={'Authorization': 'Bearer YOUR_API_KEY'},
     params={'page': 1, 'limit': 50},
 )
@@ -828,23 +837,23 @@ for f in result['data']:
   "success": true,
   "data": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "document.pdf",
-      "size": 1048576,
+      "id": "7f3a1c9e-4b82-4d15-9a67-2e8c5f1d3b90",
+      "name": "presentation.pdf",
+      "size": 2458624,
       "mime_type": "application/pdf",
-      "path": "d/api/<key-id>/172.../document.pdf",
-      "short_id": "aB3xY9pQ",
+      "path": "d/api/<key-id>/172.../presentation.pdf",
+      "short_id": "k7Qm2Xrs",
       "folder_id": null,
       "owner_id": "<key-id>",
       "is_anonymous": false,
       "expires_at": null,
       "created_at": "2026-07-12T12:00:00.000Z",
       "updated_at": "2026-07-12T12:00:00.000Z",
-      "download_count": 42
+      "download_count": 128
     }
   ],
   "folders": [
-    { "id": "folder-abc", "name": "My folder", "parent_id": null, "owner_id": null, "created_at": "...", "updated_at": "..." }
+    { "id": "folder-8f3d2a91", "name": "Client Deliverables", "parent_id": null, "owner_id": null, "created_at": "...", "updated_at": "..." }
   ],
   "pagination": { "page": 1, "limit": 50, "total": 1, "totalPages": 1 }
 }`} />
@@ -857,7 +866,7 @@ for f in result['data']:
 
                 <h2 className="text-2xl font-semibold mt-12 mb-4">List folders (dedicated endpoint)</h2>
                 <p className="text-[var(--c-dim)]">To list only folders, use the folders endpoint with the same API key.</p>
-                <Endpoint method="GET" path="https://your-domain.com/api/folders/list" />
+                <Endpoint method="GET" path="https://relay.xstlo.com/api/folders/list" />
                 <p className="text-[var(--c-dim)] text-sm mt-2">
                   Query params: <InlineCode>parentId</InlineCode> (always empty in the flat model — a non-root
                   value returns zero results), <InlineCode>page</InlineCode>, <InlineCode>limit</InlineCode>,{' '}
@@ -879,7 +888,7 @@ for f in result['data']:
                 <p className="text-[var(--c-dim)] text-lg">Permanently delete a file.</p>
 
                 <h2 className="text-2xl font-semibold mt-12 mb-4">Endpoint</h2>
-                <Endpoint method="DELETE" path="https://your-domain.com/api/files/delete?fileId=FILE_ID" />
+                <Endpoint method="DELETE" path="https://relay.xstlo.com/api/files/delete?fileId=FILE_ID" />
 
                 <Section title="Authentication">
                   <p className="text-[var(--c-dim)]">
@@ -892,13 +901,13 @@ for f in result['data']:
                 <Section title="Request examples">
                   <CodeTabs
                     samples={{
-                      curl: `curl -X DELETE "https://your-domain.com/api/files/delete?fileId=550e8400-e29b-41d4-a716-446655440000" \\
+                      curl: `curl -X DELETE "https://relay.xstlo.com/api/files/delete?fileId=7f3a1c9e-4b82-4d15-9a67-2e8c5f1d3b90" \\
   -H "Authorization: Bearer YOUR_API_KEY"
 
 # Anonymous file, using its deletion token instead
-curl -X DELETE "https://your-domain.com/api/files/delete?fileId=550e8400-e29b-41d4-a716-446655440000&token=YOUR_DELETION_TOKEN"`,
+curl -X DELETE "https://relay.xstlo.com/api/files/delete?fileId=9d2b6e47-1a53-4c88-b6f0-3c7d9a412e65&token=YOUR_DELETION_TOKEN"`,
                       javascript: `const res = await fetch(
-  \`https://your-domain.com/api/files/delete?fileId=\${fileId}\`,
+  \`https://relay.xstlo.com/api/files/delete?fileId=\${fileId}\`,
   { method: 'DELETE', headers: { 'Authorization': 'Bearer YOUR_API_KEY' } }
 );
 const result = await res.json();
@@ -906,7 +915,7 @@ if (!result.success) throw new Error(result.error);`,
                       python: `import requests
 
 res = requests.delete(
-    'https://your-domain.com/api/files/delete',
+    'https://relay.xstlo.com/api/files/delete',
     headers={'Authorization': 'Bearer YOUR_API_KEY'},
     params={'fileId': file_id},
 )

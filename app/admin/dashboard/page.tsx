@@ -923,7 +923,7 @@ export default function AdminDashboard() {
             marginBottom: '0.75rem',
             color: '#f5f5f5'
           }}>
-            ⭐ Manage Plus Access 
+            ⭐ Manage Relay Plus Access 
           </h3>
 
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>

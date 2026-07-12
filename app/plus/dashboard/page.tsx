@@ -251,7 +251,7 @@ export default function PlusDashboard() {
                 textTransform: 'uppercase',
                 color: '#8a92a1'
               }}>
-                Plus vault
+                Relay Plus vault
               </div>
               <h1 style={{
                 margin: '0.35rem 0 0',
@@ -266,7 +266,7 @@ export default function PlusDashboard() {
                 fontSize: '0.9rem',
                 maxWidth: '52ch'
               }}>
-                Browse, sync, and manage the files attached to your plus account.
+                Browse, sync, and manage the files attached to your Relay plus account.
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>

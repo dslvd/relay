@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sora } from 'next/font/google';
+import { Sora, Space_Mono } from 'next/font/google';
 import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
@@ -13,6 +13,15 @@ const sora = Sora({
   weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
   variable: '--font-sora',
+});
+
+// Used sparingly (via var(--font-space-mono)) for code, IDs, and other
+// data-like text — not a site-wide font swap.
+const spaceMono = Space_Mono({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  display: 'swap',
+  variable: '--font-space-mono',
 });
 
 export const metadata: Metadata = {
@@ -31,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={sora.variable} style={{ backgroundColor: "#0a0a0a" }}>
+    <html lang="en" className={`${sora.variable} ${spaceMono.variable}`} style={{ backgroundColor: "#0a0a0a" }}>
       <body className="antialiased" style={{ backgroundColor: "#0a0a0a", margin: 0 }}>
         <Script
           async

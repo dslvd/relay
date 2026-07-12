@@ -1629,7 +1629,7 @@ export default function Home() {
         throw new Error('Remote upload failed');
       }
 
-      const downloadUrl = donePayload.data.url as string;
+      const downloadUrl = toDownloadPageUrl(donePayload.data.url as string);
       const filename = (donePayload.data.filename as string) || parsed.pathname.split('/').pop() || 'remote-file';
       const size = Number(donePayload.data.size) || 0;
       const uploadedAt = Date.now();
@@ -1655,6 +1655,10 @@ export default function Home() {
         throw new Error(errPayload?.error || 'Failed to save upload history');
       }
 
+      // Keep in sync with the regular upload path so ⌘C/Ctrl+C on the
+      // success card copies *this* file's download page link, not a stale
+      // one from a previous upload.
+      lastSuccessUrlRef.current = downloadUrl;
       showUploadSuccessCue(filename);
       setRemoteUrl('');
       setRemoteAuthHeader('');
@@ -2104,7 +2108,7 @@ export default function Home() {
                   boxShadow: '0 6px 18px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.08)'
                 }}
               >
-                Plus login
+                Relay Plus login
               </a>
             )}
           </div>

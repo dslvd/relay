@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error('Plus login error:', error);
+    console.error('Relay Plus login error:', error);
     return NextResponse.json({ error: 'Failed to login' }, { status: 500 });
   }
 }
