@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
-import { getRedisClient, hasRedisConfigured } from '@/app/lib/data/redis-client';
+import { getSupabaseClient, hasSupabaseConfigured } from '@/app/lib/data/supabase-client';
 
 export interface PlusUserRecord {
   id: string;
@@ -31,312 +31,62 @@ interface FallbackStore {
   plusUsers?: PlusUserRecord[];
   plusInvites?: PlusInviteRecord[];
   plusSessions?: PlusSessionRecord[];
-  plusUsedInviteHashes?: string[];
-  plusRevokedInviteIds?: string[];
 }
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const INVITE_SECRET = process.env.PLUS_INVITE_SECRET ?? process.env.ADMIN_PASSWORD ?? 'plus-invite-secret';
-const PLUS_AUTH_STATE_KEY = 'plus_auth_state';
-
-interface D1QueryResponse<T = unknown> {
-  success?: boolean;
-  errors?: Array<{ message?: string }>;
-  result?: Array<{
-    success?: boolean;
-    error?: string;
-    results?: T[];
-  }>;
-}
 
 interface InviteTokenPayload {
   id: string;
   exp: number;
 }
 
-interface PlusAuthState {
-  users: PlusUserRecord[];
-  invites: PlusInviteRecord[];
-  sessions: PlusSessionRecord[];
-  usedInviteHashes: string[];
-  revokedInviteIds: string[];
+interface UserRow {
+  id: string;
+  email: string;
+  password_hash: string;
+  salt: string;
+  created_at: number;
+  last_login_at: number | null;
 }
 
-const EMPTY_AUTH_STATE: PlusAuthState = {
-  users: [],
-  invites: [],
-  sessions: [],
-  usedInviteHashes: [],
-  revokedInviteIds: [],
-};
+interface InviteRow {
+  id: string;
+  token: string;
+  created_at: number;
+  expires_at: number;
+  used_at: number | null;
+  used_by_user_id: string | null;
+}
 
-function getStore() {
+function userFromRow(row: UserRow): PlusUserRecord {
+  return {
+    id: row.id,
+    email: row.email,
+    passwordHash: row.password_hash,
+    salt: row.salt,
+    createdAt: row.created_at,
+    lastLoginAt: row.last_login_at ?? undefined,
+  };
+}
+
+function inviteFromRow(row: InviteRow): PlusInviteRecord {
+  return {
+    id: row.id,
+    token: row.token,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    usedAt: row.used_at ?? undefined,
+    usedByUserId: row.used_by_user_id ?? undefined,
+  };
+}
+
+function getStore(): FallbackStore {
   const holder = global as FallbackStore;
-
   if (!holder.plusUsers) holder.plusUsers = [];
   if (!holder.plusInvites) holder.plusInvites = [];
   if (!holder.plusSessions) holder.plusSessions = [];
-  if (!holder.plusUsedInviteHashes) holder.plusUsedInviteHashes = [];
-  if (!holder.plusRevokedInviteIds) holder.plusRevokedInviteIds = [];
-
   return holder;
-}
-
-function hasD1Configured(): boolean {
-  return Boolean(
-    process.env.CLOUDFLARE_ACCOUNT_ID &&
-    process.env.CLOUDFLARE_D1_DATABASE_ID &&
-    process.env.CLOUDFLARE_API_TOKEN
-  );
-}
-
-function getD1Endpoint(): string {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const databaseId = process.env.CLOUDFLARE_D1_DATABASE_ID;
-
-  if (!accountId || !databaseId) {
-    throw new Error('CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_D1_DATABASE_ID is missing');
-  }
-
-  return `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`;
-}
-
-async function d1Query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
-  const token = process.env.CLOUDFLARE_API_TOKEN;
-  if (!token) {
-    throw new Error('CLOUDFLARE_API_TOKEN is missing');
-  }
-
-  const response = await fetch(getD1Endpoint(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ sql, params }),
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`D1 request failed: ${response.status} ${errorText}`);
-  }
-
-  const payload = (await response.json()) as D1QueryResponse<T>;
-  const topError = payload.errors?.[0]?.message;
-  if (topError) {
-    throw new Error(`D1 error: ${topError}`);
-  }
-
-  const result = payload.result?.[0];
-  if (!result?.success) {
-    throw new Error(result?.error || 'D1 query failed');
-  }
-
-  return result.results || [];
-}
-
-async function ensureD1Schema(): Promise<void> {
-  await d1Query(
-    `CREATE TABLE IF NOT EXISTS app_state (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`
-  );
-}
-
-function normalizeAuthState(input: unknown): PlusAuthState {
-  const parsed = (input || {}) as Partial<PlusAuthState>;
-  return {
-    users: Array.isArray(parsed.users) ? parsed.users : [],
-    invites: Array.isArray(parsed.invites) ? parsed.invites : [],
-    sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
-    usedInviteHashes: Array.isArray(parsed.usedInviteHashes) ? parsed.usedInviteHashes : [],
-    revokedInviteIds: Array.isArray(parsed.revokedInviteIds) ? parsed.revokedInviteIds : [],
-  };
-}
-
-async function readAuthStateFromD1(): Promise<PlusAuthState> {
-  await ensureD1Schema();
-  const rows = await d1Query<{ value: string }>('SELECT value FROM app_state WHERE key = ? LIMIT 1', [PLUS_AUTH_STATE_KEY]);
-
-  if (!rows.length || !rows[0].value) {
-    return { ...EMPTY_AUTH_STATE };
-  }
-
-  try {
-    return normalizeAuthState(JSON.parse(rows[0].value));
-  } catch {
-    return { ...EMPTY_AUTH_STATE };
-  }
-}
-
-async function readAuthStateFromRedis(): Promise<PlusAuthState> {
-  const client = await getRedisClient();
-  const raw = await client.get(PLUS_AUTH_STATE_KEY);
-  if (!raw) {
-    return { ...EMPTY_AUTH_STATE };
-  }
-
-  try {
-    return normalizeAuthState(JSON.parse(raw));
-  } catch {
-    return { ...EMPTY_AUTH_STATE };
-  }
-}
-
-async function writeAuthStateToD1(state: PlusAuthState): Promise<void> {
-  await ensureD1Schema();
-  await d1Query(
-    `INSERT INTO app_state (key, value, updated_at)
-     VALUES (?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET
-       value = excluded.value,
-       updated_at = excluded.updated_at`,
-    [PLUS_AUTH_STATE_KEY, JSON.stringify(state), Date.now()]
-  );
-}
-
-async function writeAuthStateToRedis(state: PlusAuthState): Promise<void> {
-  const client = await getRedisClient();
-  await client.set(PLUS_AUTH_STATE_KEY, JSON.stringify(state));
-}
-
-async function readAuthState(): Promise<PlusAuthState> {
-  if (hasD1Configured()) {
-    return readAuthStateFromD1();
-  }
-
-  if (hasRedisConfigured()) {
-    return readAuthStateFromRedis();
-  }
-
-  const store = getStore();
-  return {
-    users: [...(store.plusUsers || [])],
-    invites: [...(store.plusInvites || [])],
-    sessions: [...(store.plusSessions || [])],
-    usedInviteHashes: [...(store.plusUsedInviteHashes || [])],
-    revokedInviteIds: [...(store.plusRevokedInviteIds || [])],
-  };
-}
-
-async function writeAuthState(state: PlusAuthState): Promise<void> {
-  if (hasD1Configured()) {
-    await writeAuthStateToD1(state);
-    return;
-  }
-
-  if (hasRedisConfigured()) {
-    await writeAuthStateToRedis(state);
-    return;
-  }
-
-  const store = getStore();
-  store.plusUsers = state.users;
-  store.plusInvites = state.invites;
-  store.plusSessions = state.sessions;
-  store.plusUsedInviteHashes = state.usedInviteHashes;
-  store.plusRevokedInviteIds = state.revokedInviteIds;
-}
-
-export async function checkPlusStorageHealth(): Promise<{
-  configured: boolean;
-  ok: boolean;
-  pong?: string;
-  error?: string;
-}> {
-  if (!hasD1Configured()) {
-    if (!hasRedisConfigured()) {
-      return {
-        configured: false,
-        ok: false,
-        error: 'CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, or CLOUDFLARE_API_TOKEN is missing',
-      };
-    }
-
-    try {
-      await getRedisClient();
-      return { configured: true, ok: true, pong: 'REDIS_OK' };
-    } catch (error) {
-      return {
-        configured: true,
-        ok: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  }
-
-  try {
-    await ensureD1Schema();
-    return {
-      configured: true,
-      ok: true,
-      pong: 'D1_OK',
-    };
-  } catch (error) {
-    return {
-      configured: true,
-      ok: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-  }
-}
-
-async function readUsers(): Promise<PlusUserRecord[]> {
-  const state = await readAuthState();
-  return [...state.users];
-}
-
-async function writeUsers(users: PlusUserRecord[]): Promise<void> {
-  const state = await readAuthState();
-  state.users = users;
-  await writeAuthState(state);
-}
-
-async function readInvites(): Promise<PlusInviteRecord[]> {
-  const state = await readAuthState();
-  return [...state.invites];
-}
-
-async function writeInvites(invites: PlusInviteRecord[]): Promise<void> {
-  const state = await readAuthState();
-  state.invites = invites;
-  await writeAuthState(state);
-}
-
-async function readSessions(): Promise<PlusSessionRecord[]> {
-  const state = await readAuthState();
-  return [...state.sessions];
-}
-
-async function writeSessions(sessions: PlusSessionRecord[]): Promise<void> {
-  const state = await readAuthState();
-  state.sessions = sessions;
-  await writeAuthState(state);
-}
-
-async function readUsedInviteHashes(): Promise<string[]> {
-  const state = await readAuthState();
-  return [...state.usedInviteHashes];
-}
-
-async function writeUsedInviteHashes(hashes: string[]): Promise<void> {
-  const state = await readAuthState();
-  state.usedInviteHashes = hashes;
-  await writeAuthState(state);
-}
-
-async function readRevokedInviteIds(): Promise<string[]> {
-  const state = await readAuthState();
-  return [...state.revokedInviteIds];
-}
-
-async function writeRevokedInviteIds(ids: string[]): Promise<void> {
-  const state = await readAuthState();
-  state.revokedInviteIds = ids;
-  await writeAuthState(state);
 }
 
 function toBase64Url(value: string): string {
@@ -345,10 +95,6 @@ function toBase64Url(value: string): string {
 
 function fromBase64Url(value: string): string {
   return Buffer.from(value, 'base64url').toString('utf8');
-}
-
-function hashInviteToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
 }
 
 function signInvitePayload(payloadEncoded: string): string {
@@ -392,65 +138,115 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf);
 }
 
+export async function checkPlusStorageHealth(): Promise<{
+  configured: boolean;
+  ok: boolean;
+  pong?: string;
+  error?: string;
+}> {
+  if (!hasSupabaseConfigured()) {
+    return {
+      configured: false,
+      ok: false,
+      error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing',
+    };
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('plus_users').select('id').limit(1);
+    if (error) throw error;
+    return { configured: true, ok: true, pong: 'SUPABASE_OK' };
+  } catch (error) {
+    return {
+      configured: true,
+      ok: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 export async function listPlusUsers(): Promise<PlusUserRecord[]> {
-  const users = await readUsers();
-  return [...users].sort((a, b) => b.createdAt - a.createdAt);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('plus_users')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as UserRow[]).map(userFromRow);
+  }
+
+  const store = getStore();
+  return [...(store.plusUsers || [])].sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function listPlusInvites(): Promise<PlusInviteRecord[]> {
-  const invites = await readInvites();
-  return [...invites].sort((a, b) => b.createdAt - a.createdAt);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('plus_invites')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as InviteRow[]).map(inviteFromRow);
+  }
+
+  const store = getStore();
+  return [...(store.plusInvites || [])].sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function createPlusInvite(ttlHours: number): Promise<PlusInviteRecord> {
-  const invites = await readInvites();
   const now = Date.now();
   const id = randomUUID();
   const expiresAt = now + Math.max(1, ttlHours) * 60 * 60 * 1000;
-  const invite: PlusInviteRecord = {
-    id,
-    token: createInviteToken({ id, exp: expiresAt }),
-    createdAt: now,
-    expiresAt,
-  };
+  const token = createInviteToken({ id, exp: expiresAt });
+  const invite: PlusInviteRecord = { id, token, createdAt: now, expiresAt };
 
-  invites.unshift(invite);
-  await writeInvites(invites);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('plus_invites').insert({
+      id,
+      token,
+      created_at: now,
+      expires_at: expiresAt,
+    });
+    if (error) throw error;
+    return invite;
+  }
+
+  const store = getStore();
+  store.plusInvites = [invite, ...(store.plusInvites || [])];
   return invite;
 }
 
 export async function revokePlusInvite(inviteId: string): Promise<boolean> {
-  const state = await readAuthState();
-  const revokedIds = [...state.revokedInviteIds];
-  const invites = [...state.invites];
-
-  if (!revokedIds.includes(inviteId)) {
-    revokedIds.push(inviteId);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('plus_invites').delete().eq('id', inviteId).select('id');
+    if (error) throw error;
+    return (data?.length ?? 0) > 0;
   }
 
-  const before = invites.length;
-  const filteredInvites = invites.filter((invite) => invite.id !== inviteId);
-
-  state.revokedInviteIds = revokedIds;
-  state.invites = filteredInvites;
-  await writeAuthState(state);
-
-  return filteredInvites.length !== before;
+  const store = getStore();
+  const before = (store.plusInvites || []).length;
+  store.plusInvites = (store.plusInvites || []).filter((invite) => invite.id !== inviteId);
+  return store.plusInvites.length !== before;
 }
 
 export async function deletePlusUser(userId: string): Promise<boolean> {
-  const state = await readAuthState();
-  const users = [...state.users];
-  const sessions = [...state.sessions];
-  const before = users.length;
-  const filteredUsers = users.filter((user) => user.id !== userId);
-  const filteredSessions = sessions.filter((session) => session.userId !== userId);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('plus_users').delete().eq('id', userId).select('id');
+    if (error) throw error;
+    return (data?.length ?? 0) > 0;
+  }
 
-  state.users = filteredUsers;
-  state.sessions = filteredSessions;
-  await writeAuthState(state);
-
-  return filteredUsers.length !== before;
+  const store = getStore();
+  const before = (store.plusUsers || []).length;
+  store.plusUsers = (store.plusUsers || []).filter((user) => user.id !== userId);
+  store.plusSessions = (store.plusSessions || []).filter((session) => session.userId !== userId);
+  return store.plusUsers.length !== before;
 }
 
 export async function createPlusUserFromInvite(input: {
@@ -458,34 +254,78 @@ export async function createPlusUserFromInvite(input: {
   email: string;
   password: string;
 }): Promise<{ user?: PlusUserRecord; error?: string }> {
-  const state = await readAuthState();
-  const usedInviteHashes = [...state.usedInviteHashes];
-  const revokedInviteIds = [...state.revokedInviteIds];
-  const invites = [...state.invites];
-  const users = [...state.users];
-
   const now = Date.now();
   const normalizedEmail = input.email.trim().toLowerCase();
-  const inviteTokenHash = hashInviteToken(input.inviteToken);
-
-  if (usedInviteHashes.includes(inviteTokenHash)) {
-    return { error: 'Invite link already used' };
-  }
 
   const parsedInvite = parseInviteToken(input.inviteToken);
   if (!parsedInvite) return { error: 'Invalid invite link' };
   if (parsedInvite.exp <= now) return { error: 'Invite link expired' };
-  if (revokedInviteIds.includes(parsedInvite.id)) {
-    return { error: 'Invalid invite link' };
+
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+
+    const { data: inviteRow, error: inviteError } = await supabase
+      .from('plus_invites')
+      .select('*')
+      .eq('id', parsedInvite.id)
+      .maybeSingle();
+    if (inviteError) throw inviteError;
+    if (!inviteRow || !safeEqual((inviteRow as InviteRow).token, input.inviteToken)) {
+      return { error: 'Invalid invite link' };
+    }
+    if ((inviteRow as InviteRow).used_at) return { error: 'Invite link already used' };
+    if ((inviteRow as InviteRow).expires_at <= now) return { error: 'Invite link expired' };
+
+    const salt = randomBytes(16).toString('hex');
+    const userId = randomUUID();
+    const user: PlusUserRecord = {
+      id: userId,
+      email: normalizedEmail,
+      salt,
+      passwordHash: hashPassword(input.password, salt),
+      createdAt: now,
+    };
+
+    const { error: insertError } = await supabase.from('plus_users').insert({
+      id: user.id,
+      email: user.email,
+      password_hash: user.passwordHash,
+      salt: user.salt,
+      created_at: user.createdAt,
+    });
+    if (insertError) {
+      if (insertError.code === '23505') return { error: 'Email already registered' };
+      throw insertError;
+    }
+
+    // Compare-and-swap: only succeeds if nobody else claimed this invite
+    // between our read above and this write.
+    const { data: claimed, error: claimError } = await supabase
+      .from('plus_invites')
+      .update({ used_at: now, used_by_user_id: userId })
+      .eq('id', parsedInvite.id)
+      .is('used_at', null)
+      .select('id');
+    if (claimError) throw claimError;
+    if (!claimed || claimed.length === 0) {
+      await supabase.from('plus_users').delete().eq('id', userId);
+      return { error: 'Invite link already used' };
+    }
+
+    return { user };
   }
 
-  const invite = invites.find((candidate) => safeEqual(candidate.token, input.inviteToken));
-  if (!invite) return { error: 'Invalid invite link' };
+  const store = getStore();
+  const invites = store.plusInvites || [];
+  const invite = invites.find((candidate) => candidate.id === parsedInvite.id);
+  if (!invite || !safeEqual(invite.token, input.inviteToken)) return { error: 'Invalid invite link' };
   if (invite.usedAt) return { error: 'Invite link already used' };
   if (invite.expiresAt <= now) return { error: 'Invite link expired' };
 
-  const existing = users.find((candidate) => candidate.email === normalizedEmail);
-  if (existing) return { error: 'Email already registered' };
+  const users = store.plusUsers || [];
+  if (users.some((candidate) => candidate.email === normalizedEmail)) {
+    return { error: 'Email already registered' };
+  }
 
   const salt = randomBytes(16).toString('hex');
   const user: PlusUserRecord = {
@@ -496,79 +336,126 @@ export async function createPlusUserFromInvite(input: {
     createdAt: now,
   };
 
-  const updatedUsers = [...users, user];
-  const updatedInvites = invites.filter((candidate) => candidate.id !== invite.id);
-
-  const updatedUsedHashes = [...usedInviteHashes, inviteTokenHash];
-  const updatedRevokedInviteIds = revokedInviteIds.includes(invite.id)
-    ? revokedInviteIds
-    : [...revokedInviteIds, invite.id];
-
-  state.users = updatedUsers;
-  state.invites = updatedInvites;
-  state.usedInviteHashes = updatedUsedHashes;
-  state.revokedInviteIds = updatedRevokedInviteIds;
-  await writeAuthState(state);
+  store.plusUsers = [...users, user];
+  store.plusInvites = invites.map((candidate) =>
+    candidate.id === invite.id ? { ...candidate, usedAt: now, usedByUserId: user.id } : candidate
+  );
 
   return { user };
 }
 
 export async function authenticatePlusUser(email: string, password: string): Promise<PlusUserRecord | null> {
-  const users = await readUsers();
   const normalizedEmail = email.trim().toLowerCase();
+
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('plus_users').select('*').eq('email', normalizedEmail).maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+
+    const user = userFromRow(data as UserRow);
+    const expected = hashPassword(password, user.salt);
+    if (!safeEqual(expected, user.passwordHash)) return null;
+
+    const lastLoginAt = Date.now();
+    const { error: updateError } = await supabase
+      .from('plus_users')
+      .update({ last_login_at: lastLoginAt })
+      .eq('id', user.id);
+    if (updateError) throw updateError;
+
+    return { ...user, lastLoginAt };
+  }
+
+  const store = getStore();
+  const users = store.plusUsers || [];
   const user = users.find((candidate) => candidate.email === normalizedEmail);
   if (!user) return null;
 
   const expected = hashPassword(password, user.salt);
   if (!safeEqual(expected, user.passwordHash)) return null;
 
-  const updatedUsers = users.map((candidate) =>
-    candidate.id === user.id
-      ? { ...candidate, lastLoginAt: Date.now() }
-      : candidate
-  );
-
-  await writeUsers(updatedUsers);
-  return updatedUsers.find((candidate) => candidate.id === user.id) || null;
+  const lastLoginAt = Date.now();
+  store.plusUsers = users.map((candidate) => (candidate.id === user.id ? { ...candidate, lastLoginAt } : candidate));
+  return { ...user, lastLoginAt };
 }
 
 export async function createPlusSession(userId: string): Promise<string> {
-  const sessions = await readSessions();
   const now = Date.now();
   const token = generateToken();
+  const expiresAt = now + SESSION_TTL_MS;
 
-  const updatedSessions = sessions
-    .filter((session) => session.expiresAt > now)
-    .concat({
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('plus_sessions').insert({
       id: randomUUID(),
       token,
-      userId,
-      createdAt: now,
-      expiresAt: now + SESSION_TTL_MS,
+      user_id: userId,
+      created_at: now,
+      expires_at: expiresAt,
     });
+    if (error) throw error;
+    return token;
+  }
 
-  await writeSessions(updatedSessions);
+  const store = getStore();
+  const sessions = store.plusSessions || [];
+  store.plusSessions = sessions
+    .filter((session) => session.expiresAt > now)
+    .concat({ id: randomUUID(), token, userId, createdAt: now, expiresAt });
 
   return token;
 }
 
 export async function getPlusUserFromSession(token: string): Promise<PlusUserRecord | null> {
-  const [sessions, users] = await Promise.all([readSessions(), readUsers()]);
   const now = Date.now();
-  const activeSessions = sessions.filter((session) => session.expiresAt > now);
 
-  if (activeSessions.length !== sessions.length) {
-    await writeSessions(activeSessions);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data: session, error } = await supabase
+      .from('plus_sessions')
+      .select('*')
+      .eq('token', token)
+      .gt('expires_at', now)
+      .maybeSingle();
+    if (error) throw error;
+    if (!session) return null;
+
+    const { data: userRow, error: userError } = await supabase
+      .from('plus_users')
+      .select('*')
+      .eq('id', session.user_id)
+      .maybeSingle();
+    if (userError) throw userError;
+    return userRow ? userFromRow(userRow as UserRow) : null;
+  }
+
+  const store = getStore();
+  const activeSessions = (store.plusSessions || []).filter((session) => session.expiresAt > now);
+  if (activeSessions.length !== (store.plusSessions || []).length) {
+    store.plusSessions = activeSessions;
   }
 
   const session = activeSessions.find((candidate) => safeEqual(candidate.token, token));
   if (!session) return null;
 
-  return users.find((user) => user.id === session.userId) ?? null;
+  return (store.plusUsers || []).find((user) => user.id === session.userId) ?? null;
 }
 
 export async function destroyPlusSession(token: string): Promise<void> {
-  const sessions = await readSessions();
-  const filteredSessions = sessions.filter((session) => !safeEqual(session.token, token));
-  await writeSessions(filteredSessions);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('plus_sessions').delete().eq('token', token);
+    if (error) throw error;
+    return;
+  }
+
+  const store = getStore();
+  store.plusSessions = (store.plusSessions || []).filter((session) => !safeEqual(session.token, token));
+}
+
+declare global {
+  var plusUsers: PlusUserRecord[] | undefined;
+  var plusInvites: PlusInviteRecord[] | undefined;
+  var plusSessions: PlusSessionRecord[] | undefined;
 }

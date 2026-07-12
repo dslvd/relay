@@ -47,6 +47,8 @@ CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
 CLOUDFLARE_D1_DATABASE_ID=your_d1_database_id
 CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
 REDIS_URL=redis://default:password@host:port
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 PLUS_INVITE_SECRET=your_long_random_secret
 ```
 
@@ -160,12 +162,14 @@ In Vercel Dashboard → Settings → Environment Variables:
 | `R2_BUCKET` | R2 bucket name for uploads | Yes |
 | `R2_PUBLIC_BASE_URL` | Public R2/custom-domain base URL | Yes |
 | `MAX_UPLOAD_FILE_MB` | Per-file upload size limit in MB | No (default 100) |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID for D1 API | Yes (plus auth storage) |
-| `CLOUDFLARE_D1_DATABASE_ID` | D1 database ID | Yes (plus auth storage) |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with D1 edit permission | Yes (plus auth storage) |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID for D1 API | Yes (download-count tracking) |
+| `CLOUDFLARE_D1_DATABASE_ID` | D1 database ID | Yes (download-count tracking) |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with D1 edit permission | Yes (download-count tracking) |
 | `ADMIN_PASSWORD` | Admin dashboard password | Yes |
 | `CRON_SECRET` | Secret for cron authentication | Yes (for auto-cleanup) |
-| `REDIS_URL` | Redis connection URL (upload/history persistence) | Optional |
+| `REDIS_URL` | Redis connection URL (misc. secondary caches) | Optional |
+| `SUPABASE_URL` | Supabase project URL | Yes (uploads/folders/Plus accounts storage) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only, full DB access) | Yes (uploads/folders/Plus accounts storage) |
 | `PLUS_INVITE_SECRET` | HMAC secret for plus invite tokens | Yes (plus invites) |
 | `NEXT_PUBLIC_ADSENSE_CLIENT_ID` | Google AdSense Publisher ID | No (for monetization) |
 

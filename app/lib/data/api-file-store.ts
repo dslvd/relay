@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'crypto';
-import { getRedisClient, hasRedisConfigured } from '@/app/lib/data/redis-client';
+import { getSupabaseClient, hasSupabaseConfigured } from '@/app/lib/data/supabase-client';
 
 export interface ApiFileRecord {
   id: string;
@@ -17,9 +17,42 @@ export interface ApiFileRecord {
   downloadCount: number;
 }
 
-const FILES_KEY = 'api:files:list';
+interface ApiFileRow {
+  id: string;
+  short_id: string;
+  object_key: string;
+  name: string;
+  size: number;
+  mime_type: string | null;
+  folder_id: string | null;
+  owner_id: string | null;
+  is_anonymous: boolean;
+  deletion_token: string | null;
+  created_at: number;
+  expires_at: number | null;
+  download_count: number;
+}
+
 const MAX_RECORDS = 5000;
 const SHORT_ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function recordFromRow(row: ApiFileRow): ApiFileRecord {
+  return {
+    id: row.id,
+    shortId: row.short_id,
+    objectKey: row.object_key,
+    name: row.name,
+    size: row.size,
+    mimeType: row.mime_type || 'application/octet-stream',
+    folderId: row.folder_id,
+    ownerId: row.owner_id,
+    isAnonymous: row.is_anonymous,
+    deletionToken: row.deletion_token,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    downloadCount: row.download_count,
+  };
+}
 
 function generateShortId(length = 8): string {
   let code = '';
@@ -40,28 +73,8 @@ function getFallbackStore(): ApiFileRecord[] {
   return global.apiFileStore;
 }
 
-async function readAll(): Promise<ApiFileRecord[]> {
-  if (hasRedisConfigured()) {
-    const client = await getRedisClient();
-    const raw = await client.get(FILES_KEY);
-    if (!raw) return [];
-    try {
-      return JSON.parse(raw) as ApiFileRecord[];
-    } catch {
-      return [];
-    }
-  }
-  return [...getFallbackStore()];
-}
-
-async function writeAll(records: ApiFileRecord[]): Promise<void> {
-  const capped = records.slice(0, MAX_RECORDS);
-  if (hasRedisConfigured()) {
-    const client = await getRedisClient();
-    await client.set(FILES_KEY, JSON.stringify(capped));
-    return;
-  }
-  global.apiFileStore = capped;
+function saveFallbackStore(records: ApiFileRecord[]): void {
+  global.apiFileStore = records.slice(0, MAX_RECORDS);
 }
 
 export async function createFileRecord(input: {
@@ -73,18 +86,10 @@ export async function createFileRecord(input: {
   ownerId?: string | null;
   expiresAt?: number | null;
 }): Promise<ApiFileRecord> {
-  const records = await readAll();
   const isAnonymous = !input.ownerId;
-
-  let shortId = generateShortId();
-  const existingShortIds = new Set(records.map((r) => r.shortId));
-  while (existingShortIds.has(shortId)) {
-    shortId = generateShortId();
-  }
-
   const record: ApiFileRecord = {
     id: randomUUID(),
-    shortId,
+    shortId: generateShortId(),
     objectKey: input.objectKey,
     name: input.name,
     size: input.size,
@@ -98,18 +103,63 @@ export async function createFileRecord(input: {
     downloadCount: 0,
   };
 
-  await writeAll([record, ...records]);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+
+    // shortId collisions are astronomically rare (62^8 space) but retry a
+    // few times against the unique constraint just in case.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const shortId = attempt === 0 ? record.shortId : generateShortId();
+      const { error } = await supabase.from('api_files').insert({
+        id: record.id,
+        short_id: shortId,
+        object_key: record.objectKey,
+        name: record.name,
+        size: record.size,
+        mime_type: record.mimeType,
+        folder_id: record.folderId,
+        owner_id: record.ownerId,
+        is_anonymous: record.isAnonymous,
+        deletion_token: record.deletionToken,
+        created_at: record.createdAt,
+        expires_at: record.expiresAt,
+        download_count: 0,
+      });
+      if (!error) return { ...record, shortId };
+      if (error.code !== '23505') throw error;
+    }
+    throw new Error('Failed to allocate a unique shortId');
+  }
+
+  const records = getFallbackStore();
+  const existingShortIds = new Set(records.map((r) => r.shortId));
+  while (existingShortIds.has(record.shortId)) {
+    record.shortId = generateShortId();
+  }
+  saveFallbackStore([record, ...records]);
   return record;
 }
 
 export async function getFileRecordById(id: string): Promise<ApiFileRecord | null> {
-  const records = await readAll();
-  return records.find((r) => r.id === id) || null;
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('api_files').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? recordFromRow(data as ApiFileRow) : null;
+  }
+
+  return getFallbackStore().find((r) => r.id === id) || null;
 }
 
 export async function getFileRecordByShortId(shortId: string): Promise<ApiFileRecord | null> {
-  const records = await readAll();
-  return records.find((r) => r.shortId === shortId) || null;
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('api_files').select('*').eq('short_id', shortId).maybeSingle();
+    if (error) throw error;
+    return data ? recordFromRow(data as ApiFileRow) : null;
+  }
+
+  return getFallbackStore().find((r) => r.shortId === shortId) || null;
 }
 
 export async function listFileRecordsByOwner(options: {
@@ -118,44 +168,83 @@ export async function listFileRecordsByOwner(options: {
   page?: number;
   limit?: number;
 }): Promise<{ records: ApiFileRecord[]; total: number }> {
-  const records = await readAll();
-  let filtered = records.filter((r) => r.ownerId === options.ownerId);
+  const page = Math.max(1, options.page ?? 1);
+  const limit = Math.max(1, Math.min(200, options.limit ?? 50));
 
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    let query = supabase
+      .from('api_files')
+      .select('*', { count: 'exact' })
+      .eq('owner_id', options.ownerId);
+
+    if (options.folderId !== undefined) {
+      query = options.folderId === null ? query.is('folder_id', null) : query.eq('folder_id', options.folderId);
+    }
+
+    const from = (page - 1) * limit;
+    const { data, error, count } = await query.order('created_at', { ascending: false }).range(from, from + limit - 1);
+    if (error) throw error;
+    return { records: (data as ApiFileRow[]).map(recordFromRow), total: count ?? 0 };
+  }
+
+  const records = getFallbackStore();
+  let filtered = records.filter((r) => r.ownerId === options.ownerId);
   if (options.folderId !== undefined) {
     filtered = filtered.filter((r) => r.folderId === options.folderId);
   }
-
   const total = filtered.length;
-  const page = Math.max(1, options.page ?? 1);
-  const limit = Math.max(1, Math.min(200, options.limit ?? 50));
   const start = (page - 1) * limit;
-  const paged = filtered.slice(start, start + limit);
-
-  return { records: paged, total };
+  return { records: filtered.slice(start, start + limit), total };
 }
 
 export async function countFilesInFolder(folderId: string): Promise<{ count: number; totalSize: number }> {
-  const records = await readAll();
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('api_files').select('size').eq('folder_id', folderId);
+    if (error) throw error;
+    const rows = (data as { size: number }[]) || [];
+    return { count: rows.length, totalSize: rows.reduce((sum, r) => sum + r.size, 0) };
+  }
+
+  const records = getFallbackStore();
   const inFolder = records.filter((r) => r.folderId === folderId);
-  return {
-    count: inFolder.length,
-    totalSize: inFolder.reduce((sum, r) => sum + r.size, 0),
-  };
+  return { count: inFolder.length, totalSize: inFolder.reduce((sum, r) => sum + r.size, 0) };
 }
 
 export async function incrementDownloadCount(id: string): Promise<void> {
-  const records = await readAll();
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('api_files').select('download_count').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!data) return;
+    const { error: updateError } = await supabase
+      .from('api_files')
+      .update({ download_count: (data.download_count as number) + 1 })
+      .eq('id', id);
+    if (updateError) throw updateError;
+    return;
+  }
+
+  const records = getFallbackStore();
   const index = records.findIndex((r) => r.id === id);
   if (index === -1) return;
   records[index] = { ...records[index], downloadCount: records[index].downloadCount + 1 };
-  await writeAll(records);
+  saveFallbackStore(records);
 }
 
 export async function deleteFileRecord(id: string): Promise<ApiFileRecord | null> {
-  const records = await readAll();
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('api_files').delete().eq('id', id).select('*').maybeSingle();
+    if (error) throw error;
+    return data ? recordFromRow(data as ApiFileRow) : null;
+  }
+
+  const records = getFallbackStore();
   const record = records.find((r) => r.id === id);
   if (!record) return null;
-  await writeAll(records.filter((r) => r.id !== id));
+  saveFallbackStore(records.filter((r) => r.id !== id));
   return record;
 }
 

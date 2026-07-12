@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
-import { loadUploadHistory, saveUploadHistory, updateUploadRecordsByUrls, type UploadRecord } from '@/app/lib/data/upload-history-store';
+import { loadUploadHistory, removeUploadUrls, updateUploadRecordsByUrls } from '@/app/lib/data/upload-history-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
 import { removeQuarantineRecord, upsertQuarantineRecord } from '@/app/lib/data/abuse-store';
@@ -28,16 +28,6 @@ async function resolveObjectKeyFromUrl(url: string): Promise<string | null> {
   return aliasTarget || objectKey;
 }
 
-async function filterHistoryByObjectKeys(history: UploadRecord[], keysToRemove: Set<string>) {
-  const keepFlags = await Promise.all(
-    history.map(async (record) => {
-      const objectKey = await resolveObjectKeyFromUrl(record.url);
-      if (!objectKey) return true;
-      return !keysToRemove.has(objectKey);
-    })
-  );
-  return history.filter((_, index) => keepFlags[index]);
-}
 
 export async function POST(request: NextRequest) {
   const authError = requireAdmin(request);
@@ -105,14 +95,23 @@ export async function POST(request: NextRequest) {
         loadUploadHistory('plus'),
       ]);
 
-      const [nextPublic, nextPlus] = await Promise.all([
-        filterHistoryByObjectKeys(publicHistory, objectKeys),
-        filterHistoryByObjectKeys(plusHistory, objectKeys),
+      const findUrlsToRemove = async (history: typeof publicHistory) => {
+        const urls: string[] = [];
+        await Promise.all(history.map(async (record) => {
+          const objectKey = await resolveObjectKeyFromUrl(record.url);
+          if (objectKey && objectKeys.has(objectKey)) urls.push(record.url);
+        }));
+        return urls;
+      };
+
+      const [publicUrlsToRemove, plusUrlsToRemove] = await Promise.all([
+        findUrlsToRemove(publicHistory),
+        findUrlsToRemove(plusHistory),
       ]);
 
       await Promise.all([
-        saveUploadHistory(nextPublic, 'public'),
-        saveUploadHistory(nextPlus, 'plus'),
+        removeUploadUrls(publicUrlsToRemove, 'public'),
+        removeUploadUrls(plusUrlsToRemove, 'plus'),
       ]);
 
       await appendAuditLog({

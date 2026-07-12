@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isExpired } from '@/app/lib/storage/retention';
-import { loadUploadHistory, saveUploadHistory } from '@/app/lib/data/upload-history-store';
+import { loadUploadHistory, removeUploadUrls } from '@/app/lib/data/upload-history-store';
 import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
 const PLUS_COOKIE_NAME = 'plus_auth';
@@ -26,11 +26,9 @@ export async function GET(request: NextRequest) {
   // R2 on every page load/poll was both expensive and, prior to the safer
   // objectExists() error handling, capable of wiping valid entries on a
   // single transient R2 error.
+  // Expired-entry cleanup runs on the daily cron - just filter for display here.
   const history = await loadUploadHistory('plus');
   const filtered = history.filter((record) => !isExpired(record.lastAccessTime));
-  if (filtered.length !== history.length) {
-    await saveUploadHistory(filtered, 'plus');
-  }
 
   const userUploads = filtered
     .filter((record) => record.ownerId === user.id)
@@ -77,9 +75,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await deleteObject(objectKey);
-
-    const updated = history.filter((record) => record.url !== url);
-    await saveUploadHistory(updated, 'plus');
+    await removeUploadUrls([url], 'plus');
 
     return NextResponse.json({ success: true });
   } catch (error) {

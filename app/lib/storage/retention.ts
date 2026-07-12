@@ -1,4 +1,9 @@
-import { loadUploadHistory, saveUploadHistory, type UploadHistoryScope } from '@/app/lib/data/upload-history-store';
+import {
+  loadUploadHistory,
+  removeUploadUrls,
+  touchLastAccessTime,
+  type UploadHistoryScope,
+} from '@/app/lib/data/upload-history-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
 import { deleteObject, objectExists, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
@@ -47,20 +52,18 @@ export async function pruneMissingHistoryEntries(input?: {
       continue;
     }
 
-    const keepFlags = await Promise.all(
+    const missingUrls: string[] = [];
+    await Promise.all(
       history.map(async (record) => {
         const objectKey = await resolveObjectKeyFromAppUrl(record.url);
-        if (!objectKey) {
-          return false;
-        }
-        return objectExists(objectKey);
+        const exists = objectKey ? await objectExists(objectKey) : false;
+        if (!exists) missingUrls.push(record.url);
       })
     );
 
-    const filtered = history.filter((_, index) => keepFlags[index]);
-    if (filtered.length !== history.length) {
-      await saveUploadHistory(filtered, currentScope);
-      totalRemoved += history.length - filtered.length;
+    if (missingUrls.length > 0) {
+      const removed = await removeUploadUrls(missingUrls, currentScope);
+      totalRemoved += removed;
     }
 
     global.lastHistoryExistenceCheckByScope[currentScope] = now;
@@ -135,19 +138,19 @@ export async function pruneExpiredHistoryCache(
       continue;
     }
 
-    const keepFlags = await Promise.all(
+    const urlsToRemove: string[] = [];
+    await Promise.all(
       history.map(async (record) => {
-        if (!isExpired(record.lastAccessTime, now)) return true;
+        if (!isExpired(record.lastAccessTime, now)) return;
         const objectKey = await resolveObjectKeyFromAppUrl(record.url);
-        if (!objectKey) return false;
-        return quarantineMap.has(objectKey);
+        if (objectKey && quarantineMap.has(objectKey)) return;
+        urlsToRemove.push(record.url);
       })
     );
 
-    const filtered = history.filter((_, index) => keepFlags[index]);
-    if (filtered.length !== history.length) {
-      await saveUploadHistory(filtered, currentScope);
-      totalRemoved += history.length - filtered.length;
+    if (urlsToRemove.length > 0) {
+      const removed = await removeUploadUrls(urlsToRemove, currentScope);
+      totalRemoved += removed;
     }
   }
 
@@ -155,21 +158,7 @@ export async function pruneExpiredHistoryCache(
 }
 
 export async function updateLastAccessTime(url: string): Promise<void> {
-  for (const scope of HISTORY_SCOPES) {
-    const history = await loadUploadHistory(scope);
-    if (history.length === 0) {
-      continue;
-    }
-
-    const updated = history.map((record) => {
-      if (record.url === url || record.url.includes(url)) {
-        return { ...record, lastAccessTime: Date.now() };
-      }
-      return record;
-    });
-
-    await saveUploadHistory(updated, scope);
-  }
+  await touchLastAccessTime(url);
 }
 
 declare global {

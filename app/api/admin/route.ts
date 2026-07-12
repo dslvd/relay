@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteObject, listAllObjects, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
-import { loadUploadHistory, saveUploadHistory } from '@/app/lib/data/upload-history-store';
+import { loadUploadHistory, removeUploadUrls, clearUploadHistory } from '@/app/lib/data/upload-history-store';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
 import { removeQuarantineRecord, saveQuarantineRecords } from '@/app/lib/data/abuse-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
@@ -81,17 +81,19 @@ export async function DELETE(request: NextRequest) {
       return resolved || rawKey;
     };
 
-    const publicFlags = await Promise.all(publicHistory.map(async (record) => {
+    const publicUrlsToRemove: string[] = [];
+    await Promise.all(publicHistory.map(async (record) => {
       const key = await resolveKey(record.url);
-      return key !== targetKey;
+      if (key === targetKey) publicUrlsToRemove.push(record.url);
     }));
-    const plusFlags = await Promise.all(plusHistory.map(async (record) => {
+    const plusUrlsToRemove: string[] = [];
+    await Promise.all(plusHistory.map(async (record) => {
       const key = await resolveKey(record.url);
-      return key !== targetKey;
+      if (key === targetKey) plusUrlsToRemove.push(record.url);
     }));
 
-    await saveUploadHistory(publicHistory.filter((_, idx) => publicFlags[idx]), 'public');
-    await saveUploadHistory(plusHistory.filter((_, idx) => plusFlags[idx]), 'plus');
+    await removeUploadUrls(publicUrlsToRemove, 'public');
+    await removeUploadUrls(plusUrlsToRemove, 'plus');
 
     await appendAuditLog({
       id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -127,8 +129,8 @@ export async function POST(request: NextRequest) {
 
     if (action === 'clear_all') {
       const deleted = await deleteAllBlobs();
-      await saveUploadHistory([], 'public');
-      await saveUploadHistory([], 'plus');
+      await clearUploadHistory('public');
+      await clearUploadHistory('plus');
       await saveQuarantineRecords([]);
 
       await appendAuditLog({

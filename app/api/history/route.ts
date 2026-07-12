@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteExpiredBlobs, isExpired, pruneExpiredHistoryCache, pruneMissingHistoryEntries, RETENTION_MS } from '@/app/lib/storage/retention';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
-import { addUploadRecord, loadUploadHistory, saveUploadHistory, updateUploadRecordByUrl, type UploadRecord } from '@/app/lib/data/upload-history-store';
+import { addUploadRecord, loadUploadHistory, updateUploadRecordByUrl, type UploadRecord } from '@/app/lib/data/upload-history-store';
 import { isAdminRequest, requireAdmin } from '@/app/lib/auth/admin-auth';
 
 export const dynamic = 'force-dynamic';
@@ -85,19 +85,13 @@ export async function GET(request: NextRequest) {
     const includePlus = includePlusRequested && isAdminRequest(request);
     await runBestEffortHistoryMaintenance({ includePlus });
 
+    // Expired-entry cleanup is handled by runBestEffortHistoryMaintenance()
+    // above (via pruneExpiredHistoryCache) - just filter for display here.
     const publicHistory = await loadUploadHistory('public');
     const publicFiltered = publicHistory.filter((record) => !isExpired(record.lastAccessTime));
 
     const plusHistory = includePlus ? await loadUploadHistory('plus') : [];
     const plusFiltered = plusHistory.filter((record) => !isExpired(record.lastAccessTime));
-
-    if (publicFiltered.length !== publicHistory.length) {
-      await saveUploadHistory(publicFiltered, 'public');
-    }
-
-    if (includePlus && plusFiltered.length !== plusHistory.length) {
-      await saveUploadHistory(plusFiltered, 'plus');
-    }
 
     const combined = [...publicFiltered, ...plusFiltered]
       .sort((a, b) => b.timestamp - a.timestamp)

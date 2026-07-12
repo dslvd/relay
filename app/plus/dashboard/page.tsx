@@ -518,7 +518,8 @@ export default function PlusDashboard() {
             }}>
               <span aria-hidden="true">⚠</span>
               No persistent storage configured for this account — folders and uploads may not survive a server
-              restart. Set <code style={{ fontFamily: 'ui-monospace, monospace' }}>REDIS_URL</code> in your deployment to fix this.
+              restart. Set <code style={{ fontFamily: 'ui-monospace, monospace' }}>SUPABASE_URL</code> and{' '}
+              <code style={{ fontFamily: 'ui-monospace, monospace' }}>SUPABASE_SERVICE_ROLE_KEY</code> in your deployment to fix this.
             </div>
           )}
 
