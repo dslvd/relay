@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listAllObjects } from '@/app/lib/storage/r2-storage';
-import { cleanupAnalyticsData, loadAnalyticsData, saveAnalyticsData } from '@/app/lib/data/analytics-store';
+import { loadAnalyticsData } from '@/app/lib/data/analytics-store';
 import { loadCachedStorageStats, saveCachedStorageStats } from '@/app/lib/data/storage-stats-store';
 import { requireAdmin } from '@/app/lib/auth/admin-auth';
 
@@ -35,8 +35,7 @@ export async function GET(request: NextRequest) {
     await saveCachedStorageStats(storage, STORAGE_CACHE_TTL_SECONDS);
   }
 
-  const analytics = cleanupAnalyticsData(await loadAnalyticsData());
-  await saveAnalyticsData(analytics);
+  const analytics = await loadAnalyticsData();
 
   const now = Date.now();
   const dayAgo = now - 24 * 60 * 60 * 1000;

@@ -246,6 +246,22 @@ export default function PlusPage() {
           >
             {loading ? 'Please wait...' : hasInvite ? 'Create account' : 'Login'}
           </button>
+
+          {!hasInvite && (
+            <a
+              href="/plus/forgot"
+              style={{
+                textAlign: 'center',
+                fontSize: '0.75rem',
+                color: 'rgba(var(--c-text-ch),0.55)',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--c-text)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(var(--c-text-ch),0.55)')}
+            >
+              Forgot password?
+            </a>
+          )}
         </div>
       </section>
     </main>

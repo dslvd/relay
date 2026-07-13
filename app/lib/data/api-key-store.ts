@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
-import { getRedisClient, hasRedisConfigured } from './redis-client';
+import { getSupabaseClient, hasSupabaseConfigured } from '@/app/lib/data/supabase-client';
+import { checkRateLimit } from '@/app/lib/rate-limit';
 
 export interface ApiKeyRecord {
   id: string;
@@ -35,14 +36,59 @@ export interface ApiKeyUsage {
   totalBytesDownloaded: number;
 }
 
+interface ApiKeyRow {
+  id: string;
+  hashed_key: string;
+  name: string;
+  user_id: string | null;
+  email: string | null;
+  created_at: number;
+  last_used_at: number | null;
+  expires_at: number | null;
+  is_active: boolean;
+  permissions: ApiKeyPermissions;
+  usage: ApiKeyUsage;
+  rate_limit: { requestsPerHour: number; uploadSizeLimit: number };
+}
+
 interface FallbackStore {
   apiKeys?: ApiKeyRecord[];
 }
 
-const API_KEYS_KEY_PREFIX = 'api_key:';
-const API_KEY_BY_HASH_PREFIX = 'api_key_hash:';
-const API_KEYS_LIST_KEY = 'api_keys_list';
-const FALLBACK_STATE_KEY = 'api_keys_fallback_state';
+function rowFromRecord(record: ApiKeyRecord): Omit<ApiKeyRow, 'id'> & { id: string } {
+  return {
+    id: record.id,
+    hashed_key: record.hashedKey,
+    name: record.name,
+    user_id: record.userId ?? null,
+    email: record.email ?? null,
+    created_at: record.createdAt,
+    last_used_at: record.lastUsedAt ?? null,
+    expires_at: record.expiresAt ?? null,
+    is_active: record.isActive,
+    permissions: record.permissions,
+    usage: record.usage,
+    rate_limit: record.rateLimit,
+  };
+}
+
+function recordFromRow(row: ApiKeyRow): ApiKeyRecord {
+  return {
+    id: row.id,
+    key: '',
+    hashedKey: row.hashed_key,
+    name: row.name,
+    userId: row.user_id ?? undefined,
+    email: row.email ?? undefined,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at ?? undefined,
+    expiresAt: row.expires_at ?? undefined,
+    isActive: row.is_active,
+    permissions: row.permissions,
+    usage: row.usage,
+    rateLimit: row.rate_limit,
+  };
+}
 
 function generateApiKey(): string {
   // Generate a secure random API key with prefix
@@ -54,80 +100,9 @@ function hashApiKey(key: string): string {
   return createHash('sha256').update(key).digest('hex');
 }
 
-// Redis-based storage
-async function saveApiKeyToRedis(apiKey: ApiKeyRecord): Promise<void> {
-  const redis = await getRedisClient();
-  const keyId = `${API_KEYS_KEY_PREFIX}${apiKey.id}`;
-  const hashKey = `${API_KEY_BY_HASH_PREFIX}${apiKey.hashedKey}`;
-
-  await redis.set(keyId, JSON.stringify(apiKey));
-  await redis.set(hashKey, apiKey.id);
-  await redis.sAdd(API_KEYS_LIST_KEY, apiKey.id);
-}
-
-async function getApiKeyFromRedis(id: string): Promise<ApiKeyRecord | null> {
-  const redis = await getRedisClient();
-  const keyId = `${API_KEYS_KEY_PREFIX}${id}`;
-  const data = await redis.get(keyId);
-
-  if (!data) return null;
-
-  return JSON.parse(data) as ApiKeyRecord;
-}
-
-async function getApiKeyByHashFromRedis(hashedKey: string): Promise<ApiKeyRecord | null> {
-  const redis = await getRedisClient();
-  const hashKey = `${API_KEY_BY_HASH_PREFIX}${hashedKey}`;
-  const id = await redis.get(hashKey);
-
-  if (!id) return null;
-
-  return getApiKeyFromRedis(id);
-}
-
-async function listApiKeysFromRedis(): Promise<ApiKeyRecord[]> {
-  const redis = await getRedisClient();
-  const ids = await redis.sMembers(API_KEYS_LIST_KEY);
-
-  const keys = await Promise.all(
-    ids.map((id) => getApiKeyFromRedis(id))
-  );
-
-  return keys.filter((k): k is ApiKeyRecord => k !== null);
-}
-
-async function deleteApiKeyFromRedis(id: string): Promise<boolean> {
-  const redis = await getRedisClient();
-  const apiKey = await getApiKeyFromRedis(id);
-
-  if (!apiKey) return false;
-
-  const keyId = `${API_KEYS_KEY_PREFIX}${id}`;
-  const hashKey = `${API_KEY_BY_HASH_PREFIX}${apiKey.hashedKey}`;
-
-  await redis.del(keyId);
-  await redis.del(hashKey);
-  await redis.sRem(API_KEYS_LIST_KEY, id);
-
-  return true;
-}
-
-async function updateApiKeyInRedis(id: string, updates: Partial<ApiKeyRecord>): Promise<ApiKeyRecord | null> {
-  const apiKey = await getApiKeyFromRedis(id);
-  if (!apiKey) return null;
-
-  const updated = { ...apiKey, ...updates };
-  await saveApiKeyToRedis(updated);
-
-  return updated;
-}
-
-// Fallback in-memory storage
 function getFallbackStore(): FallbackStore {
   if (typeof global.apiKeysFallbackStore === 'undefined') {
-    global.apiKeysFallbackStore = {
-      apiKeys: [],
-    };
+    global.apiKeysFallbackStore = { apiKeys: [] };
   }
   return global.apiKeysFallbackStore;
 }
@@ -135,7 +110,6 @@ function getFallbackStore(): FallbackStore {
 function saveApiKeyToFallback(apiKey: ApiKeyRecord): void {
   const store = getFallbackStore();
   const index = store.apiKeys!.findIndex((k) => k.id === apiKey.id);
-
   if (index >= 0) {
     store.apiKeys![index] = apiKey;
   } else {
@@ -144,45 +118,37 @@ function saveApiKeyToFallback(apiKey: ApiKeyRecord): void {
 }
 
 function getApiKeyFromFallback(id: string): ApiKeyRecord | null {
-  const store = getFallbackStore();
-  return store.apiKeys!.find((k) => k.id === id) || null;
+  return getFallbackStore().apiKeys!.find((k) => k.id === id) || null;
 }
 
 function getApiKeyByHashFromFallback(hashedKey: string): ApiKeyRecord | null {
-  const store = getFallbackStore();
-  return store.apiKeys!.find((k) => k.hashedKey === hashedKey) || null;
+  return getFallbackStore().apiKeys!.find((k) => k.hashedKey === hashedKey) || null;
 }
 
 function listApiKeysFromFallback(): ApiKeyRecord[] {
-  const store = getFallbackStore();
-  return [...store.apiKeys!];
+  return [...getFallbackStore().apiKeys!];
 }
 
 function deleteApiKeyFromFallback(id: string): boolean {
   const store = getFallbackStore();
   const index = store.apiKeys!.findIndex((k) => k.id === id);
-
   if (index >= 0) {
     store.apiKeys!.splice(index, 1);
     return true;
   }
-
   return false;
 }
 
 function updateApiKeyInFallback(id: string, updates: Partial<ApiKeyRecord>): ApiKeyRecord | null {
   const store = getFallbackStore();
   const index = store.apiKeys!.findIndex((k) => k.id === id);
-
   if (index >= 0) {
     store.apiKeys![index] = { ...store.apiKeys![index], ...updates };
     return store.apiKeys![index];
   }
-
   return null;
 }
 
-// Public API
 export async function createApiKey(input: {
   name: string;
   userId?: string;
@@ -227,8 +193,10 @@ export async function createApiKey(input: {
     expiresAt: input.expiresInDays ? now + input.expiresInDays * 24 * 60 * 60 * 1000 : undefined,
   };
 
-  if (hasRedisConfigured()) {
-    await saveApiKeyToRedis(apiKey);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('api_keys').insert(rowFromRecord(apiKey));
+    if (error) throw error;
   } else {
     saveApiKeyToFallback(apiKey);
   }
@@ -240,67 +208,69 @@ export async function validateApiKey(key: string): Promise<ApiKeyRecord | null> 
   const hashedKey = hashApiKey(key);
 
   let apiKey: ApiKeyRecord | null;
-
-  if (hasRedisConfigured()) {
-    apiKey = await getApiKeyByHashFromRedis(hashedKey);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('api_keys').select('*').eq('hashed_key', hashedKey).maybeSingle();
+    if (error) throw error;
+    apiKey = data ? recordFromRow(data as ApiKeyRow) : null;
   } else {
     apiKey = getApiKeyByHashFromFallback(hashedKey);
   }
 
   if (!apiKey) return null;
-
-  // Check if key is active
   if (!apiKey.isActive) return null;
+  if (apiKey.expiresAt && apiKey.expiresAt < Date.now()) return null;
 
-  // Check if key is expired
-  if (apiKey.expiresAt && apiKey.expiresAt < Date.now()) {
-    return null;
-  }
-
-  // Update last used timestamp
   await updateApiKeyUsage(apiKey.id, { lastUsedAt: Date.now() });
-
   return apiKey;
 }
 
 export async function getApiKey(id: string): Promise<ApiKeyRecord | null> {
-  if (hasRedisConfigured()) {
-    return getApiKeyFromRedis(id);
-  } else {
-    return getApiKeyFromFallback(id);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('api_keys').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? recordFromRow(data as ApiKeyRow) : null;
   }
+  return getApiKeyFromFallback(id);
 }
 
 export async function listApiKeys(userId?: string): Promise<ApiKeyRecord[]> {
-  let keys: ApiKeyRecord[];
-
-  if (hasRedisConfigured()) {
-    keys = await listApiKeysFromRedis();
-  } else {
-    keys = listApiKeysFromFallback();
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    let query = supabase.from('api_keys').select('*');
+    if (userId) query = query.eq('user_id', userId);
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as ApiKeyRow[]).map(recordFromRow);
   }
 
-  if (userId) {
-    keys = keys.filter((k) => k.userId === userId);
-  }
-
+  let keys = listApiKeysFromFallback();
+  if (userId) keys = keys.filter((k) => k.userId === userId);
   return keys;
 }
 
 export async function deleteApiKey(id: string): Promise<boolean> {
-  if (hasRedisConfigured()) {
-    return deleteApiKeyFromRedis(id);
-  } else {
-    return deleteApiKeyFromFallback(id);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('api_keys').delete().eq('id', id).select('id');
+    if (error) throw error;
+    return (data?.length ?? 0) > 0;
   }
+  return deleteApiKeyFromFallback(id);
 }
 
 export async function updateApiKey(id: string, updates: Partial<ApiKeyRecord>): Promise<ApiKeyRecord | null> {
-  if (hasRedisConfigured()) {
-    return updateApiKeyInRedis(id, updates);
-  } else {
-    return updateApiKeyInFallback(id, updates);
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const existing = await getApiKey(id);
+    if (!existing) return null;
+    const merged = { ...existing, ...updates };
+    const { error } = await supabase.from('api_keys').update(rowFromRecord(merged)).eq('id', id);
+    if (error) throw error;
+    return merged;
   }
+  return updateApiKeyInFallback(id, updates);
 }
 
 export async function updateApiKeyUsage(
@@ -336,18 +306,15 @@ export async function revokeApiKey(id: string): Promise<boolean> {
   return result !== null;
 }
 
+// Fixed-window limit (`rateLimit.requestsPerHour` per rolling hour), enforced
+// via the shared Redis-backed limiter so it holds across every serverless
+// instance. The previous version compared a lifetime-cumulative usage
+// counter against the hourly limit and only reset it after an hour of total
+// inactivity - an active key would trip the limit once and then stay
+// rate-limited forever, since `usage.requestCount` never actually resets.
 export async function checkApiKeyRateLimit(apiKey: ApiKeyRecord): Promise<boolean> {
-  // Check rate limit based on recent usage
-  const oneHourAgo = Date.now() - 60 * 60 * 1000;
-
-  if (!apiKey.lastUsedAt || apiKey.lastUsedAt < oneHourAgo) {
-    // Reset the counter if more than an hour has passed
-    return true;
-  }
-
-  // For simplicity, we'll track usage per hour in the usage object
-  // In a production system, you'd want a more sophisticated rate limiting system
-  return apiKey.usage.requestCount < apiKey.rateLimit.requestsPerHour;
+  const result = await checkRateLimit(`api-key:${apiKey.id}`, apiKey.rateLimit.requestsPerHour, 60 * 60 * 1000);
+  return result.allowed;
 }
 
 declare global {

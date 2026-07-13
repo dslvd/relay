@@ -27,13 +27,24 @@ interface PlusSessionRecord {
   expiresAt: number;
 }
 
+interface PlusPasswordResetRecord {
+  id: string;
+  token: string;
+  userId: string;
+  createdAt: number;
+  expiresAt: number;
+  usedAt?: number;
+}
+
 interface FallbackStore {
   plusUsers?: PlusUserRecord[];
   plusInvites?: PlusInviteRecord[];
   plusSessions?: PlusSessionRecord[];
+  plusPasswordResets?: PlusPasswordResetRecord[];
 }
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const INVITE_SECRET = process.env.PLUS_INVITE_SECRET ?? process.env.ADMIN_PASSWORD ?? 'plus-invite-secret';
 
 interface InviteTokenPayload {
@@ -86,6 +97,7 @@ function getStore(): FallbackStore {
   if (!holder.plusUsers) holder.plusUsers = [];
   if (!holder.plusInvites) holder.plusInvites = [];
   if (!holder.plusSessions) holder.plusSessions = [];
+  if (!holder.plusPasswordResets) holder.plusPasswordResets = [];
   return holder;
 }
 
@@ -459,8 +471,115 @@ export async function destroyPlusSession(token: string): Promise<void> {
   store.plusSessions = (store.plusSessions || []).filter((session) => !safeEqual(session.token, token));
 }
 
+// Returns a reset token if the email matches a Plus account, or null
+// otherwise. Callers should respond identically either way (don't reveal
+// whether an email has an account).
+export async function createPasswordResetToken(email: string): Promise<string | null> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const now = Date.now();
+
+  let userId: string | null = null;
+
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('plus_users').select('id').eq('email', normalizedEmail).maybeSingle();
+    if (error) throw error;
+    userId = data?.id ?? null;
+  } else {
+    const store = getStore();
+    userId = (store.plusUsers || []).find((u) => u.email === normalizedEmail)?.id ?? null;
+  }
+
+  if (!userId) return null;
+
+  const token = generateToken();
+  const expiresAt = now + RESET_TOKEN_TTL_MS;
+
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('plus_password_resets').insert({
+      id: randomUUID(),
+      token,
+      user_id: userId,
+      created_at: now,
+      expires_at: expiresAt,
+    });
+    if (error) throw error;
+  } else {
+    const store = getStore();
+    store.plusPasswordResets = [
+      ...(store.plusPasswordResets || []),
+      { id: randomUUID(), token, userId, createdAt: now, expiresAt },
+    ];
+  }
+
+  return token;
+}
+
+export async function resetPasswordWithToken(
+  token: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  const now = Date.now();
+  const salt = randomBytes(16).toString('hex');
+  const passwordHash = hashPassword(newPassword, salt);
+
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+
+    const { data: resetRow, error } = await supabase
+      .from('plus_password_resets')
+      .select('*')
+      .eq('token', token)
+      .maybeSingle();
+    if (error) throw error;
+    if (!resetRow) return { success: false, error: 'Invalid or expired reset link' };
+    if (resetRow.used_at) return { success: false, error: 'This reset link has already been used' };
+    if (resetRow.expires_at <= now) return { success: false, error: 'This reset link has expired' };
+
+    // Compare-and-swap: only succeeds if nobody else claimed this reset
+    // link between our read above and this write.
+    const { data: claimed, error: claimError } = await supabase
+      .from('plus_password_resets')
+      .update({ used_at: now })
+      .eq('id', resetRow.id)
+      .is('used_at', null)
+      .select('id');
+    if (claimError) throw claimError;
+    if (!claimed || claimed.length === 0) {
+      return { success: false, error: 'This reset link has already been used' };
+    }
+
+    const { error: updateError } = await supabase
+      .from('plus_users')
+      .update({ password_hash: passwordHash, salt })
+      .eq('id', resetRow.user_id);
+    if (updateError) throw updateError;
+
+    // Force re-login everywhere after a password change.
+    const { error: sessionError } = await supabase.from('plus_sessions').delete().eq('user_id', resetRow.user_id);
+    if (sessionError) throw sessionError;
+
+    return { success: true };
+  }
+
+  const store = getStore();
+  const resets = store.plusPasswordResets || [];
+  const reset = resets.find((r) => r.token === token);
+  if (!reset) return { success: false, error: 'Invalid or expired reset link' };
+  if (reset.usedAt) return { success: false, error: 'This reset link has already been used' };
+  if (reset.expiresAt <= now) return { success: false, error: 'This reset link has expired' };
+
+  store.plusPasswordResets = resets.map((r) => (r.id === reset.id ? { ...r, usedAt: now } : r));
+  store.plusUsers = (store.plusUsers || []).map((u) => (u.id === reset.userId ? { ...u, passwordHash, salt } : u));
+  store.plusSessions = (store.plusSessions || []).filter((s) => s.userId !== reset.userId);
+
+  return { success: true };
+}
+
 declare global {
   var plusUsers: PlusUserRecord[] | undefined;
   var plusInvites: PlusInviteRecord[] | undefined;
   var plusSessions: PlusSessionRecord[] | undefined;
+  var plusPasswordResets: PlusPasswordResetRecord[] | undefined;
 }

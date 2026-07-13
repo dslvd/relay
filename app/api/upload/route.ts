@@ -3,6 +3,7 @@ import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/
 import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isBlacklisted } from '@/app/lib/data/abuse-store';
+import { checkRateLimit } from '@/app/lib/rate-limit';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -10,37 +11,18 @@ const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024;
 const PLUS_MAX_FILE_BYTES = 500 * 1024 * 1024;
 const PLUS_COOKIE_NAME = 'plus_auth';
 
-type RateEntry = {
-  windowStart: number;
-  count: number;
-};
-
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
     'Unknown';
 
-  if (typeof global.uploadRateLimit === 'undefined') {
-    global.uploadRateLimit = {};
-  }
-
-  const now = Date.now();
-  const entry = global.uploadRateLimit[ip] || { windowStart: now, count: 0 };
-
-  if (now - entry.windowStart > RATE_WINDOW_MS) {
-    entry.windowStart = now;
-    entry.count = 0;
-  }
-
-  if (entry.count >= MAX_UPLOADS_PER_HOUR) {
+  const rateLimit = await checkRateLimit(`upload:${ip}`, MAX_UPLOADS_PER_HOUR, RATE_WINDOW_MS);
+  if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Try again later.' },
       { status: 429 }
     );
   }
-
-  entry.count += 1;
-  global.uploadRateLimit[ip] = entry;
 
   try {
     const body = await request.json();
@@ -89,8 +71,4 @@ export async function POST(request: NextRequest) {
     console.error('Failed to create upload URL:', error);
     return NextResponse.json({ error: 'Failed to initialize upload' }, { status: 500 });
   }
-}
-
-declare global {
-  var uploadRateLimit: Record<string, RateEntry> | undefined;
 }

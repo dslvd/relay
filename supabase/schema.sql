@@ -109,3 +109,64 @@ create table if not exists plus_sessions (
 create index if not exists idx_plus_sessions_token on plus_sessions (token);
 create index if not exists idx_plus_sessions_user on plus_sessions (user_id);
 alter table plus_sessions enable row level security;
+
+-- Developer API keys (app/api/dev/keys, used by /api/v1/* and /api/files/*).
+create table if not exists api_keys (
+  id text primary key,
+  hashed_key text unique not null,
+  name text not null,
+  user_id text,
+  email text,
+  created_at bigint not null,
+  last_used_at bigint,
+  expires_at bigint,
+  is_active boolean not null default true,
+  permissions jsonb not null,
+  usage jsonb not null,
+  rate_limit jsonb not null
+);
+create index if not exists idx_api_keys_user on api_keys (user_id);
+alter table api_keys enable row level security;
+
+-- Plus password-reset tokens (used-once, like plus_invites).
+create table if not exists plus_password_resets (
+  id uuid primary key default gen_random_uuid(),
+  token text not null unique,
+  user_id uuid not null references plus_users(id) on delete cascade,
+  created_at bigint not null,
+  expires_at bigint not null,
+  used_at bigint
+);
+create index if not exists idx_plus_password_resets_token on plus_password_resets (token);
+alter table plus_password_resets enable row level security;
+
+-- Analytics: one row per event, inserted directly (no read-modify-write) -
+-- unlike the old Redis blob, concurrent downloads/page views can never
+-- clobber each other here.
+create table if not exists analytics_downloads (
+  id bigint generated always as identity primary key,
+  filename text not null,
+  file_key text,
+  timestamp bigint not null,
+  ip text not null,
+  user_agent text,
+  bytes bigint,
+  referer text,
+  country text
+);
+create index if not exists idx_analytics_downloads_timestamp on analytics_downloads (timestamp);
+create index if not exists idx_analytics_downloads_file_key on analytics_downloads (file_key);
+create index if not exists idx_analytics_downloads_filename on analytics_downloads (filename);
+alter table analytics_downloads enable row level security;
+
+create table if not exists analytics_pageviews (
+  id bigint generated always as identity primary key,
+  path text not null,
+  timestamp bigint not null,
+  ip text not null,
+  referer text,
+  country text,
+  user_agent text
+);
+create index if not exists idx_analytics_pageviews_timestamp on analytics_pageviews (timestamp);
+alter table analytics_pageviews enable row level security;

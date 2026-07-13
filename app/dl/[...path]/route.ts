@@ -5,12 +5,7 @@ import { loadUploadHistory } from '@/app/lib/data/upload-history-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
 import { notFoundHtml, notFoundResponse } from '@/app/lib/not-found-html';
-import {
-  cleanupAnalyticsData,
-  loadAnalyticsData,
-  recordDownloadEvent,
-  saveAnalyticsData,
-} from '@/app/lib/data/analytics-store';
+import { recordDownloadEvent } from '@/app/lib/data/analytics-store';
 
 function getCountry(request: NextRequest): string | undefined {
   const fromVercel = request.headers.get('x-vercel-ip-country');
@@ -120,8 +115,7 @@ export async function GET(
         const userAgent = request.headers.get('user-agent') || 'Unknown';
         const referer = request.headers.get('referer') || undefined;
 
-        let analyticsData = cleanupAnalyticsData(await loadAnalyticsData());
-        analyticsData = await recordDownloadEvent(analyticsData, {
+        await recordDownloadEvent({
           filename,
           fileKey: key,
           ip,
@@ -130,7 +124,6 @@ export async function GET(
           referer,
           country: getCountry(request),
         });
-        await saveAnalyticsData(analyticsData);
       } catch (err) {
         console.error('[analytics] failed to record direct download:', err);
       }

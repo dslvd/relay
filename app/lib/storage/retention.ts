@@ -1,5 +1,5 @@
 import {
-  loadUploadHistory,
+  iterateUploadHistory,
   removeUploadUrls,
   touchLastAccessTime,
   type UploadHistoryScope,
@@ -46,24 +46,20 @@ export async function pruneMissingHistoryEntries(input?: {
       continue;
     }
 
-    const history = await loadUploadHistory(currentScope);
-    if (history.length === 0) {
-      global.lastHistoryExistenceCheckByScope[currentScope] = now;
-      continue;
-    }
+    for await (const batch of iterateUploadHistory(currentScope)) {
+      const missingUrls: string[] = [];
+      await Promise.all(
+        batch.map(async (record) => {
+          const objectKey = await resolveObjectKeyFromAppUrl(record.url);
+          const exists = objectKey ? await objectExists(objectKey) : false;
+          if (!exists) missingUrls.push(record.url);
+        })
+      );
 
-    const missingUrls: string[] = [];
-    await Promise.all(
-      history.map(async (record) => {
-        const objectKey = await resolveObjectKeyFromAppUrl(record.url);
-        const exists = objectKey ? await objectExists(objectKey) : false;
-        if (!exists) missingUrls.push(record.url);
-      })
-    );
-
-    if (missingUrls.length > 0) {
-      const removed = await removeUploadUrls(missingUrls, currentScope);
-      totalRemoved += removed;
+      if (missingUrls.length > 0) {
+        const removed = await removeUploadUrls(missingUrls, currentScope);
+        totalRemoved += removed;
+      }
     }
 
     global.lastHistoryExistenceCheckByScope[currentScope] = now;
@@ -87,24 +83,21 @@ export async function deleteExpiredBlobs(now = Date.now()): Promise<{ deleted: n
   const quarantineMap = await loadQuarantineMap();
 
   for (const scope of HISTORY_SCOPES) {
-    const history = await loadUploadHistory(scope);
-    if (history.length === 0) {
-      continue;
-    }
+    for await (const batch of iterateUploadHistory(scope)) {
+      scanned += batch.length;
 
-    scanned += history.length;
-
-    // Check each file in history for expiration based on last access time.
-    for (const record of history) {
-      const objectKey = await resolveObjectKeyFromAppUrl(record.url);
-      if (!objectKey) {
-        continue;
+      // Check each file in the batch for expiration based on last access time.
+      for (const record of batch) {
+        const objectKey = await resolveObjectKeyFromAppUrl(record.url);
+        if (!objectKey) {
+          continue;
+        }
+        const state = objectStatus.get(objectKey) || { anyActive: false };
+        if (!isExpired(record.lastAccessTime, now)) {
+          state.anyActive = true;
+        }
+        objectStatus.set(objectKey, state);
       }
-      const state = objectStatus.get(objectKey) || { anyActive: false };
-      if (!isExpired(record.lastAccessTime, now)) {
-        state.anyActive = true;
-      }
-      objectStatus.set(objectKey, state);
     }
   }
 
@@ -133,24 +126,21 @@ export async function pruneExpiredHistoryCache(
   const quarantineMap = await loadQuarantineMap();
 
   for (const currentScope of scopes) {
-    const history = await loadUploadHistory(currentScope);
-    if (history.length === 0) {
-      continue;
-    }
+    for await (const batch of iterateUploadHistory(currentScope)) {
+      const urlsToRemove: string[] = [];
+      await Promise.all(
+        batch.map(async (record) => {
+          if (!isExpired(record.lastAccessTime, now)) return;
+          const objectKey = await resolveObjectKeyFromAppUrl(record.url);
+          if (objectKey && quarantineMap.has(objectKey)) return;
+          urlsToRemove.push(record.url);
+        })
+      );
 
-    const urlsToRemove: string[] = [];
-    await Promise.all(
-      history.map(async (record) => {
-        if (!isExpired(record.lastAccessTime, now)) return;
-        const objectKey = await resolveObjectKeyFromAppUrl(record.url);
-        if (objectKey && quarantineMap.has(objectKey)) return;
-        urlsToRemove.push(record.url);
-      })
-    );
-
-    if (urlsToRemove.length > 0) {
-      const removed = await removeUploadUrls(urlsToRemove, currentScope);
-      totalRemoved += removed;
+      if (urlsToRemove.length > 0) {
+        const removed = await removeUploadUrls(urlsToRemove, currentScope);
+        totalRemoved += removed;
+      }
     }
   }
 

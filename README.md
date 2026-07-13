@@ -50,6 +50,13 @@ REDIS_URL=redis://default:password@host:port
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 PLUS_INVITE_SECRET=your_long_random_secret
+SENTRY_DSN=your_sentry_dsn
+NEXT_PUBLIC_SENTRY_DSN=your_sentry_dsn
+SENTRY_ORG=your_sentry_org_slug
+SENTRY_PROJECT=your_sentry_project_slug
+SENTRY_AUTH_TOKEN=your_sentry_auth_token
+RESEND_API_KEY=your_resend_api_key
+RESEND_FROM_EMAIL=Relay <noreply@yourdomain.com>
 ```
 
 ### 3. Run Development Server
@@ -167,10 +174,14 @@ In Vercel Dashboard → Settings → Environment Variables:
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token with D1 edit permission | Yes (download-count tracking) |
 | `ADMIN_PASSWORD` | Admin dashboard password | Yes |
 | `CRON_SECRET` | Secret for cron authentication | Yes (for auto-cleanup) |
-| `REDIS_URL` | Redis connection URL (misc. secondary caches) | Optional |
-| `SUPABASE_URL` | Supabase project URL | Yes (uploads/folders/Plus accounts storage) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only, full DB access) | Yes (uploads/folders/Plus accounts storage) |
+| `REDIS_URL` | Redis connection URL | Recommended (shared rate limiting + misc. secondary caches; without it, rate limits and those caches fall back to per-instance memory) |
+| `SUPABASE_URL` | Supabase project URL | Yes (uploads/folders/Plus accounts/API keys/analytics storage) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only, full DB access) | Yes (same as above) |
 | `PLUS_INVITE_SECRET` | HMAC secret for plus invite tokens | Yes (plus invites) |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Sentry error-tracking DSN (server / client) | Optional - inert until set |
+| `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` | Sentry source-map upload config | Optional - only needed for readable stack traces |
+| `RESEND_API_KEY` | Resend API key for sending Plus password-reset emails | Optional - without it, reset links are logged to the server console instead of emailed |
+| `RESEND_FROM_EMAIL` | "From" address for password-reset emails | No (defaults to Resend's shared test sender) |
 | `NEXT_PUBLIC_ADSENSE_CLIENT_ID` | Google AdSense Publisher ID | No (for monetization) |
 
 ## 💰 Monetization (Optional)

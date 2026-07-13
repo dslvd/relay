@@ -110,6 +110,45 @@ export async function loadUploadHistory(scope: UploadHistoryScope = 'public'): P
   return [...getGlobalHistory(scope)];
 }
 
+// Batched alternative to loadUploadHistory() for maintenance jobs (retention,
+// cron cleanup) that would otherwise load an unbounded number of rows into a
+// single function invocation - risking a timeout or OOM once a scope grows
+// into the tens/hundreds of thousands of rows. Order is arbitrary (by id)
+// since these jobs process the whole table, not a user-facing recent-first
+// list.
+export async function* iterateUploadHistory(
+  scope: UploadHistoryScope,
+  batchSize = 500
+): AsyncGenerator<UploadRecord[]> {
+  if (!hasSupabaseConfigured()) {
+    // The fallback store is capped at FALLBACK_HISTORY_LIMIT rows - small
+    // enough to yield as a single batch.
+    yield [...getGlobalHistory(scope)];
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('upload_records')
+      .select('*')
+      .eq('scope', scope)
+      .order('id', { ascending: true })
+      .range(offset, offset + batchSize - 1);
+    if (error) throw error;
+
+    const rows = (data as UploadRow[]) || [];
+    if (rows.length === 0) break;
+
+    yield rows.map(recordFromRow);
+
+    if (rows.length < batchSize) break;
+    offset += batchSize;
+  }
+}
+
 export async function addUploadRecord(
   record: UploadRecord,
   scope: UploadHistoryScope = 'public'

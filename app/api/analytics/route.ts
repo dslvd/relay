@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  cleanupAnalyticsData,
   loadAnalyticsData,
   recordDownloadEvent,
   recordPageViewEvent,
-  saveAnalyticsData,
 } from '@/app/lib/data/analytics-store';
 import { requireAdmin } from '@/app/lib/auth/admin-auth';
 
@@ -37,8 +35,7 @@ function normalizeReferer(value: string | null): string | undefined {
 // GET: Retrieve analytics data
 export async function GET(request: NextRequest) {
   try {
-    const data = cleanupAnalyticsData(await loadAnalyticsData());
-    await saveAnalyticsData(data);
+    const data = await loadAnalyticsData();
 
     const fileKeyFilter = request.nextUrl.searchParams.get('key')?.trim() || '';
     const filenameFilter = request.nextUrl.searchParams.get('filename')?.trim() || '';
@@ -299,10 +296,8 @@ export async function POST(request: NextRequest) {
     const referer = normalizeReferer(request.headers.get('referer'));
     const country = getCountry(request);
 
-    let data = cleanupAnalyticsData(await loadAnalyticsData());
-
     if (type === 'download' && filename) {
-      data = await recordDownloadEvent(data, {
+      await recordDownloadEvent({
         filename,
         fileKey: typeof body?.fileKey === 'string' && body.fileKey.trim() ? body.fileKey.trim() : undefined,
         ip,
@@ -312,7 +307,7 @@ export async function POST(request: NextRequest) {
         country,
       });
     } else if (type === 'pageview' && path) {
-      data = recordPageViewEvent(data, {
+      await recordPageViewEvent({
         path,
         ip,
         referer,
@@ -320,8 +315,6 @@ export async function POST(request: NextRequest) {
         userAgent,
       });
     }
-
-    await saveAnalyticsData(data);
 
     return NextResponse.json({ success: true }, {
       headers: {
