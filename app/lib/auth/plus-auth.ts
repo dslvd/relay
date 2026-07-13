@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
+import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'crypto';
 import { getSupabaseClient, hasSupabaseConfigured } from '@/app/lib/data/supabase-client';
 
 export interface PlusUserRecord {
@@ -123,8 +123,13 @@ function parseInviteToken(token: string): InviteTokenPayload | null {
   }
 }
 
+// scrypt is a slow, memory-hard KDF - unlike a raw SHA-256 hash, it can't be
+// brute-forced cheaply at scale (e.g. on GPUs), which matters because this
+// hashes user-chosen passwords (low entropy) rather than random tokens.
+const SCRYPT_KEY_LENGTH = 64;
+
 function hashPassword(password: string, salt: string): string {
-  return createHash('sha256').update(`${salt}:${password}`).digest('hex');
+  return scryptSync(password, salt, SCRYPT_KEY_LENGTH).toString('hex');
 }
 
 function generateToken(): string {
