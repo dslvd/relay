@@ -3070,19 +3070,38 @@ export default function Home() {
                       {/* Date */}
                       <span style={{ fontSize: '0.71rem', color: 'var(--c-dim)' }}>{formatTimestamp(fileItem.timestamp)}</span>
                       {/* Actions */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.26rem', justifyContent: 'flex-end' }}>
-                        <button onClick={e => { e.stopPropagation(); copyToClipboard(url); }} title="Copy share link" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                          <MonoIcon name="share" width={10} height={10} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); copyToClipboard(url); }}
+                          title="Copy share link"
+                          style={{ width: '27px', height: '27px', borderRadius: '8px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease', flexShrink: 0 }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--c-text)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = 'var(--c-dim)'; }}
+                        >
+                          <MonoIcon name="share" width={12} height={12} />
                         </button>
-                        <button onClick={e => { e.stopPropagation(); copyText(toCdnUrl(url), 'CDN link copied!'); }} title="Copy CDN link (direct URL for use as src)" style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                          <LordIcon name="copy" size={10} />
+                        <button
+                          onClick={e => { e.stopPropagation(); copyText(toCdnUrl(url), 'CDN link copied!'); }}
+                          title="Copy CDN link (direct URL for use as src)"
+                          style={{ width: '27px', height: '27px', borderRadius: '8px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease', flexShrink: 0 }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--c-text)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = 'var(--c-dim)'; }}
+                        >
+                          <LordIcon name="copy" size={12} />
                         </button>
+
+                        <div style={{ width: '1px', height: '16px', background: t.borderSub, margin: '0 0.05rem', flexShrink: 0 }} />
+
                         {/* Move to folder */}
                         <div style={{ position: 'relative' }}>
-                          <button onClick={e => { e.stopPropagation(); setMovingFileUrl(isMovingThis ? null : url); }} title="Move to folder"
-                            style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${isMovingThis ? 'rgba(251,191,36,0.5)' : t.border}`, background: isMovingThis ? 'rgba(251,191,36,0.12)' : 'transparent', color: isMovingThis ? 'rgba(251,191,36,0.9)' : 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          <button
+                            onClick={e => { e.stopPropagation(); setMovingFileUrl(isMovingThis ? null : url); }}
+                            title="Move to folder"
+                            style={{ width: '27px', height: '27px', borderRadius: '8px', border: `1px solid ${isMovingThis ? 'rgba(251,191,36,0.5)' : t.border}`, background: isMovingThis ? 'rgba(251,191,36,0.12)' : 'transparent', color: isMovingThis ? 'rgba(251,191,36,0.9)' : 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease', flexShrink: 0 }}
+                            onMouseEnter={e => { if (!isMovingThis) { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--c-text)'; } }}
+                            onMouseLeave={e => { if (!isMovingThis) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = 'var(--c-dim)'; } }}
                           >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                           </button>
                           {isMovingThis && (
                             <div style={{ position: 'absolute', right: 0, top: '28px', zIndex: 100, background: isDark ? '#16162a' : '#ffffff', border: `1px solid ${t.border}`, borderRadius: '10px', padding: '0.3rem', minWidth: '150px', boxShadow: '0 8px 28px rgba(0,0,0,0.4)', backdropFilter: 'blur(14px)' }}>
@@ -3107,16 +3126,28 @@ export default function Home() {
                           )}
                         </div>
                         {/* Replace */}
-                        <button onClick={e => { e.stopPropagation(); requestReplaceFile(url); }} disabled={replacingUrls.has(url)} title="Replace file (overwrites in place, no version history)"
-                          style={{ width: '24px', height: '24px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: replacingUrls.has(url) ? 'not-allowed' : 'pointer' }}
+                        <button
+                          onClick={e => { e.stopPropagation(); requestReplaceFile(url); }}
+                          disabled={replacingUrls.has(url)}
+                          title="Replace file (overwrites in place, no version history)"
+                          style={{ width: '27px', height: '27px', borderRadius: '8px', border: `1px solid ${t.border}`, background: 'transparent', color: 'var(--c-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: replacingUrls.has(url) ? 'not-allowed' : 'pointer', transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease', flexShrink: 0 }}
+                          onMouseEnter={e => { if (!replacingUrls.has(url)) { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--c-text)'; } }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = 'var(--c-dim)'; }}
                         >
-                          {replacingUrls.has(url) ? <span style={{ fontSize: '0.55rem' }}>…</span> : <LordIcon name="spinner" size={10} />}
+                          {replacingUrls.has(url)
+                            ? <LordIcon name="spinner" trigger="loop" size={12} />
+                            : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 6h18"/><path d="M7 22l-4-4 4-4"/><path d="M21 18H3"/></svg>}
                         </button>
                         {/* Delete */}
-                        <button onClick={e => { e.stopPropagation(); deleteUploadedFile(url); }} disabled={deletingUrls.has(url)} title="Delete"
-                          style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid rgba(242,100,100,0.3)', background: 'rgba(242,100,100,0.07)', color: deletingUrls.has(url) ? 'rgba(242,100,100,0.4)' : '#f26464', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: deletingUrls.has(url) ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteUploadedFile(url); }}
+                          disabled={deletingUrls.has(url)}
+                          title="Delete"
+                          style={{ width: '27px', height: '27px', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.07)', color: deletingUrls.has(url) ? 'rgba(248,113,113,0.4)' : '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: deletingUrls.has(url) ? 'not-allowed' : 'pointer', transition: 'background 0.15s ease, border-color 0.15s ease', flexShrink: 0 }}
+                          onMouseEnter={e => { if (!deletingUrls.has(url)) { e.currentTarget.style.background = 'rgba(248,113,113,0.16)'; e.currentTarget.style.borderColor = 'rgba(248,113,113,0.5)'; } }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.07)'; e.currentTarget.style.borderColor = 'rgba(248,113,113,0.3)'; }}
                         >
-                          {deletingUrls.has(url) ? <span style={{ fontSize: '0.55rem' }}>…</span> : <MonoIcon name="trash" width={9} height={9} />}
+                          {deletingUrls.has(url) ? <LordIcon name="spinner" trigger="loop" size={12} /> : <MonoIcon name="trash" width={11} height={11} />}
                         </button>
                       </div>
                     </div>
