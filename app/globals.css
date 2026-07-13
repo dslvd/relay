@@ -495,7 +495,10 @@ button, input, select, textarea {
    can collapse Type + Modified via nth-child without touching JSX per-cell). */
 .files-grid-row {
   display: grid;
-  grid-template-columns: 1fr 52px 68px 88px 80px;
+  /* Actions column fits 5x 27px icon buttons + a 1px divider + gaps (~160px);
+     widened from 80px after the action-buttons redesign, which was
+     overflowing into the Modified/Size columns at the old width. */
+  grid-template-columns: 1fr 52px 68px 88px 170px;
 }
 
 .files-panel-scroll {
@@ -546,9 +549,9 @@ button, input, select, textarea {
   }
 
   /* Collapse to Name + Actions - Type/Size/Modified (2nd-4th) hide since the
-     5 action icon buttons alone need ~130px, leaving no room for them too. */
+     5 action icon buttons + divider alone need ~160px, leaving no room for them too. */
   .files-grid-row {
-    grid-template-columns: 1fr 130px;
+    grid-template-columns: 1fr 170px;
     gap: 0.4rem !important;
   }
 
