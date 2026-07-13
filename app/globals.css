@@ -491,6 +491,79 @@ button, input, select, textarea {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
 }
 
+/* Uploaded-files list (grid header/rows share one column layout so mobile
+   can collapse Type + Modified via nth-child without touching JSX per-cell). */
+.files-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 52px 68px 88px 80px;
+}
+
+.files-panel-scroll {
+  overflow-y: auto;
+  transition: max-height 0.25s ease;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.files-panel-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.files-panel-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+
+.files-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+[data-theme="light"] .files-panel-scroll {
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+
+[data-theme="light"] .files-panel-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+[data-theme="light"] .files-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.24);
+}
+
+@media (max-width: 640px) {
+  .files-toolbar {
+    align-items: stretch;
+  }
+
+  .files-toolbar__controls {
+    width: 100%;
+  }
+
+  .files-toolbar__search {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  /* Collapse to Name + Actions - Type/Size/Modified (2nd-4th) hide since the
+     5 action icon buttons alone need ~130px, leaving no room for them too. */
+  .files-grid-row {
+    grid-template-columns: 1fr 130px;
+    gap: 0.4rem !important;
+  }
+
+  .files-grid-row > *:nth-child(2),
+  .files-grid-row > *:nth-child(3),
+  .files-grid-row > *:nth-child(4) {
+    display: none;
+  }
+
+  .files-grid-row > *:last-child {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+}
+
 .queue-pill--soft {
   background: rgba(255, 255, 255, 0.045);
 }

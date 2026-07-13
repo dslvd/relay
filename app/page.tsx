@@ -194,6 +194,37 @@ const emptyMessages = [
   { icon: 'spark' as const, title: 'Fresh start', detail: 'A clean space for your next upload.' },
 ];
 
+type FileTypeCategory = 'image' | 'video' | 'audio' | 'pdf' | 'archive' | 'code' | 'document' | 'other';
+
+const FILE_TYPE_CATEGORIES: Record<Exclude<FileTypeCategory, 'other'>, string[]> = {
+  image: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'heic', 'avif'],
+  video: ['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v'],
+  audio: ['mp3', 'wav', 'flac', 'm4a', 'ogg', 'aac'],
+  pdf: ['pdf'],
+  archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2'],
+  code: ['js', 'ts', 'tsx', 'jsx', 'py', 'json', 'html', 'css', 'java', 'go', 'rs', 'c', 'cpp', 'sh', 'rb', 'php', 'yml', 'yaml'],
+  document: ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'md', 'rtf', 'csv'],
+};
+
+function getFileTypeCategory(ext: string): FileTypeCategory {
+  const e = ext.toLowerCase();
+  for (const [category, exts] of Object.entries(FILE_TYPE_CATEGORIES)) {
+    if (exts.includes(e)) return category as FileTypeCategory;
+  }
+  return 'other';
+}
+
+const FILE_TYPE_STYLE: Record<FileTypeCategory, { color: string; bg: string; border: string }> = {
+  image: { color: '#7ef4cb', bg: 'rgba(126,244,203,0.12)', border: 'rgba(126,244,203,0.3)' },
+  video: { color: '#f472b6', bg: 'rgba(244,114,182,0.12)', border: 'rgba(244,114,182,0.3)' },
+  audio: { color: '#c491ff', bg: 'rgba(196,145,255,0.12)', border: 'rgba(196,145,255,0.3)' },
+  pdf: { color: '#f87171', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)' },
+  archive: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)' },
+  code: { color: '#60a5fa', bg: 'rgba(96,165,250,0.12)', border: 'rgba(96,165,250,0.3)' },
+  document: { color: '#94c5ff', bg: 'rgba(148,197,255,0.1)', border: 'rgba(148,197,255,0.28)' },
+  other: { color: 'var(--c-dim)', bg: '', border: '' },
+};
+
 function formatFileSize(bytes: number) {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -412,6 +443,7 @@ export default function Home() {
 
   // Drive-style file manager
   const [fileViewMode, setFileViewMode] = useState<'grid' | 'list'>('list');
+  const [filesListExpanded, setFilesListExpanded] = useState(false);
   const [fileSort, setFileSort] = useState<'name' | 'date' | 'size' | 'type'>('date');
   const [fileSortDir, setFileSortDir] = useState<'asc' | 'desc'>('desc');
   const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
@@ -2290,110 +2322,245 @@ export default function Home() {
         )}
 
         {!uploading && showRemoteUpload && (
-          <div style={{
-            marginTop: '0.85rem',
-            width: '100%',
-            maxWidth: '520px',
-            display: 'flex',
-            gap: '0.6rem',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            animation: 'fadeSlideIn 0.45s ease-out'
-          }}>
-            <input
-              value={remoteUrl}
-              onChange={(e) => setRemoteUrl(e.target.value)}
-              placeholder="Paste a file URL (https://...)"
-              inputMode="url"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              disabled={remoteUploading}
-              style={{
-                flex: '1 1 320px',
-                minWidth: '240px',
-                padding: '0.55rem 0.9rem',
-                fontSize: '0.82rem',
-                fontFamily: "'Sora', sans-serif",
-                color: 'var(--c-text)',
-                background: t.input,
-                border: `1px solid ${t.inputBorder}`,
-                borderRadius: '12px',
-                outline: 'none',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  submitRemoteUpload();
-                }
-              }}
-            />
-            <input
-              value={remoteFilenameOverride}
-              onChange={(e) => setRemoteFilenameOverride(e.target.value)}
-              placeholder="Filename (optional)"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              disabled={remoteUploading}
-              style={{
-                flex: '1 1 160px',
-                minWidth: '160px',
-                padding: '0.55rem 0.9rem',
-                fontSize: '0.82rem',
-                fontFamily: "'Sora', sans-serif",
-                color: 'var(--c-text)',
-                background: t.input,
-                border: `1px solid ${t.inputBorder}`,
-                borderRadius: '12px',
-                outline: 'none',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
-              }}
-            />
-            <input
-              value={remoteAuthHeader}
-              onChange={(e) => setRemoteAuthHeader(e.target.value)}
-              placeholder="Authorization header (optional)"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              disabled={remoteUploading}
-              style={{
-                flex: '1 1 240px',
-                minWidth: '220px',
-                padding: '0.55rem 0.9rem',
-                fontSize: '0.82rem',
-                fontFamily: "'Sora', sans-serif",
-                color: 'var(--c-text)',
-                background: t.input,
-                border: `1px solid ${t.inputBorder}`,
-                borderRadius: '12px',
-                outline: 'none',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)'
-              }}
-            />
-            <button
-              onClick={submitRemoteUpload}
-              disabled={remoteUploading || remoteUrl.trim().length === 0}
-              style={{
-                fontFamily: "'Sora', sans-serif",
-                padding: '0.55rem 1rem',
-                fontSize: '0.82rem',
+          <div
+            style={{
+              marginTop: '0.85rem',
+              width: '100%',
+              maxWidth: '560px',
+              padding: '1rem',
+              borderRadius: '20px',
+              border: `1px solid ${t.border}`,
+              background: isDark
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.026))'
+                : 'linear-gradient(180deg, rgba(0,0,0,0.035), rgba(0,0,0,0.015))',
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+              boxShadow: isDark
+                ? '0 18px 50px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05)'
+                : '0 18px 40px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.4)',
+              animation: 'fadeSlideIn 0.45s ease-out',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <div style={{
+                fontSize: '0.62rem',
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--c-dim)',
                 fontWeight: 600,
-                letterSpacing: '0.02em',
-                color: remoteUploading || remoteUrl.trim().length === 0 ? 'rgba(255,255,255,0.35)' : '#0a0a0a',
-                background: remoteUploading || remoteUrl.trim().length === 0 ? 'rgba(255,255,255,0.05)' : '#e9ecf2',
-                border: '1px solid rgba(233,236,242,0.35)',
-                borderRadius: '12px',
-                cursor: remoteUploading || remoteUrl.trim().length === 0 ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              Upload URL
-            </button>
+              }}>
+                Remote URL
+              </div>
+              <button
+                onClick={() => setShowRemoteUpload(false)}
+                aria-label="Close remote upload"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '22px',
+                  height: '22px',
+                  padding: 0,
+                  borderRadius: '999px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--c-dim)',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  lineHeight: 1,
+                  transition: 'background 0.15s ease, color 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = t.surface;
+                  e.currentTarget.style.color = 'var(--c-text)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--c-dim)';
+                }}
+              >
+                ×
+              </button>
+            </div>
 
+            <div style={{ position: 'relative' }}>
+              <span style={{
+                position: 'absolute',
+                left: '0.85rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--c-dim)',
+                display: 'flex',
+                pointerEvents: 'none',
+              }}>
+                <LordIcon name="link" size={13} />
+              </span>
+              <input
+                value={remoteUrl}
+                onChange={(e) => setRemoteUrl(e.target.value)}
+                placeholder="Paste a file URL (https://...)"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={remoteUploading}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.9rem 0.65rem 2.35rem',
+                  fontSize: '0.85rem',
+                  fontFamily: "'Sora', sans-serif",
+                  color: 'var(--c-text)',
+                  background: t.input,
+                  border: `1px solid ${t.inputBorder}`,
+                  borderRadius: '12px',
+                  outline: 'none',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+                  transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--c-accent-mint)';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(94,234,212,0.15), inset 0 1px 0 rgba(255,255,255,0.06)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = t.inputBorder;
+                  e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.06)';
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitRemoteUpload();
+                  }
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.55rem', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 180px', minWidth: '160px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.6rem',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--c-dim)',
+                  marginBottom: '0.3rem',
+                }}>
+                  Filename <span style={{ opacity: 0.6, textTransform: 'none' }}>· optional</span>
+                </label>
+                <input
+                  value={remoteFilenameOverride}
+                  onChange={(e) => setRemoteFilenameOverride(e.target.value)}
+                  placeholder="my-file.zip"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  disabled={remoteUploading}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.8rem',
+                    fontSize: '0.8rem',
+                    fontFamily: "'Sora', sans-serif",
+                    color: 'var(--c-text)',
+                    background: t.input,
+                    border: `1px solid ${t.inputBorder}`,
+                    borderRadius: '10px',
+                    outline: 'none',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+                    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--c-accent-mint)';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(94,234,212,0.15), inset 0 1px 0 rgba(255,255,255,0.06)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = t.inputBorder;
+                    e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.06)';
+                  }}
+                />
+              </div>
+              <div style={{ flex: '1 1 220px', minWidth: '200px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.6rem',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--c-dim)',
+                  marginBottom: '0.3rem',
+                }}>
+                  Authorization header <span style={{ opacity: 0.6, textTransform: 'none' }}>· optional</span>
+                </label>
+                <input
+                  value={remoteAuthHeader}
+                  onChange={(e) => setRemoteAuthHeader(e.target.value)}
+                  placeholder="Bearer ..."
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  disabled={remoteUploading}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.8rem',
+                    fontSize: '0.8rem',
+                    fontFamily: "'Sora', sans-serif",
+                    color: 'var(--c-text)',
+                    background: t.input,
+                    border: `1px solid ${t.inputBorder}`,
+                    borderRadius: '10px',
+                    outline: 'none',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+                    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--c-accent-mint)';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(94,234,212,0.15), inset 0 1px 0 rgba(255,255,255,0.06)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = t.inputBorder;
+                    e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.06)';
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.7rem', marginTop: '0.85rem' }}>
+              <button
+                onClick={submitRemoteUpload}
+                disabled={remoteUploading || remoteUrl.trim().length === 0}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontFamily: "'Sora', sans-serif",
+                  padding: '0.55rem 1.15rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.02em',
+                  color: remoteUploading || remoteUrl.trim().length === 0 ? 'rgba(255,255,255,0.35)' : (isDark ? '#0a0a0a' : '#ffffff'),
+                  background: remoteUploading || remoteUrl.trim().length === 0
+                    ? 'rgba(255,255,255,0.05)'
+                    : isDark ? 'rgba(233,236,242,0.92)' : 'rgba(20,20,20,0.88)',
+                  border: remoteUploading || remoteUrl.trim().length === 0
+                    ? '1px solid rgba(255,255,255,0.08)'
+                    : isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.12)',
+                  borderRadius: '999px',
+                  cursor: remoteUploading || remoteUrl.trim().length === 0 ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (!remoteUploading && remoteUrl.trim().length > 0) {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = isDark ? '0 4px 18px rgba(233,236,242,0.2)' : '0 4px 18px rgba(0,0,0,0.22)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                {remoteUploading
+                  ? <><LordIcon name="spinner" trigger="loop" size={12} />Uploading…</>
+                  : <><LordIcon name="rocket" size={12} />Upload URL</>}
+              </button>
+            </div>
           </div>
         )}
 
@@ -2648,7 +2815,7 @@ export default function Home() {
           <div style={{ marginTop: '2rem', animation: 'fadeSlideIn 0.8s ease-out', width: '100%', maxWidth: '720px' }}>
 
             {/* ── Toolbar ── */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div className="files-toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
               {/* Breadcrumb */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem', fontWeight: 600 }}>
                 <button
@@ -2673,12 +2840,13 @@ export default function Home() {
               </div>
 
               {/* Right controls */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <div className="files-toolbar__controls" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                 <input
+                  className="files-toolbar__search"
                   value={uploadedFilesSearch}
                   onChange={e => setUploadedFilesSearch(e.target.value)}
                   placeholder="Search…"
-                  style={{ width: '130px', padding: '0.38rem 0.65rem', borderRadius: '8px', border: `1px solid ${t.inputBorder}`, background: t.input, color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none' }}
+                  style={{ width: '130px', flex: '0 1 130px', padding: '0.38rem 0.65rem', borderRadius: '8px', border: `1px solid ${t.inputBorder}`, background: t.input, color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none' }}
                 />
                 <select
                   value={uploadedFilesFilter}
@@ -2747,7 +2915,7 @@ export default function Home() {
 
               {/* Sort header — list view only */}
               {fileViewMode === 'list' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 68px 88px 80px', gap: '0.5rem', padding: '0.42rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, alignItems: 'center' }}>
+                <div className="files-grid-row" style={{ padding: '0.42rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, alignItems: 'center' }}>
                   {([['name','Name'],['type','Type'],['size','Size'],['date','Modified']] as const).map(([col, label]) => {
                     const active = fileSort === col;
                     return (
@@ -2763,7 +2931,7 @@ export default function Home() {
                 </div>
               )}
 
-              <div style={{ maxHeight: '420px', overflowY: 'auto' }}>
+              <div className="files-panel-scroll" style={{ maxHeight: filesListExpanded ? 'min(78vh, 900px)' : '420px' }}>
 
                 {/* New folder inline input */}
                 {creatingFolder && (
@@ -2783,10 +2951,10 @@ export default function Home() {
                   const fileCount = Object.values(filesFolderMap).filter(v => v === folder.id).length;
                   const isRenaming = renamingFolderId === folder.id;
                   const rowStyle: React.CSSProperties = fileViewMode === 'list'
-                    ? { display: 'grid', gridTemplateColumns: '1fr 52px 68px 88px 80px', gap: '0.5rem', padding: '0.62rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, cursor: 'pointer', transition: 'background 0.12s', alignItems: 'center' }
+                    ? { gap: '0.5rem', padding: '0.62rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, cursor: 'pointer', transition: 'background 0.12s', alignItems: 'center' }
                     : { display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.62rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, cursor: 'pointer', transition: 'background 0.12s' };
                   return (
-                    <div key={folder.id} style={rowStyle}
+                    <div key={folder.id} className={fileViewMode === 'list' ? 'files-grid-row' : undefined} style={rowStyle}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.surface; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                       onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.background = 'rgba(126,244,203,0.1)'; }}
@@ -2852,13 +3020,16 @@ export default function Home() {
                   const keyFromUrl = url.includes('/download/') ? url.split('/download/').pop() : url.includes('/d/') ? url.split('/d/').pop() : url.split('/').pop();
                   const thumbKey = keyFromUrl ? keyFromUrl.split('?')[0] : '';
                   const extLabel = filename.includes('.') ? filename.split('.').pop()?.toUpperCase() : 'FILE';
+                  const typeCategory = getFileTypeCategory(ext || '');
+                  const typeStyle = FILE_TYPE_STYLE[typeCategory];
                   const isRenamingThis = renamingUrl === url;
                   const isMovingThis = movingFileUrl === url;
                   const assignedFolder = filesFolderMap[url];
 
                   return (
                     <div key={url} draggable onDragStart={e => e.dataTransfer.setData('text/plain', url)}
-                      style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 52px 68px 88px 80px', gap: '0.5rem', padding: '0.58rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, alignItems: 'center', transition: 'background 0.12s' }}
+                      className="files-grid-row"
+                      style={{ position: 'relative', gap: '0.5rem', padding: '0.58rem 0.85rem', borderBottom: `1px solid ${t.borderSub}`, alignItems: 'center', transition: 'background 0.12s' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.surface; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                     >
@@ -2868,8 +3039,14 @@ export default function Home() {
                           style={{ flexShrink: 0, width: '13px', height: '13px', cursor: 'pointer', accentColor: '#7ef4cb' }}
                         />
                         {isImage && thumbKey
-                          ? <img src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=64&h=64`} alt="" loading="lazy" style={{ width: '26px', height: '26px', borderRadius: '5px', objectFit: 'cover', border: `1px solid ${t.border}`, flexShrink: 0 }} />
-                          : <div style={{ width: '26px', height: '26px', borderRadius: '5px', background: t.surface, border: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.42rem', fontWeight: 700, color: 'var(--c-dim)', letterSpacing: '0.04em', flexShrink: 0 }}>{extLabel?.slice(0,4)}</div>
+                          ? <img src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=64&h=64`} alt="" loading="lazy" style={{ width: '30px', height: '30px', borderRadius: '7px', objectFit: 'cover', border: `1px solid ${t.border}`, flexShrink: 0 }} />
+                          : <div style={{
+                              width: '30px', height: '30px', borderRadius: '7px',
+                              background: typeStyle.bg || t.surface,
+                              border: `1px solid ${typeStyle.border || t.border}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '0.42rem', fontWeight: 700, color: typeStyle.color, letterSpacing: '0.02em', flexShrink: 0,
+                            }}>{extLabel?.slice(0,4)}</div>
                         }
                         {isRenamingThis ? (
                           <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
@@ -2884,7 +3061,10 @@ export default function Home() {
                         )}
                       </div>
                       {/* Type */}
-                      <span style={{ fontSize: '0.7rem', color: 'var(--c-dim)', fontWeight: 500 }}>{extLabel}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.32rem', fontSize: '0.7rem', color: 'var(--c-dim)', fontWeight: 500 }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '999px', background: typeStyle.color, flexShrink: 0 }} />
+                        {extLabel}
+                      </span>
                       {/* Size */}
                       <span style={{ fontSize: '0.71rem', color: 'var(--c-dim)' }}>{typeof fileItem.size === 'number' ? formatFileSize(fileItem.size) : '—'}</span>
                       {/* Date */}
@@ -2967,6 +3147,8 @@ export default function Home() {
                       const keyFromUrl = url.includes('/download/') ? url.split('/download/').pop() : url.includes('/d/') ? url.split('/d/').pop() : url.split('/').pop();
                       const thumbKey = keyFromUrl ? keyFromUrl.split('?')[0] : '';
                       const extLabel = filename.includes('.') ? filename.split('.').pop()?.toUpperCase() : 'FILE';
+                      const typeCategory = getFileTypeCategory(ext || '');
+                      const typeStyle = FILE_TYPE_STYLE[typeCategory];
                       const isRenamingThis = renamingUrl === url;
                       return (
                         <div key={url} draggable onDragStart={e => e.dataTransfer.setData('text/plain', url)}
@@ -2978,8 +3160,14 @@ export default function Home() {
                             style={{ position: 'absolute', top: '0.45rem', left: '0.45rem', zIndex: 2, width: '13px', height: '13px', cursor: 'pointer', accentColor: '#7ef4cb' }}
                           />
                           {isImage && thumbKey
-                            ? <img src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=200&h=200`} alt="" loading="lazy" style={{ width: '100%', height: '72px', objectFit: 'cover', borderRadius: '6px', border: `1px solid ${t.border}` }} />
-                            : <div style={{ width: '100%', height: '72px', borderRadius: '6px', background: t.card, border: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 700, color: 'var(--c-dim)', letterSpacing: '0.06em' }}>{extLabel?.slice(0,5)}</div>
+                            ? <img src={`/api/thumbnail?key=${encodeURIComponent(thumbKey)}&w=200&h=200`} alt="" loading="lazy" style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '7px', border: `1px solid ${t.border}` }} />
+                            : <div style={{
+                                width: '100%', height: '80px', borderRadius: '7px',
+                                background: typeStyle.bg || t.card,
+                                border: `1px solid ${typeStyle.border || t.border}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.62rem', fontWeight: 700, color: typeStyle.color, letterSpacing: '0.04em',
+                              }}>{extLabel?.slice(0,5)}</div>
                           }
                           {isRenamingThis ? (
                             <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
@@ -3003,6 +3191,27 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              {(driveFiles.length > 8 || (currentFolderId === null && folders.length > 0)) && (
+                <button
+                  onClick={() => setFilesListExpanded(v => !v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+                    width: '100%', padding: '0.5rem', background: 'transparent',
+                    border: 'none', borderTop: `1px solid ${t.borderSub}`,
+                    color: 'var(--c-dim)', fontSize: '0.72rem', fontWeight: 600,
+                    letterSpacing: '0.02em', cursor: 'pointer', fontFamily: 'inherit',
+                    transition: 'background 0.12s, color 0.12s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = t.surface; e.currentTarget.style.color = 'var(--c-text)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-dim)'; }}
+                >
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true" style={{ transform: filesListExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }}>
+                    <path d="M5 8L1 2H9Z" />
+                  </svg>
+                  {filesListExpanded ? 'Show less' : 'Show more'}
+                </button>
+              )}
             </div>
           </div>
         )}
