@@ -3,7 +3,6 @@
 import { useMemo, useState, useRef, useEffect, type SVGProps } from 'react';
 import Image from 'next/image';
 import QRCode from 'qrcode';
-// import AdBanner from './components/AdBanner';
 import logo from './logo.png';
 import { useTheme } from './components/ThemeProvider';
 import LordIcon from './components/LordIcon';

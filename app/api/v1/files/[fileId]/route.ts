@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withApiAuth } from '@/app/lib/api-auth';
+import { withDeprecatedApiAuth } from '@/app/lib/api-auth';
 import {
   getObjectMetadata,
   createPresignedDownloadUrl,
@@ -13,7 +13,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ fileId: string }> }
 ) {
-  return withApiAuth(request, 'download', async (apiKey) => {
+  return withDeprecatedApiAuth(request, 'download', async (apiKey) => {
     try {
       const { fileId: rawFileId } = await params;
       const fileId = decodeURIComponent(rawFileId);
@@ -74,7 +74,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ fileId: string }> }
 ) {
-  return withApiAuth(request, 'delete', async (apiKey) => {
+  return withDeprecatedApiAuth(request, 'delete', async (apiKey) => {
     try {
       const { fileId: rawFileId } = await params;
       const fileId = decodeURIComponent(rawFileId);

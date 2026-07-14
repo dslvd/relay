@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withApiAuth } from '@/app/lib/api-auth';
+import { withDeprecatedApiAuth } from '@/app/lib/api-auth';
 import { listAllObjects } from '@/app/lib/storage/r2-storage';
 
 // GET /api/v1/files - List all files for an API key
 export async function GET(request: NextRequest) {
-  return withApiAuth(request, 'list', async (apiKey) => {
+  return withDeprecatedApiAuth(request, 'list', async (apiKey) => {
     try {
       const searchParams = request.nextUrl.searchParams;
       const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 1000);

@@ -128,3 +128,18 @@ export async function withApiAuth<T>(
 
   return handler(auth.apiKey!);
 }
+
+// /api/v1/* is kept for existing integrations but superseded by /api/files/*
+// (see app/docs/page.tsx). New routes should not use this wrapper.
+export async function withDeprecatedApiAuth(
+  request: NextRequest,
+  requiredPermission: keyof ApiKeyRecord['permissions'] | null,
+  handler: (apiKey: ApiKeyRecord) => Promise<NextResponse | Response>
+): Promise<NextResponse | Response> {
+  const response = await withApiAuth(request, requiredPermission, handler);
+  if (response instanceof NextResponse) {
+    response.headers.set('Deprecation', 'true');
+    response.headers.set('Link', '</docs>; rel="successor-version"');
+  }
+  return response;
+}

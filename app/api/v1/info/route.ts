@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withApiAuth } from '@/app/lib/api-auth';
+import { withDeprecatedApiAuth } from '@/app/lib/api-auth';
 
 // GET /api/v1/info - Get API key information and usage stats
 export async function GET(request: NextRequest) {
-  return withApiAuth(request, null, async (apiKey) => {
+  return withDeprecatedApiAuth(request, null, async (apiKey) => {
     try {
       return NextResponse.json({
         success: true,

@@ -42,12 +42,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${sora.variable} ${spaceMono.variable}`} style={{ backgroundColor: "#0a0a0a" }}>
       <body className="antialiased" style={{ backgroundColor: "#0a0a0a", margin: 0 }}>
-        <Script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7504951431311068"
-          crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
         <Script src="https://cdn.lordicon.com/lordicon.js" strategy="beforeInteractive" />
         <ThemeProvider>
           <ThemeToggle />

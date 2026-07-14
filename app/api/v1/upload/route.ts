@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withApiAuth } from '@/app/lib/api-auth';
+import { withDeprecatedApiAuth } from '@/app/lib/api-auth';
 import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
 import { updateApiKeyUsage } from '@/app/lib/data/api-key-store';
 
 export async function POST(request: NextRequest) {
-  return withApiAuth(request, 'upload', async (apiKey) => {
+  return withDeprecatedApiAuth(request, 'upload', async (apiKey) => {
     try {
       const body = await request.json();
       const filename = typeof body?.filename === 'string' ? body.filename : '';
