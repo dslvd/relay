@@ -838,7 +838,10 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* marginRight reserves space for the fixed global theme toggle
+              (top-right, see app/components/ThemeToggle.tsx) so it never
+              sits on top of the Logout button at narrower viewport widths. */}
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginRight: '3.5rem' }}>
             <a
               href="/admin/analytics"
               style={{

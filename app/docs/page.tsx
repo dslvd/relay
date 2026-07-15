@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useTheme } from '@/app/components/ThemeProvider';
 
 type SectionId =
   | 'welcome'
@@ -224,7 +223,6 @@ function NextButton({ current, onNavigate }: { current: SectionId; onNavigate: (
 }
 
 export default function ApiDocumentation() {
-  const { isDark, toggleTheme } = useTheme();
   const [section, setSection] = useState<SectionId>('welcome');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isPlus, setIsPlus] = useState(false);
@@ -269,14 +267,10 @@ export default function ApiDocumentation() {
             </Link>
             <span className="hidden sm:inline text-xs text-[var(--c-dim)]">/ API Docs</span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full hover:bg-[var(--surface-hover)] transition-colors cursor-pointer text-[var(--c-dim)]"
-              aria-label="Toggle theme"
-            >
-              {isDark ? '☀️' : '🌙'}
-            </button> */}
+          {/* mr reserves space for the fixed global theme toggle (top-right,
+              see app/components/ThemeToggle.tsx) so it never sits on top of
+              these links. */}
+          <div className="flex items-center gap-2 sm:gap-3 mr-12 sm:mr-14">
             {isPlus && (
               <Link
                 href="/plus/dashboard"

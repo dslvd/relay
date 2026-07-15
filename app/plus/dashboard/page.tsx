@@ -528,7 +528,10 @@ export default function PlusDashboard() {
               <h1 style={{ margin: 0, fontSize: 'clamp(1.5rem, 3.4vw, 1.9rem)' }}>Welcome back</h1>
               <p style={{ margin: '0.3rem 0 0', color: 'var(--c-sub)', fontSize: '0.85rem' }}>{userEmail}</p>
             </div>
-            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* marginRight reserves space for the fixed global theme toggle
+                (top-right, see app/components/ThemeToggle.tsx) so it never
+                sits on top of the search/status row at narrower viewports. */}
+            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap', marginRight: '3.5rem' }}>
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
