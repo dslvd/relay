@@ -80,20 +80,11 @@ export async function GET(
       return fileQuarantinedResponse();
     }
 
-    const signedUrl = await createPresignedDownloadUrl({
-      objectKey: pathname,
-      expiresInSeconds: 60,
-    });
-
-    // Fetch and proxy the file content
-    const response = await fetch(signedUrl, { cache: 'no-store' });
-
-    if (!response.ok) {
-      return notFoundResponse('File not found', 'The link points to a file that no longer exists or never did.');
-    }
-
-    // Get the file content
-    if (!response.body) {
+    // HEAD the object instead of fetching+streaming the body through this
+    // function, so we can still 404 with our own page for missing files
+    // without paying for a full proxy of the (potentially large) content.
+    const metadata = await getObjectMetadata(pathname);
+    if (!metadata) {
       return notFoundResponse('File not found', 'The link points to a file that no longer exists or never did.');
     }
 
@@ -120,7 +111,7 @@ export async function GET(
           fileKey: key,
           ip,
           userAgent,
-          bytes: Number(response.headers.get('Content-Length')) || undefined,
+          bytes: metadata.contentLength ?? undefined,
           referer,
           country: getCountry(request),
         });
@@ -130,18 +121,24 @@ export async function GET(
     }
     const originalFilename = shouldDownload ? await findOriginalFilenameByKey(key) : null;
 
-    return new NextResponse(response.body, {
-      status: 200,
+    // Redirect straight to storage instead of proxying the file body through
+    // this function — the function no longer stays alive streaming bytes for
+    // the full transfer, so this scales with file size at no cost to us.
+    const signedUrl = await createPresignedDownloadUrl({
+      objectKey: pathname,
+      expiresInSeconds: 60,
+      responseContentDisposition: shouldDownload
+        ? buildContentDispositionAttachment(originalFilename || path[path.length - 1] || 'download')
+        : undefined,
+    });
+
+    return NextResponse.redirect(signedUrl, {
+      status: 302,
       headers: {
-        'Content-Type': response.headers.get('Content-Type') || 'application/octet-stream',
-        'Content-Length': response.headers.get('Content-Length') || '',
-        ...(shouldDownload
-          ? { 'Content-Disposition': buildContentDispositionAttachment(originalFilename || path[path.length - 1] || 'download') }
-          : {}),
         'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
         'Pragma': 'no-cache',
         'Expires': '0',
-      }
+      },
     });
   } catch (error) {
     console.error('Error proxying file:', error);

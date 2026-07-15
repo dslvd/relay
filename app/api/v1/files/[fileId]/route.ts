@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withDeprecatedApiAuth } from '@/app/lib/api-auth';
+import { withDeprecatedApiAuth } from '@/app/lib/auth/api-auth';
 import {
   getObjectMetadata,
   createPresignedDownloadUrl,

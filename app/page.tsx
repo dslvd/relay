@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useRef, useEffect, type SVGProps } from 'react';
 import Image from 'next/image';
-import QRCode from 'qrcode';
 import logo from './logo.png';
 import { useTheme } from './components/ThemeProvider';
 import LordIcon from './components/LordIcon';
@@ -537,7 +536,8 @@ export default function Home() {
   useEffect(() => {
     if (!qrPopoverUrl) { setQrDataUrl(''); return; }
     let cancelled = false;
-    QRCode.toDataURL(qrPopoverUrl, { width: 200, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+    import('qrcode')
+      .then((QRCode) => QRCode.toDataURL(qrPopoverUrl, { width: 200, margin: 2, color: { dark: '#000000', light: '#ffffff' } }))
       .then((url) => { if (!cancelled) setQrDataUrl(url); })
       .catch(() => {});
     return () => { cancelled = true; };

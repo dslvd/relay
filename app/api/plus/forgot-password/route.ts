@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPasswordResetToken } from '@/app/lib/auth/plus-auth';
 import { sendPasswordResetEmail } from '@/app/lib/email';
-import { checkRateLimit } from '@/app/lib/rate-limit';
+import { checkRateLimit } from '@/app/lib/security/rate-limit';
 
 const RATE_LIMIT_PER_HOUR = 5;
 const RATE_WINDOW_MS = 60 * 60 * 1000;

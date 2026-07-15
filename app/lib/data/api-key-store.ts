@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import { getSupabaseClient, hasSupabaseConfigured } from '@/app/lib/data/supabase-client';
-import { checkRateLimit } from '@/app/lib/rate-limit';
+import { checkRateLimit } from '@/app/lib/security/rate-limit';
 
 export interface ApiKeyRecord {
   id: string;

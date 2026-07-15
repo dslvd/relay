@@ -112,10 +112,12 @@ export async function createPresignedUploadUrl(input: {
 export async function createPresignedDownloadUrl(input: {
   objectKey: string;
   expiresInSeconds?: number;
+  responseContentDisposition?: string;
 }): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: getR2BucketName(),
     Key: normalizeObjectKey(input.objectKey),
+    ResponseContentDisposition: input.responseContentDisposition,
   });
 
   return getSignedUrl(getR2Client(), command, {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateApiKey } from '@/app/lib/api-auth';
+import { authenticateApiKey } from '@/app/lib/auth/api-auth';
 import { createMultipartUpload, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB parts

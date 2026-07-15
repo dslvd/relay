@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withApiAuth } from '@/app/lib/api-auth';
+import { withApiAuth } from '@/app/lib/auth/api-auth';
 import { listFileRecordsByOwner } from '@/app/lib/data/api-file-store';
 import { listFolders } from '@/app/lib/data/folder-store';
 

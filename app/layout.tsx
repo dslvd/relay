@@ -3,7 +3,7 @@ import { Sora, Space_Mono } from 'next/font/google';
 import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
-import ClickRipple from "./click-ripple";
+import ClickRipple from "./components/ClickRipple";
 import ThemeProvider from "./components/ThemeProvider";
 import ThemeToggle from "./components/ThemeToggle";
 import type { Viewport } from "next";
@@ -42,7 +42,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${sora.variable} ${spaceMono.variable}`} style={{ backgroundColor: "#0a0a0a" }}>
       <body className="antialiased" style={{ backgroundColor: "#0a0a0a", margin: 0 }}>
-        <Script src="https://cdn.lordicon.com/lordicon.js" strategy="beforeInteractive" />
+        {/* Hover/click-triggered decorative animations only — safe to load after
+            hydration instead of blocking it. */}
+        <Script src="https://cdn.lordicon.com/lordicon.js" strategy="lazyOnload" />
         <ThemeProvider>
           <ThemeToggle />
           {children}

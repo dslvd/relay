@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withDeprecatedApiAuth } from '@/app/lib/api-auth';
+import { withDeprecatedApiAuth } from '@/app/lib/auth/api-auth';
 import { listAllObjects } from '@/app/lib/storage/r2-storage';
 
 // GET /api/v1/files - List all files for an API key

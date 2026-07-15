@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateApiKey } from '@/app/lib/api-auth';
+import { authenticateApiKey } from '@/app/lib/auth/api-auth';
 import { completeMultipartUpload, createPresignedDownloadUrl } from '@/app/lib/storage/r2-storage';
 import { createFileRecord } from '@/app/lib/data/api-file-store';
 

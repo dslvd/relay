@@ -3,7 +3,7 @@ import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/
 import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isBlacklisted } from '@/app/lib/data/abuse-store';
-import { checkRateLimit } from '@/app/lib/rate-limit';
+import { checkRateLimit } from '@/app/lib/security/rate-limit';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;

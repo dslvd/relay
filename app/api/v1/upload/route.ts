@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withDeprecatedApiAuth } from '@/app/lib/api-auth';
+import { withDeprecatedApiAuth } from '@/app/lib/auth/api-auth';
 import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
 import { updateApiKeyUsage } from '@/app/lib/data/api-key-store';
 
