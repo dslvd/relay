@@ -2032,7 +2032,7 @@ export default function Home() {
             height={200}
                style={{
                  transform: 'translateY(-26px)',
-                 animation: 'slideSide 12s cubic-bezier(0.4, 0, 0.2, 1) infinite'
+                 animation: 'slideSide 1.6s cubic-bezier(0.4, 0, 0.2, 1) 1'
                }}
           />
           <h1 style={{
