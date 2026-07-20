@@ -2043,7 +2043,7 @@ export default function Home() {
           letterSpacing: '-0.03em',
           color: 'var(--c-text)',
           animation: 'fadeSlideIn 1s ease-out',
-          marginTop: '0.1rem',
+          marginTop: '-0.6rem',
           textAlign: 'center'
         }}>
           Quick, secure, and
