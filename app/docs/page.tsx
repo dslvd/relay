@@ -509,6 +509,15 @@ def upload_file(file_path, folder_id=None):
                     code={`// Body: { key, uploadId, parts: [{ partNumber, etag }], fileName, fileSize, contentType, folderId? }
 // Response: { success, file: { id, name, size, url, mimeType, createdAt, isAnonymous, expiresAt, shortId } }`}
                   />
+                  <p className="text-[var(--c-dim)] mt-6">
+                    If you abandon an upload before completing it, release it so the parts don&apos;t sit
+                    orphaned in storage.
+                  </p>
+                  <Endpoint method="POST" path="https://relay.xstlo.com/api/files/multipart/abort" />
+                  <CodeBlock
+                    code={`// Body: { key, uploadId }
+// Response: { success }`}
+                  />
                 </Section>
 
                 <Section title="Error response">
