@@ -206,6 +206,19 @@ export default function DeveloperDashboard() {
     alert('Copied to clipboard!');
   }
 
+  function integrationSnippet(apiKeyValue: string): string {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'https://relay.xstlo.com';
+    return [
+      `curl -X POST ${base}/api/files/upload \\`,
+      `  -H "Authorization: Bearer ${apiKeyValue}" \\`,
+      `  -F "file=@image.png"`,
+      '',
+      '# Response includes:',
+      '#   data.url      -> temporary signed link (expires in 24h)',
+      '#   data.viewUrl  -> permanent link, safe to hotlink/embed forever',
+    ].join('\n');
+  }
+
   function formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -362,6 +375,12 @@ export default function DeveloperDashboard() {
                       {key.isActive ? (
                         <>
                           <button
+                            onClick={() => copyToClipboard(integrationSnippet('YOUR_API_KEY'))}
+                            className="px-3 py-1.5 bg-[var(--surface-card)] text-[var(--foreground)] rounded-md hover:bg-[var(--surface-hover)] transition text-xs border border-[var(--border-subtle)] cursor-pointer"
+                          >
+                            Copy integration link
+                          </button>
+                          <button
                             onClick={() => revokeKey(key.id)}
                             className="px-3 py-1.5 bg-[var(--surface-card)] text-amber-500 rounded-md hover:bg-amber-500/10 transition text-xs border border-[var(--border-subtle)] cursor-pointer"
                           >
@@ -472,6 +491,19 @@ export default function DeveloperDashboard() {
               {newKeyData.expiresAt && (
                 <div><span className="text-[var(--c-dim)]">Expires:</span> {formatDate(newKeyData.expiresAt)}</div>
               )}
+            </div>
+
+            <div className="bg-[var(--surface-well)] p-3.5 rounded-lg mb-5 border border-[var(--border-subtle)]">
+              <div className="text-xs text-[var(--c-dim)] mb-1.5">
+                Integration link for &quot;{newKeyData.name}&quot; &mdash; paste this into that project now, since the key won&apos;t be shown again
+              </div>
+              <pre className="font-mono text-[0.7rem] whitespace-pre-wrap break-all mb-2.5">{integrationSnippet(newKeyData.key)}</pre>
+              <button
+                onClick={() => copyToClipboard(integrationSnippet(newKeyData.key))}
+                className="text-xs bg-[var(--surface-card)] hover:bg-[var(--surface-hover)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-md transition cursor-pointer"
+              >
+                Copy integration snippet
+              </button>
             </div>
 
             <button

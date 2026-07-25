@@ -19,12 +19,13 @@ function toApiFileResponse(record: {
   isAnonymous: boolean;
   expiresAt: number | null;
   shortId: string;
-}, url: string) {
+}, url: string, viewUrl: string) {
   return {
     id: record.id,
     name: record.name,
     size: record.size,
     url,
+    viewUrl,
     mimeType: record.mimeType,
     createdAt: new Date(record.createdAt).toISOString(),
     isAnonymous: record.isAnonymous,
@@ -86,10 +87,11 @@ export async function POST(request: NextRequest) {
     });
 
     const downloadUrl = await createPresignedDownloadUrl({ objectKey, expiresInSeconds: 24 * 60 * 60 });
+    const viewUrl = new URL(`/i/${record.shortId}`, request.nextUrl.origin).toString();
 
     return NextResponse.json({
       success: true,
-      data: toApiFileResponse(record, downloadUrl),
+      data: toApiFileResponse(record, downloadUrl, viewUrl),
     });
   } catch (error) {
     console.error('Files upload error:', error);
