@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey } from '@/app/lib/auth/api-auth';
-import { createMultipartUpload, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
+import { createMultipartUpload, buildApiObjectKey } from '@/app/lib/storage/r2-storage';
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB parts
-
-function generateRandomSegment(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
 
 // POST /api/files/multipart/init - start a multipart upload for large files
 export async function POST(request: NextRequest) {
@@ -26,9 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'fileSize must be a positive number' }, { status: 400 });
     }
 
-    const objectKey = normalizeObjectKey(
-      `d/api/${ownerId || 'anon'}/${Date.now()}-${generateRandomSegment()}/${fileName}`
-    );
+    const objectKey = buildApiObjectKey(ownerId, fileName);
 
     const { uploadId, objectKey: key } = await createMultipartUpload({ objectKey, contentType: fileType });
     const totalParts = Math.max(1, Math.ceil(fileSize / CHUNK_SIZE));

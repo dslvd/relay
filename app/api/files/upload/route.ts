@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey } from '@/app/lib/auth/api-auth';
-import { createPresignedUploadUrl, createPresignedDownloadUrl, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
+import { createPresignedUploadUrl, createPresignedDownloadUrl, buildApiObjectKey } from '@/app/lib/storage/r2-storage';
 import { createFileRecord } from '@/app/lib/data/api-file-store';
 
 const ANON_MAX_FILE_BYTES = 25 * 1024 * 1024 * 1024; // 25GB, matches rootz's anonymous cap
 const ANON_EXPIRY_MS = 15 * 24 * 60 * 60 * 1000; // 15 days, matches rootz's anonymous expiry
-
-function generateRandomSegment(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
 
 function toApiFileResponse(record: {
   id: string;
@@ -60,9 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const objectKey = normalizeObjectKey(
-      `d/api/${ownerId || 'anon'}/${Date.now()}-${generateRandomSegment()}/${file.name}`
-    );
+    const objectKey = buildApiObjectKey(ownerId, file.name);
     const contentType = file.type || 'application/octet-stream';
 
     const uploadUrl = await createPresignedUploadUrl({ objectKey, contentType, expiresInSeconds: 60 });

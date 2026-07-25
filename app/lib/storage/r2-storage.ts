@@ -12,6 +12,7 @@ import {
   type _Object,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { randomBytes } from 'crypto';
 
 const DEFAULT_MAX_UPLOAD_FILE_BYTES = 100 * 1024 * 1024;
 
@@ -68,6 +69,16 @@ export function getR2Client(): S3Client {
 
 export function normalizeObjectKey(key: string): string {
   return key.replace(/^\/+/, '');
+}
+
+// Builds the storage key for a file uploaded via an API key: every file for a
+// given key lives flat under one `d/api/{ownerId}/` prefix (no per-upload
+// subfolder), so browsing the bucket shows one folder per key. The filename
+// is sanitized so it can't introduce extra path segments of its own.
+export function buildApiObjectKey(ownerId: string | null, fileName: string): string {
+  const safeName = fileName.replace(/[/\\]/g, '_').trim().slice(-150) || 'file';
+  const uniquePrefix = `${Date.now()}-${randomBytes(4).toString('hex')}`;
+  return normalizeObjectKey(`d/api/${ownerId || 'anon'}/${uniquePrefix}-${safeName}`);
 }
 
 export function buildPublicObjectUrl(objectKey: string): string {

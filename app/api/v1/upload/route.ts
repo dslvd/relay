@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withDeprecatedApiAuth } from '@/app/lib/auth/api-auth';
-import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/r2-storage';
+import { createPresignedUploadUrl, buildApiObjectKey } from '@/app/lib/storage/r2-storage';
 import { updateApiKeyUsage } from '@/app/lib/data/api-key-store';
 
 export async function POST(request: NextRequest) {
@@ -42,12 +42,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Generate a unique path for the file
-      const timestamp = Date.now();
-      const randomId = Math.random().toString(36).substring(2, 15);
-      const pathname = `d/api/${apiKey.id}/${timestamp}-${randomId}/${filename}`;
-
-      const objectKey = normalizeObjectKey(pathname);
+      const objectKey = buildApiObjectKey(apiKey.id, filename);
       const uploadUrl = await createPresignedUploadUrl({
         objectKey,
         contentType,
