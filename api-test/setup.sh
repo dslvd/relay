@@ -12,7 +12,7 @@ NC='\033[0m'
 BASE_URL="${1:-http://localhost:3000}"
 
 echo -e "${BLUE}================================================${NC}"
-echo -e "${BLUE}   CDN API Quick Setup & Troubleshooting${NC}"
+echo -e "${BLUE}   Relay API Quick Setup & Troubleshooting${NC}"
 echo -e "${BLUE}================================================${NC}"
 echo ""
 
@@ -32,7 +32,7 @@ echo ""
 
 # Step 2: Check developer dashboard
 echo -e "${BLUE}Step 2: Checking developer dashboard...${NC}"
-DASHBOARD_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/developers")
+DASHBOARD_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api")
 
 if [ "$DASHBOARD_CODE" = "200" ]; then
     echo -e "${GREEN}✓ Developer dashboard is accessible${NC}"
@@ -44,7 +44,7 @@ echo ""
 
 # Step 3: Check API endpoint
 echo -e "${BLUE}Step 3: Checking API endpoint...${NC}"
-API_RESPONSE=$(curl -s "$BASE_URL/api/v1/info")
+API_RESPONSE=$(curl -s "$BASE_URL/api/files/list")
 
 if echo "$API_RESPONSE" | grep -q "API key is required"; then
     echo -e "${GREEN}✓ API endpoint is working (authentication required)${NC}"
@@ -62,7 +62,7 @@ echo ""
 echo "To create your first API key:"
 echo ""
 echo -e "${GREEN}1.${NC} Open your browser and visit:"
-echo -e "   ${BLUE}$BASE_URL/developers${NC}"
+echo -e "   ${BLUE}$BASE_URL/api${NC}"
 echo ""
 echo -e "${GREEN}2.${NC} Click the '+ Create New API Key' button"
 echo ""
@@ -87,15 +87,15 @@ if command -v open &> /dev/null; then
     read -p "Would you like to open the dashboard now? (y/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Opening $BASE_URL/developers in your browser..."
-        open "$BASE_URL/developers"
+        echo "Opening $BASE_URL/api in your browser..."
+        open "$BASE_URL/api"
     fi
 elif command -v xdg-open &> /dev/null; then
     read -p "Would you like to open the dashboard now? (y/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Opening $BASE_URL/developers in your browser..."
-        xdg-open "$BASE_URL/developers"
+        echo "Opening $BASE_URL/api in your browser..."
+        xdg-open "$BASE_URL/api"
     fi
 fi
 

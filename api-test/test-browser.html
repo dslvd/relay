@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CDN API Browser Test</title>
+  <title>Relay API Browser Test</title>
   <style>
     * {
       margin: 0;
@@ -172,8 +172,8 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>🚀 CDN API Browser Test</h1>
-      <p>Test your Vercel Blob CDN API directly from your browser</p>
+      <h1>🚀 Relay API Browser Test</h1>
+      <p>Test the Relay file API (/api/files/*) directly from your browser</p>
     </div>
 
     <div class="content">
@@ -181,27 +181,27 @@
       <div class="config-section">
         <h2>Configuration</h2>
         <label for="apiKey">API Key:</label>
-        <input type="text" id="apiKey" placeholder="vbc_your_api_key_here">
-        
+        <input type="text" id="apiKey" placeholder="vbc_your_api_key_here (optional for anonymous uploads)">
+
         <label for="baseUrl">Base URL:</label>
         <input type="text" id="baseUrl" value="http://localhost:3000" placeholder="http://localhost:3000">
       </div>
 
-      <!-- Test 1: Get API Info -->
+      <!-- Test 1: Upload File -->
       <div class="test-section">
-        <h2>1. Get API Key Info</h2>
-        <button class="button" onclick="testGetInfo()">Get Info</button>
-        <div id="result-info"></div>
-      </div>
-
-      <!-- Test 2: Upload File -->
-      <div class="test-section">
-        <h2>2. Upload File</h2>
+        <h2>1. Upload File</h2>
         <div class="file-input">
           <input type="file" id="fileInput">
         </div>
         <button class="button" onclick="testUpload()">Upload File</button>
         <div id="result-upload"></div>
+      </div>
+
+      <!-- Test 2: Get File Info -->
+      <div class="test-section">
+        <h2>2. Get File Info</h2>
+        <button class="button" onclick="testGetInfo()">Get Info (last uploaded file)</button>
+        <div id="result-info"></div>
       </div>
 
       <!-- Test 3: List Files -->
@@ -221,17 +221,11 @@
   </div>
 
   <script>
-    const API_VERSION = '/api/v1';
+    const API_PATH = '/api/files';
 
     function getConfig() {
       const apiKey = document.getElementById('apiKey').value.trim();
       const baseUrl = document.getElementById('baseUrl').value.trim();
-
-      if (!apiKey) {
-        alert('Please enter your API key');
-        throw new Error('API key required');
-      }
-
       return { apiKey, baseUrl };
     }
 
@@ -249,35 +243,19 @@
 
     async function apiRequest(endpoint, options = {}) {
       const { apiKey, baseUrl } = getConfig();
-      const url = `${baseUrl}${API_VERSION}${endpoint}`;
+      const url = `${baseUrl}${API_PATH}${endpoint}`;
 
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-      });
+      const headers = { ...options.headers };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
+      const response = await fetch(url, { ...options, headers });
       const data = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok || data.success === false) {
         throw new Error(data.error || 'Request failed');
       }
 
       return data;
-    }
-
-    async function testGetInfo() {
-      showLoading('result-info');
-      
-      try {
-        const result = await apiRequest('/info');
-        showResult('result-info', result, true);
-      } catch (error) {
-        showResult('result-info', `Error: ${error.message}`, false);
-      }
     }
 
     async function testUpload() {
@@ -292,42 +270,34 @@
       showLoading('result-upload');
 
       try {
-        const { apiKey, baseUrl } = getConfig();
+        const form = new FormData();
+        form.append('file', file, file.name);
 
-        // Step 1: Get presigned upload URL
-        const uploadInit = await apiRequest('/upload', {
-          method: 'POST',
-          body: JSON.stringify({
-            filename: file.name,
-            contentType: file.type,
-            size: file.size,
-          }),
-        });
+        const result = await apiRequest('/upload', { method: 'POST', body: form });
 
-        // Step 2: Upload the file
-        const uploadResponse = await fetch(uploadInit.data.uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': file.type,
-          },
-          body: file,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error('Upload failed');
-        }
-
-        showResult('result-upload', {
-          status: 'Success',
-          fileId: uploadInit.data.fileId,
-          downloadUrl: uploadInit.data.downloadUrl,
-          directDownloadUrl: uploadInit.data.directDownloadUrl,
-        }, true);
+        showResult('result-upload', result.data, true);
 
         // Store for later tests
-        window.lastUploadedFileId = uploadInit.data.fileId;
+        window.lastUploadedFileId = result.data.id;
+        window.lastUploadedShortId = result.data.shortId;
       } catch (error) {
         showResult('result-upload', `Error: ${error.message}`, false);
+      }
+    }
+
+    async function testGetInfo() {
+      showLoading('result-info');
+
+      try {
+        if (!window.lastUploadedShortId) {
+          throw new Error('Upload a file first (test 1)');
+        }
+        const { baseUrl } = getConfig();
+        const response = await fetch(`${baseUrl}${API_PATH}/info?file_code=${window.lastUploadedShortId}`);
+        const result = await response.json();
+        showResult('result-info', result.result[0], true);
+      } catch (error) {
+        showResult('result-info', `Error: ${error.message}`, false);
       }
     }
 
@@ -335,7 +305,7 @@
       showLoading('result-list');
 
       try {
-        const result = await apiRequest('/files?limit=10');
+        const result = await apiRequest('/list?limit=10');
         showResult('result-list', result, true);
       } catch (error) {
         showResult('result-list', `Error: ${error.message}`, false);
@@ -344,6 +314,8 @@
 
     async function runAllTests() {
       console.log('Running all tests...');
+      await testUpload();
+      await new Promise(resolve => setTimeout(resolve, 500));
       await testGetInfo();
       await new Promise(resolve => setTimeout(resolve, 500));
       await testListFiles();

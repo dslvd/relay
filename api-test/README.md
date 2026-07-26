@@ -1,6 +1,6 @@
 # API Test Scripts
 
-Test your Vercel Blob CDN API to ensure everything is working correctly.
+Test the Relay file API (`/api/files/*`) to ensure everything is working correctly.
 
 ## Quick Start
 
@@ -10,7 +10,7 @@ Choose the method that works best for you:
 
 ```bash
 # Just run it!
-./test-api.sh vbc_d21b75615fa1a2f20aa6fbff8e6e5378158ec1b2f79804926f862ebbc9154eed http://localhost:3000
+./test-api.sh YOUR_API_KEY http://localhost:3000
 ```
 
 ### Method 2: Python Script (Great for Python developers)
@@ -27,24 +27,21 @@ python test-api.py YOUR_API_KEY http://localhost:3000
 
 ### Method 3: Node.js Test Script (Best for automation)
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+No dependencies to install - Node 18+ has native `fetch`/`FormData`/`Blob`.
 
-2. **Get your API key:**
-   - Visit `http://localhost:3000/developers` (or your deployed URL)
-   - Click "Create New API Key"
+1. **Get your API key:**
+   - Visit `http://localhost:3000/api` (or your deployed URL)
+   - Create an API key
    - Copy the API key (it's only shown once!)
 
-3. **Edit the test script:**
+2. **Edit the test script:**
    ```bash
    # Open test-api.js and replace:
    const API_KEY = 'YOUR_API_KEY_HERE'; // Replace with your actual key
    const BASE_URL = 'http://localhost:3000'; // Or your deployed URL
    ```
 
-4. **Run the tests:**
+3. **Run the tests:**
    ```bash
    node test-api.js
    # or
@@ -60,7 +57,7 @@ python test-api.py YOUR_API_KEY http://localhost:3000
    ```
 
 2. **Enter your configuration:**
-   - API Key: Your generated API key
+   - API Key: Your generated API key (optional - anonymous uploads work too)
    - Base URL: `http://localhost:3000` or your deployed URL
 
 3. **Run tests:**
@@ -69,41 +66,37 @@ python test-api.py YOUR_API_KEY http://localhost:3000
 
 ## What Gets Tested
 
-### ✓ Test 1: Get API Key Info
-- Endpoint: `GET /api/v1/info`
-- Tests authentication
-- Shows API key details, permissions, and usage stats
+### ✓ Test 1: Upload File
+- Endpoint: `POST /api/files/upload`
+- Single-shot multipart/form-data upload
+- Returns the file record (id, shortId, url, ...)
 
-### ✓ Test 2: Upload File
-- Endpoint: `POST /api/v1/upload`
-- Tests file upload flow
-- Creates a test file and uploads it
-- Returns download URLs
+### ✓ Test 2: Get File Info
+- Endpoint: `GET /api/files/info?file_code=SHORT_ID`
+- Public lookup by short ID (no API key required)
 
-### ✓ Test 3: Get File Info
-- Endpoint: `GET /api/v1/files/[fileId]`
-- Tests file metadata retrieval
-- Gets info about the uploaded file
+### ✓ Test 3: List Files
+- Endpoint: `GET /api/files/list`
+- Tests pagination and the `q`/`mimeType` filters
+- Shows files uploaded with your API key
 
-### ✓ Test 4: List Files
-- Endpoint: `GET /api/v1/files`
-- Tests file listing
-- Shows all files uploaded with your API key
+### ✓ Test 4: Download File
+- Endpoint: `GET /api/files/download/{fileId}`
+- Fetches a presigned URL, then downloads and verifies content
 
-### ✓ Test 5: Download File
-- Tests downloading the uploaded file
-- Verifies content matches what was uploaded
-
-### ✓ Test 6: Delete File
-- Endpoint: `DELETE /api/v1/files/[fileId]`
+### ✓ Test 5: Delete File
+- Endpoint: `DELETE /api/files/delete?fileId=FILE_ID`
 - Tests file deletion (if permission is granted)
-- Cleans up the test file
+
+### ✓ Test 6: Batch Delete
+- Endpoint: `POST /api/files/batch-delete`
+- Uploads two throwaway files, then deletes both in one call
 
 ## Expected Output (Node.js)
 
 ```
 ============================================================
-       Vercel Blob CDN API Test Suite
+       Relay File API Test Suite
 ============================================================
 
 Configuration:
@@ -111,33 +104,15 @@ Configuration:
   Base URL: http://localhost:3000
 
 ============================================================
-Testing: Get API Key Info
+Testing: Upload File
 ============================================================
 
-API Key Info:
-  Name: Test Key
-  ID: abc123
-  Active: true
-  Created: 2026-03-04T...
+Upload Result:
+  ID: 7f3a1c9e-4b82-4d15-9a67-2e8c5f1d3b90
+  Short ID: k7Qm2Xrs
+  URL: https://.../dl/...
 
-Permissions:
-  Upload: true
-  Download: true
-  Delete: false
-  List: true
-
-Rate Limits:
-  Requests/hour: 1000
-  Max upload size: 100 MB
-
-Usage:
-  Total requests: 5
-  Uploads: 2
-  Downloads: 3
-  Uploaded: 1.5 MB
-  Downloaded: 2.3 MB
-
-✓ Get API Key Info - PASSED
+✓ Upload File - PASSED
 
 ... (more tests)
 
@@ -157,11 +132,7 @@ Total Tests: 6
 
 ### Error: "Please set your API_KEY"
 - You need to replace `YOUR_API_KEY_HERE` with your actual API key
-- Get one from `/developers` dashboard
-
-### Error: "fetch is not defined" (Node.js)
-- Make sure you installed dependencies: `npm install`
-- Or install node-fetch manually: `npm install node-fetch@2`
+- Get one from the `/api` dashboard
 
 ### Error: "Invalid or expired API key"
 - Check that your API key is correct
@@ -171,6 +142,10 @@ Total Tests: 6
 ### Error: "Rate limit exceeded"
 - Wait for the rate limit window to reset (1 hour)
 - Check your key's rate limit in the dashboard
+
+### Error: "Storage limit exceeded" (HTTP 507)
+- Your key has hit its total storage quota (10GB by default)
+- Delete some files or raise `rateLimit.storageLimit` on the key
 
 ### Error: "Connection refused"
 - Make sure your dev server is running: `npm run dev`
@@ -195,18 +170,9 @@ const BASE_URL = 'https://your-production-domain.com';
 ```javascript
 // Comment out tests you don't want to run:
 const tests = [
-  ['Get API Key Info', testGetInfo],
-  // ['Upload File', testUpload],  // Skip this
+  ['Upload File', testUpload],
   // ['Delete File', testDelete],  // Skip this
 ];
-```
-
-### Custom Test File
-
-```javascript
-// In testUpload(), change the test content:
-const testContent = 'Your custom test data here';
-const testFileName = 'your-custom-name.txt';
 ```
 
 ## API Response Examples
@@ -216,9 +182,11 @@ const testFileName = 'your-custom-name.txt';
 {
   "success": true,
   "data": {
-    "fileId": "d/api/abc123/...",
-    "downloadUrl": "https://...",
-    "directDownloadUrl": "https://..."
+    "id": "7f3a1c9e-4b82-4d15-9a67-2e8c5f1d3b90",
+    "shortId": "k7Qm2Xrs",
+    "name": "photo.png",
+    "url": "https://...",
+    "viewUrl": "https://.../i/k7Qm2Xrs"
   }
 }
 ```
@@ -240,20 +208,19 @@ You can integrate these tests into your CI/CD pipeline:
 - name: Test API
   run: |
     cd api-test
-    npm install
     node test-api.js
   env:
-    API_KEY: ${{ secrets.CDN_API_KEY }}
-    BASE_URL: ${{ secrets.CDN_BASE_URL }}
+    API_KEY: ${{ secrets.RELAY_API_KEY }}
+    BASE_URL: ${{ secrets.RELAY_BASE_URL }}
 ```
 
 ## Files in This Directory
 
 - `test-api.sh` - Shell script (no dependencies, works anywhere!)
 - `test-api.py` - Python test script (requires `requests`)
-- `test-api.js` - Node.js test script (requires `node-fetch`)
+- `test-api.js` - Node.js test script (no dependencies, Node 18+)
 - `test-browser.html` - Browser-based test interface (no installation)
-- `package.json` - Node.js dependencies
+- `package.json` - `npm test` entry point
 - `README.md` - This file
 
 ## Which Test Method Should I Use?
@@ -262,7 +229,7 @@ You can integrate these tests into your CI/CD pipeline:
 |--------|----------|------|------|
 | **Shell Script** | Quick tests, CI/CD | No dependencies, fast | Requires bash/curl |
 | **Python** | Python developers | Easy to read, modify | Requires Python + requests |
-| **Node.js** | Automation, CI/CD | Good for npm projects | Requires Node.js + dependencies |
+| **Node.js** | Automation, CI/CD | Good for npm projects | Requires Node 18+ |
 | **Browser** | Manual testing, demos | Visual, interactive | Not automated |
 
 ## Support
@@ -272,7 +239,7 @@ If tests fail or you encounter issues:
 1. Check the error messages - they're descriptive
 2. Verify your API key in the dashboard
 3. Check your API key permissions
-4. Review the API documentation at `/developers/docs`
+4. Review the API documentation at `/docs`
 5. Check the console for detailed error logs
 
 ## Next Steps
@@ -280,7 +247,8 @@ If tests fail or you encounter issues:
 After verifying your API works:
 
 1. Try the client libraries in `../client-library/`
-2. Read the full API docs at `/developers/docs`
+2. Read the full API docs at `/docs`, including the new "Webhooks" page for
+   getting notified on `file.created`/`file.deleted` instead of polling
 3. Integrate the API into your application
 4. Monitor usage in the developer dashboard
 

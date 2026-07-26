@@ -1,17 +1,14 @@
 {
-  "name": "cdn-api-test",
+  "name": "relay-api-test",
   "version": "1.0.0",
-  "description": "Test scripts for Vercel Blob CDN API",
+  "description": "Test scripts for the Relay file API (/api/files/*)",
   "main": "test-api.js",
   "scripts": {
     "test": "node test-api.js"
   },
   "keywords": [
-    "cdn",
+    "relay",
     "api",
     "test"
-  ],
-  "dependencies": {
-    "node-fetch": "^2.7.0"
-  }
+  ]
 }
