@@ -373,8 +373,12 @@ button, input, select, textarea {
   right: 1rem;
 }
 
+.api-link {
+  right: 4.3rem;
+}
+
 .footer-link--show-files {
-  right: 4.7rem;
+  right: 7.6rem;
 }
 
 .minimal-link {

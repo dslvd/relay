@@ -50,6 +50,9 @@ export default function RootLayout({
           {children}
         </ThemeProvider>
         <ClickRipple />
+        <Link className="footer-link api-link" href="/docs" prefetch>
+          API
+        </Link>
         <Link className="footer-link dmca-link" href="/dmca" prefetch>
           DMCA
         </Link>
