@@ -2025,16 +2025,18 @@ export default function Home() {
               </div>
             </div>
           )}
-          <Image
-            src={logo}
-            alt="Logo"
-            width={200}
-            height={200}
-               style={{
-                 transform: 'translateY(-26px)',
-                 animation: 'slideSide 1.6s cubic-bezier(0.4, 0, 0.2, 1) 1'
-               }}
-          />
+          <div style={{ perspective: '800px' }}>
+            <Image
+              src={logo}
+              alt="Logo"
+              width={200}
+              height={200}
+              style={{
+                transform: 'translateY(-26px)',
+                animation: 'spinDiamond 1.8s cubic-bezier(0.4, 0, 0.2, 1) 1'
+              }}
+            />
+          </div>
           <h1 style={{
           fontFamily: "'Sora', sans-serif",
           fontSize: '1.45rem',
