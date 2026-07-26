@@ -4,6 +4,7 @@ import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
 import ClickRipple from "./components/ClickRipple";
+import DisableInspect from "./components/DisableInspect";
 import ThemeProvider from "./components/ThemeProvider";
 import ThemeToggle from "./components/ThemeToggle";
 import type { Viewport } from "next";
@@ -50,6 +51,7 @@ export default function RootLayout({
           {children}
         </ThemeProvider>
         <ClickRipple />
+        <DisableInspect />
         <Link className="footer-link api-link" href="/docs" prefetch>
           API
         </Link>

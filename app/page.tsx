@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useRef, useEffect, type SVGProps } from 'react';
+import { useMemo, useState, useRef, useEffect, type SVGProps, type CSSProperties } from 'react';
 import Image from 'next/image';
 import logo from './logo.png';
 import { useTheme } from './components/ThemeProvider';
@@ -1980,7 +1980,7 @@ export default function Home() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '1.35rem',
+          gap: '0.2rem',
           marginBottom: '0.1rem'
         }}>
           {uploadSuccessCue && !uploading && (
@@ -2031,10 +2031,17 @@ export default function Home() {
               alt="Logo"
               width={200}
               height={200}
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
               style={{
                 transform: 'translateY(-26px)',
-                animation: 'spinDiamond 1.8s cubic-bezier(0.4, 0, 0.2, 1) 1'
-              }}
+                animation: 'spinDiamond 1.8s cubic-bezier(0.4, 0, 0.2, 1) 1',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                WebkitUserDrag: 'none',
+                WebkitTouchCallout: 'none',
+                pointerEvents: 'auto'
+              } as CSSProperties}
             />
           </div>
           <h1 style={{
@@ -2045,7 +2052,7 @@ export default function Home() {
           letterSpacing: '-0.03em',
           color: 'var(--c-text)',
           animation: 'fadeSlideIn 1s ease-out',
-          marginTop: '-0.6rem',
+          marginTop: '-1.6rem',
           textAlign: 'center'
         }}>
           Quick, secure, and
