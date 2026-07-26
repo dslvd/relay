@@ -2052,7 +2052,7 @@ export default function Home() {
           letterSpacing: '-0.03em',
           color: 'var(--c-text)',
           animation: 'fadeSlideIn 1s ease-out',
-          marginTop: '-1.6rem',
+          marginTop: '-4.2rem',
           textAlign: 'center'
         }}>
           Quick, secure, and
@@ -2061,7 +2061,7 @@ export default function Home() {
           </h1>
           <div
             style={{
-              marginTop: '-0.35rem',
+              marginTop: '0.55rem',
               width: '100%',
               maxWidth: '520px',
               display: 'flex',
@@ -2234,7 +2234,7 @@ export default function Home() {
           justifyContent: 'center',
           gap: '1rem',
           flexWrap: 'wrap',
-          marginTop: '0.20rem',
+          marginTop: '0.85rem',
           animation: 'fadeSlideIn 1s ease-out 0.2s backwards'
         }}>
           {/* Remote Upload — secondary */}
