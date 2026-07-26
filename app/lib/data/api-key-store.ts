@@ -17,8 +17,18 @@ export interface ApiKeyRecord {
   usage: ApiKeyUsage;
   rateLimit: {
     requestsPerHour: number;
-    uploadSizeLimit: number; // in bytes
+    uploadSizeLimit: number; // in bytes, per upload
+    storageLimit?: number; // in bytes, total across all files owned by this key
   };
+  webhook?: { url: string; secret: string } | null;
+}
+
+// Rows written before storageLimit existed won't have it - this is the
+// fallback applied everywhere quota is enforced or reported.
+export const DEFAULT_STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024; // 10GB
+
+export function getStorageLimit(apiKey: Pick<ApiKeyRecord, 'rateLimit'>): number {
+  return apiKey.rateLimit.storageLimit ?? DEFAULT_STORAGE_LIMIT_BYTES;
 }
 
 export interface ApiKeyPermissions {
@@ -48,7 +58,8 @@ interface ApiKeyRow {
   is_active: boolean;
   permissions: ApiKeyPermissions;
   usage: ApiKeyUsage;
-  rate_limit: { requestsPerHour: number; uploadSizeLimit: number };
+  rate_limit: { requestsPerHour: number; uploadSizeLimit: number; storageLimit?: number };
+  webhook: { url: string; secret: string } | null;
 }
 
 interface FallbackStore {
@@ -69,6 +80,7 @@ function rowFromRecord(record: ApiKeyRecord): Omit<ApiKeyRow, 'id'> & { id: stri
     permissions: record.permissions,
     usage: record.usage,
     rate_limit: record.rateLimit,
+    webhook: record.webhook ?? null,
   };
 }
 
@@ -87,6 +99,7 @@ function recordFromRow(row: ApiKeyRow): ApiKeyRecord {
     permissions: row.permissions,
     usage: row.usage,
     rateLimit: row.rate_limit,
+    webhook: row.webhook ?? null,
   };
 }
 
@@ -157,6 +170,7 @@ export async function createApiKey(input: {
   rateLimit?: {
     requestsPerHour?: number;
     uploadSizeLimit?: number;
+    storageLimit?: number;
   };
   expiresInDays?: number;
 }): Promise<{ apiKey: ApiKeyRecord; plainKey: string }> {
@@ -189,7 +203,9 @@ export async function createApiKey(input: {
     rateLimit: {
       requestsPerHour: input.rateLimit?.requestsPerHour ?? 1000,
       uploadSizeLimit: input.rateLimit?.uploadSizeLimit ?? 100 * 1024 * 1024, // 100MB default
+      storageLimit: input.rateLimit?.storageLimit ?? DEFAULT_STORAGE_LIMIT_BYTES,
     },
+    webhook: null,
     expiresAt: input.expiresInDays ? now + input.expiresInDays * 24 * 60 * 60 * 1000 : undefined,
   };
 
@@ -304,6 +320,14 @@ export async function updateApiKeyUsage(
 export async function revokeApiKey(id: string): Promise<boolean> {
   const result = await updateApiKey(id, { isActive: false });
   return result !== null;
+}
+
+// Sets (or clears, with url: null) the webhook Relay POSTs file.created /
+// file.deleted events to. Generates a fresh signing secret whenever the URL
+// changes so an old integration can't keep verifying with a stale secret.
+export async function setApiKeyWebhook(id: string, url: string | null): Promise<ApiKeyRecord | null> {
+  const webhook = url ? { url, secret: `whsec_${randomBytes(24).toString('hex')}` } : null;
+  return updateApiKey(id, { webhook });
 }
 
 // Fixed-window limit (`rateLimit.requestsPerHour` per rolling hour), enforced

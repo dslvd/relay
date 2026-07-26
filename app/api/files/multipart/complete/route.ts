@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey } from '@/app/lib/auth/api-auth';
 import { completeMultipartUpload, createPresignedDownloadUrl } from '@/app/lib/storage/r2-storage';
 import { createFileRecord } from '@/app/lib/data/api-file-store';
+import { dispatchFileWebhook } from '@/app/lib/webhooks/dispatch';
 
 const ANON_EXPIRY_MS = 15 * 24 * 60 * 60 * 1000; // 15 days
 
@@ -44,6 +45,16 @@ export async function POST(request: NextRequest) {
     });
 
     const url = await createPresignedDownloadUrl({ objectKey: key, expiresInSeconds: 24 * 60 * 60 });
+
+    if (auth.success) {
+      dispatchFileWebhook(auth.apiKey!, 'file.created', {
+        id: record.id,
+        name: record.name,
+        size: record.size,
+        mimeType: record.mimeType,
+        shortId: record.shortId,
+      });
+    }
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiKey, revokeApiKey, deleteApiKey, updateApiKey } from '@/app/lib/data/api-key-store';
+import { getApiKey, revokeApiKey, deleteApiKey, updateApiKey, setApiKeyWebhook, getStorageLimit } from '@/app/lib/data/api-key-store';
+import { getOwnerStorageUsed } from '@/app/lib/data/api-file-store';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 
 const PLUS_COOKIE_NAME = 'plus_auth';
@@ -61,7 +62,10 @@ export async function GET(
         isActive: apiKey.isActive,
         permissions: apiKey.permissions,
         usage: apiKey.usage,
-        rateLimit: apiKey.rateLimit,
+        rateLimit: { ...apiKey.rateLimit, storageLimit: getStorageLimit(apiKey) },
+        storageUsed: await getOwnerStorageUsed(apiKey.id),
+        webhookUrl: apiKey.webhook?.url ?? null,
+        webhookSecret: apiKey.webhook?.secret ?? null,
         keyPreview: apiKey.hashedKey.substring(0, 8) + '...',
       },
     });
@@ -138,6 +142,28 @@ export async function PATCH(
       });
     }
 
+    // Handle webhook URL changes separately - setApiKeyWebhook also rotates
+    // the signing secret so a stale integration can't keep verifying.
+    if ('webhookUrl' in body) {
+      const webhookUrl = typeof body.webhookUrl === 'string' && body.webhookUrl ? body.webhookUrl : null;
+      if (webhookUrl) {
+        try {
+          const parsed = new URL(webhookUrl);
+          if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('bad protocol');
+        } catch {
+          return NextResponse.json({ success: false, error: 'webhookUrl must be a valid http(s) URL' }, { status: 400 });
+        }
+      }
+      const updated = await setApiKeyWebhook(keyId, webhookUrl);
+      if (!updated) {
+        return NextResponse.json({ success: false, error: 'Failed to update webhook' }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        data: { id: updated.id, webhookUrl: updated.webhook?.url ?? null, webhookSecret: updated.webhook?.secret ?? null },
+      });
+    }
+
     // Handle other updates (name, permissions, etc.)
     const updates: any = {};
 
@@ -154,7 +180,7 @@ export async function PATCH(
     }
 
     if (body.rateLimit) {
-      updates.rateLimit = body.rateLimit;
+      updates.rateLimit = { ...apiKey.rateLimit, ...body.rateLimit };
     }
 
     const updated = await updateApiKey(keyId, updates);
@@ -176,7 +202,7 @@ export async function PATCH(
         name: updated.name,
         isActive: updated.isActive,
         permissions: updated.permissions,
-        rateLimit: updated.rateLimit,
+        rateLimit: { ...updated.rateLimit, storageLimit: getStorageLimit(updated) },
       },
     });
   } catch (error) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createApiKey, listApiKeys, revokeApiKey, deleteApiKey } from '@/app/lib/data/api-key-store';
+import { createApiKey, listApiKeys, getStorageLimit } from '@/app/lib/data/api-key-store';
+import { getOwnerStorageUsed } from '@/app/lib/data/api-file-store';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 
 const PLUS_COOKIE_NAME = 'plus_auth';
@@ -27,19 +28,23 @@ export async function GET(request: NextRequest) {
     const keys = await listApiKeys(user.id);
 
     // Remove sensitive information
-    const sanitizedKeys = keys.map((key) => ({
-      id: key.id,
-      name: key.name,
-      createdAt: new Date(key.createdAt).toISOString(),
-      lastUsedAt: key.lastUsedAt ? new Date(key.lastUsedAt).toISOString() : null,
-      expiresAt: key.expiresAt ? new Date(key.expiresAt).toISOString() : null,
-      isActive: key.isActive,
-      permissions: key.permissions,
-      usage: key.usage,
-      rateLimit: key.rateLimit,
-      // Show masked key for identification
-      keyPreview: key.hashedKey.substring(0, 8) + '...',
-    }));
+    const sanitizedKeys = await Promise.all(
+      keys.map(async (key) => ({
+        id: key.id,
+        name: key.name,
+        createdAt: new Date(key.createdAt).toISOString(),
+        lastUsedAt: key.lastUsedAt ? new Date(key.lastUsedAt).toISOString() : null,
+        expiresAt: key.expiresAt ? new Date(key.expiresAt).toISOString() : null,
+        isActive: key.isActive,
+        permissions: key.permissions,
+        usage: key.usage,
+        rateLimit: { ...key.rateLimit, storageLimit: getStorageLimit(key) },
+        storageUsed: await getOwnerStorageUsed(key.id),
+        webhookUrl: key.webhook?.url ?? null,
+        // Show masked key for identification
+        keyPreview: key.hashedKey.substring(0, 8) + '...',
+      }))
+    );
 
     return NextResponse.json({
       success: true,

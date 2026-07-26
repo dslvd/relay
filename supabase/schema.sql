@@ -123,9 +123,12 @@ create table if not exists api_keys (
   is_active boolean not null default true,
   permissions jsonb not null,
   usage jsonb not null,
-  rate_limit jsonb not null
+  rate_limit jsonb not null,
+  webhook jsonb
 );
 create index if not exists idx_api_keys_user on api_keys (user_id);
+-- Migration for tables created before the webhook column existed.
+alter table api_keys add column if not exists webhook jsonb;
 alter table api_keys enable row level security;
 
 -- Plus password-reset tokens (used-once, like plus_invites).

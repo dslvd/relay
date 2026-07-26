@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
     const limit = Math.max(1, Math.min(200, parseInt(searchParams.get('limit') || '50', 10) || 50));
     const folderIdParam = searchParams.get('folderId');
     const includeFolders = searchParams.get('includeFolders') !== 'false';
+    const q = searchParams.get('q') || undefined;
+    const mimeType = searchParams.get('mimeType') || undefined;
 
     const folderId = folderIdParam === null ? undefined : folderIdParam === 'null' ? null : folderIdParam;
 
@@ -23,6 +25,8 @@ export async function GET(request: NextRequest) {
       folderId,
       page,
       limit,
+      q,
+      mimeType,
     });
 
     const data = records.map((record) => ({

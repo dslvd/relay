@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey } from '@/app/lib/auth/api-auth';
 import { deleteObject } from '@/app/lib/storage/r2-storage';
 import { getFileRecordById, deleteFileRecord } from '@/app/lib/data/api-file-store';
+import { dispatchFileWebhook } from '@/app/lib/webhooks/dispatch';
 
 // DELETE /api/files/delete?fileId=&token= - permanently delete a file (rootz-compatible)
 export async function DELETE(request: NextRequest) {
@@ -28,6 +29,14 @@ export async function DELETE(request: NextRequest) {
 
     await deleteObject(record.objectKey);
     await deleteFileRecord(record.id);
+
+    if (ownedByApiKey) {
+      dispatchFileWebhook(auth.apiKey!, 'file.deleted', {
+        id: record.id,
+        name: record.name,
+        shortId: record.shortId,
+      });
+    }
 
     return NextResponse.json({ success: true, message: 'File deleted successfully' });
   } catch (error) {

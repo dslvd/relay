@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey } from '@/app/lib/auth/api-auth';
 import { createMultipartUpload, buildApiObjectKey } from '@/app/lib/storage/r2-storage';
+import { getOwnerStorageUsed } from '@/app/lib/data/api-file-store';
+import { getStorageLimit } from '@/app/lib/data/api-key-store';
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB parts
 
@@ -20,6 +22,20 @@ export async function POST(request: NextRequest) {
     }
     if (!Number.isFinite(fileSize) || fileSize <= 0) {
       return NextResponse.json({ success: false, error: 'fileSize must be a positive number' }, { status: 400 });
+    }
+
+    if (ownerId) {
+      const storageLimit = getStorageLimit(auth.apiKey!);
+      const used = await getOwnerStorageUsed(ownerId);
+      if (used + fileSize > storageLimit) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Storage limit exceeded: ${used} of ${storageLimit} bytes used, this upload needs ${fileSize} more.`,
+          },
+          { status: 507 }
+        );
+      }
     }
 
     const objectKey = buildApiObjectKey(ownerId, fileName);

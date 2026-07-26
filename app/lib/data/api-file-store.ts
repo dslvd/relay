@@ -167,9 +167,13 @@ export async function listFileRecordsByOwner(options: {
   folderId?: string | null;
   page?: number;
   limit?: number;
+  q?: string;
+  mimeType?: string;
 }): Promise<{ records: ApiFileRecord[]; total: number }> {
   const page = Math.max(1, options.page ?? 1);
   const limit = Math.max(1, Math.min(200, options.limit ?? 50));
+  const q = options.q?.trim();
+  const mimeType = options.mimeType?.trim();
 
   if (hasSupabaseConfigured()) {
     const supabase = getSupabaseClient();
@@ -180,6 +184,13 @@ export async function listFileRecordsByOwner(options: {
 
     if (options.folderId !== undefined) {
       query = options.folderId === null ? query.is('folder_id', null) : query.eq('folder_id', options.folderId);
+    }
+    if (q) {
+      // Escape ilike wildcards so a filename containing % or _ can't widen the match.
+      query = query.ilike('name', `%${q.replace(/[%_]/g, (c) => `\\${c}`)}%`);
+    }
+    if (mimeType) {
+      query = query.ilike('mime_type', `${mimeType.replace(/[%_]/g, (c) => `\\${c}`)}%`);
     }
 
     const from = (page - 1) * limit;
@@ -193,9 +204,29 @@ export async function listFileRecordsByOwner(options: {
   if (options.folderId !== undefined) {
     filtered = filtered.filter((r) => r.folderId === options.folderId);
   }
+  if (q) {
+    const needle = q.toLowerCase();
+    filtered = filtered.filter((r) => r.name.toLowerCase().includes(needle));
+  }
+  if (mimeType) {
+    filtered = filtered.filter((r) => r.mimeType.startsWith(mimeType));
+  }
   const total = filtered.length;
   const start = (page - 1) * limit;
   return { records: filtered.slice(start, start + limit), total };
+}
+
+export async function getOwnerStorageUsed(ownerId: string): Promise<number> {
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('api_files').select('size').eq('owner_id', ownerId);
+    if (error) throw error;
+    return ((data as { size: number }[]) || []).reduce((sum, r) => sum + r.size, 0);
+  }
+
+  return getFallbackStore()
+    .filter((r) => r.ownerId === ownerId)
+    .reduce((sum, r) => sum + r.size, 0);
 }
 
 export async function countFilesInFolder(folderId: string): Promise<{ count: number; totalSize: number }> {

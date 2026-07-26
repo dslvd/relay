@@ -11,7 +11,8 @@ type SectionId =
   | 'retrieve'
   | 'file-info'
   | 'list'
-  | 'delete';
+  | 'delete'
+  | 'webhooks';
 
 type Lang = 'curl' | 'javascript' | 'python';
 
@@ -24,6 +25,7 @@ const SECTION_ORDER: SectionId[] = [
   'file-info',
   'list',
   'delete',
+  'webhooks',
 ];
 
 const SECTION_LABELS: Record<SectionId, string> = {
@@ -35,6 +37,7 @@ const SECTION_LABELS: Record<SectionId, string> = {
   'file-info': 'Get file info',
   list: 'List files & folders',
   delete: 'Delete a file',
+  webhooks: 'Webhooks',
 };
 
 const API_SUB_SECTIONS: SectionId[] = [
@@ -44,6 +47,7 @@ const API_SUB_SECTIONS: SectionId[] = [
   'file-info',
   'list',
   'delete',
+  'webhooks',
 ];
 
 function Endpoint({ method, path }: { method: string; path: string }) {
@@ -373,6 +377,25 @@ export default function ApiDocumentation() {
                   <CodeBlock code="https://relay.xstlo.com/api" />
                 </Section>
 
+                <Section title="CORS">
+                  <p className="text-[var(--c-dim)]">
+                    Every <InlineCode>/api/files/*</InlineCode> endpoint sends{' '}
+                    <InlineCode>Access-Control-Allow-Origin: *</InlineCode>, so you can call it directly from
+                    browser JavaScript without a server-side proxy. Since auth is a header or query param (never a
+                    cookie), the open origin carries no credential risk.
+                  </p>
+                </Section>
+
+                <Section title="Storage quota">
+                  <p className="text-[var(--c-dim)]">
+                    Each API key has a total storage cap (10GB by default) in addition to the per-upload size
+                    limit. Uploads that would push a key over its cap are rejected with{' '}
+                    <InlineCode>507 Insufficient Storage</InlineCode> before any data is written. Check current
+                    usage via <InlineCode>rateLimit.storageLimit</InlineCode> and <InlineCode>storageUsed</InlineCode>{' '}
+                    on your key in the <Link href="/api" className="underline hover:text-[var(--foreground)]">dashboard</Link>.
+                  </p>
+                </Section>
+
                 <Section title="Legacy v1 API">
                   <p className="text-[var(--c-dim)]">
                     Relay also has an existing <InlineCode>/api/v1</InlineCode> developer API (raw R2 object
@@ -524,6 +547,11 @@ def upload_file(file_path, folder_id=None):
                   <CodeBlock code={`{
   "success": false,
   "error": "file is required"
+}
+// 507 Insufficient Storage when the upload would exceed your key's storage quota:
+{
+  "success": false,
+  "error": "Storage limit exceeded: 9998877665 of 10737418240 bytes used, this upload needs 5000000 more."
 }`} />
                 </Section>
               </div>
@@ -847,6 +875,8 @@ for f in result['data']:
                       { name: 'limit', type: 'Integer', required: '50', description: 'Files per page (max 200)' },
                       { name: 'folderId', type: 'String', required: '—', description: 'Filter by folder ID; use "null" for root' },
                       { name: 'includeFolders', type: 'Boolean', required: 'true', description: 'Include a "folders" array when listing the root' },
+                      { name: 'q', type: 'String', required: '—', description: 'Case-insensitive substring match on filename' },
+                      { name: 'mimeType', type: 'String', required: '—', description: 'Prefix match on MIME type, e.g. "image/" for all images' },
                     ]}
                   />
                 </Section>
@@ -962,6 +992,98 @@ if not result.get('success'):
                   <CodeBlock code={`{ "success": false, "error": "File not found" }
 { "success": false, "error": "Unauthorized to delete this file" }
 { "success": false, "error": "File ID is required" }`} />
+                </Section>
+
+                <h2 className="text-2xl font-semibold mt-12 mb-4">Batch delete</h2>
+                <p className="text-[var(--c-dim)]">Delete up to 100 files owned by your API key in one call.</p>
+                <Endpoint method="POST" path="https://relay.xstlo.com/api/files/batch-delete" />
+                <p className="text-sm text-[var(--c-dim)] mt-2">
+                  Requires the <InlineCode>delete</InlineCode> permission. Doesn&apos;t cover anonymous/token-owned
+                  files — use the single-file endpoint above with its deletion token for those.
+                </p>
+                <CodeBlock
+                  code={`// Body: { fileIds: string[] }  (max 100)
+// Response: { success, data: { results: [{ fileId, success, error? }], deletedCount } }`}
+                />
+              </div>
+            )}
+
+            {section === 'webhooks' && (
+              <div>
+                <h1 className="text-4xl font-bold mb-3">Webhooks</h1>
+                <p className="text-[var(--c-dim)] text-lg">
+                  Get notified when a file is created or deleted, instead of polling.
+                </p>
+
+                <h2 className="text-2xl font-semibold mt-12 mb-4">Setup</h2>
+                <p className="text-[var(--c-dim)]">
+                  Set a webhook URL on your key from the{' '}
+                  <Link href="/api" className="underline hover:text-[var(--foreground)]">dashboard</Link>, or via
+                  the dev key API:
+                </p>
+                <CodeBlock
+                  code={`PATCH /api/dev/keys/{keyId}
+// Body: { "webhookUrl": "https://your-app.example.com/webhooks/relay" }
+// Response: { success, data: { id, webhookUrl, webhookSecret } }
+// webhookSecret is returned each time you set the URL - a new one is
+// generated whenever the URL changes. Save it; you need it to verify signatures.
+// Pass "webhookUrl": null to remove the webhook.`}
+                />
+
+                <Section title="Events">
+                  <ParamTable
+                    requiredHeader="Fired when"
+                    rows={[
+                      { name: 'file.created', type: '—', required: 'A file finishes uploading (direct, remote, or multipart)', description: '{ id, name, size, mimeType, shortId }' },
+                      { name: 'file.deleted', type: '—', required: 'A file is deleted (single or batch)', description: '{ id, name, shortId }' },
+                    ]}
+                  />
+                </Section>
+
+                <Section title="Payload">
+                  <CodeBlock code={`POST <your webhookUrl>
+Content-Type: application/json
+X-Relay-Event: file.created
+X-Relay-Signature: sha256=<hex hmac>
+
+{
+  "event": "file.created",
+  "createdAt": "2026-07-26T12:00:00.000Z",
+  "data": { "id": "...", "name": "photo.png", "size": 204800, "mimeType": "image/png", "shortId": "k7Qm2Xrs" }
+}`} />
+                </Section>
+
+                <Section title="Verifying signatures">
+                  <p className="text-[var(--c-dim)]">
+                    <InlineCode>X-Relay-Signature</InlineCode> is an HMAC-SHA256 of the raw request body, keyed
+                    with your <InlineCode>webhookSecret</InlineCode>. Recompute it and compare before trusting a
+                    payload.
+                  </p>
+                  <CodeTabs
+                    samples={{
+                      javascript: `import { createHmac, timingSafeEqual } from 'crypto';
+
+function isValid(rawBody, signatureHeader, secret) {
+  const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));
+}`,
+                      python: `import hashlib, hmac
+
+def is_valid(raw_body: bytes, signature_header: str, secret: str) -> bool:
+    expected = 'sha256=' + hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature_header)`,
+                      curl: `# Signature verification needs your language's HMAC library, not curl -
+# use the JavaScript or Python tab.`,
+                    }}
+                  />
+                </Section>
+
+                <Section title="Delivery">
+                  <p className="text-[var(--c-dim)]">
+                    Best-effort, single attempt, 5 second timeout. A failed or slow delivery never affects the API
+                    call that triggered it and is not retried — poll <InlineCode>/api/files/list</InlineCode> as a
+                    fallback if you need guaranteed delivery.
+                  </p>
                 </Section>
               </div>
             )}

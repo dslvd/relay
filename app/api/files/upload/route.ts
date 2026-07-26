@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey } from '@/app/lib/auth/api-auth';
 import { createPresignedUploadUrl, createPresignedDownloadUrl, buildApiObjectKey } from '@/app/lib/storage/r2-storage';
-import { createFileRecord } from '@/app/lib/data/api-file-store';
+import { createFileRecord, getOwnerStorageUsed } from '@/app/lib/data/api-file-store';
+import { getStorageLimit } from '@/app/lib/data/api-key-store';
+import { dispatchFileWebhook } from '@/app/lib/webhooks/dispatch';
 
 const ANON_MAX_FILE_BYTES = 25 * 1024 * 1024 * 1024; // 25GB, matches rootz's anonymous cap
 const ANON_EXPIRY_MS = 15 * 24 * 60 * 60 * 1000; // 15 days, matches rootz's anonymous expiry
@@ -56,6 +58,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (ownerId) {
+      const storageLimit = getStorageLimit(auth.apiKey!);
+      const used = await getOwnerStorageUsed(ownerId);
+      if (used + file.size > storageLimit) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Storage limit exceeded: ${used} of ${storageLimit} bytes used, this upload needs ${file.size} more.`,
+          },
+          { status: 507 }
+        );
+      }
+    }
+
     const objectKey = buildApiObjectKey(ownerId, file.name);
     const contentType = file.type || 'application/octet-stream';
 
@@ -82,6 +98,16 @@ export async function POST(request: NextRequest) {
 
     const downloadUrl = await createPresignedDownloadUrl({ objectKey, expiresInSeconds: 24 * 60 * 60 });
     const viewUrl = new URL(`/i/${record.shortId}`, request.nextUrl.origin).toString();
+
+    if (auth.success) {
+      dispatchFileWebhook(auth.apiKey!, 'file.created', {
+        id: record.id,
+        name: record.name,
+        size: record.size,
+        mimeType: record.mimeType,
+        shortId: record.shortId,
+      });
+    }
 
     return NextResponse.json({
       success: true,

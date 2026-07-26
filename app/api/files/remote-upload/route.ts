@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey } from '@/app/lib/auth/api-auth';
 import { createPresignedUploadUrl, createPresignedDownloadUrl, buildApiObjectKey } from '@/app/lib/storage/r2-storage';
-import { createFileRecord } from '@/app/lib/data/api-file-store';
+import { createFileRecord, getOwnerStorageUsed } from '@/app/lib/data/api-file-store';
+import { getStorageLimit } from '@/app/lib/data/api-key-store';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
+import { dispatchFileWebhook } from '@/app/lib/webhooks/dispatch';
 
 const ANON_MAX_FILE_BYTES = 25 * 1024 * 1024 * 1024; // 25GB
 const ANON_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, matches rootz's anonymous remote-upload expiry
@@ -97,6 +99,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let remainingQuota = Infinity;
+    if (ownerId) {
+      const storageLimit = getStorageLimit(auth.apiKey!);
+      const used = await getOwnerStorageUsed(ownerId);
+      remainingQuota = storageLimit - used;
+      if (remainingQuota <= 0 || (Number.isFinite(declaredSize) && declaredSize > remainingQuota)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Storage limit exceeded: ${used} of ${storageLimit} bytes used.`,
+          },
+          { status: 507 }
+        );
+      }
+    }
+
     const urlNameRaw = parsedUrl.pathname.split('/').filter(Boolean).pop() || '';
     const fileName = sanitizeFilename(urlNameRaw || 'remote-file');
 
@@ -109,11 +127,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Remote response had no body' }, { status: 400 });
     }
 
+    const streamCap = Math.min(maxFileBytes, remainingQuota);
     let streamedBytes = 0;
     const limiter = new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
         streamedBytes += chunk.byteLength;
-        if (streamedBytes > maxFileBytes) {
+        if (streamedBytes > streamCap) {
           controller.error(new Error('File too large'));
           return;
         }
@@ -145,6 +164,16 @@ export async function POST(request: NextRequest) {
     });
 
     const url = await createPresignedDownloadUrl({ objectKey, expiresInSeconds: 24 * 60 * 60 });
+
+    if (auth.success) {
+      dispatchFileWebhook(auth.apiKey!, 'file.created', {
+        id: record.id,
+        name: record.name,
+        size: record.size,
+        mimeType: record.mimeType,
+        shortId: record.shortId,
+      });
+    }
 
     return NextResponse.json({
       success: true,
