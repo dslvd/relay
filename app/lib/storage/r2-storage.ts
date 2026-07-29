@@ -81,6 +81,17 @@ export function buildApiObjectKey(ownerId: string | null, fileName: string): str
   return normalizeObjectKey(`d/api/${ownerId || 'anon'}/${uniquePrefix}-${safeName}`);
 }
 
+// Builds a plain `d/{unique-name}` storage key, matching the shape the
+// first-party web UI already uses for regular file uploads (see
+// app/page.tsx's `newUrl = ${origin}/d/${objectKey.split('/').pop()}`) so
+// server-generated objects (like snippets) resolve through the same /d/
+// share page without any special-casing.
+export function buildObjectKey(fileName: string): string {
+  const safeName = fileName.replace(/[/\\]/g, '_').trim().slice(-150) || 'file';
+  const uniquePrefix = `${Date.now()}-${randomBytes(4).toString('hex')}`;
+  return normalizeObjectKey(`d/${uniquePrefix}-${safeName}`);
+}
+
 export function buildPublicObjectUrl(objectKey: string): string {
   return `${getR2PublicBaseUrl()}/${normalizeObjectKey(objectKey)}`;
 }
@@ -134,6 +145,25 @@ export async function createPresignedDownloadUrl(input: {
   return getSignedUrl(getR2Client(), command, {
     expiresIn: input.expiresInSeconds ?? 60,
   });
+}
+
+// Direct server-side put for small, server-generated text payloads (e.g.
+// pasted code snippets) - unlike file uploads there's no client involved
+// that needs a presigned URL to PUT its own bytes to, so this skips that
+// round trip entirely.
+export async function putObjectText(input: {
+  objectKey: string;
+  content: string;
+  contentType?: string;
+}): Promise<void> {
+  const command = new PutObjectCommand({
+    Bucket: getR2BucketName(),
+    Key: normalizeObjectKey(input.objectKey),
+    Body: input.content,
+    ContentType: input.contentType || 'text/plain; charset=utf-8',
+  });
+
+  await getR2Client().send(command);
 }
 
 export async function deleteObject(objectKey: string): Promise<void> {

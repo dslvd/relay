@@ -35,12 +35,17 @@ create table if not exists upload_records (
   favorite boolean,
   display_name text,
   updated_at bigint,
+  kind text not null default 'file' check (kind in ('file', 'snippet')),
+  language text,
   unique (scope, url)
 );
 create index if not exists idx_upload_records_scope on upload_records (scope);
 create index if not exists idx_upload_records_owner on upload_records (owner_id);
 create index if not exists idx_upload_records_folder on upload_records (folder);
 create index if not exists idx_upload_records_last_access on upload_records (last_access_time);
+-- Migration for tables created before kind/language existed (code snippets).
+alter table upload_records add column if not exists kind text not null default 'file' check (kind in ('file', 'snippet'));
+alter table upload_records add column if not exists language text;
 alter table upload_records enable row level security;
 
 -- Folders (flat, shared list used to organize uploads).

@@ -42,11 +42,36 @@ interface NewKeyData {
   warning: string;
 }
 
+// Matches app/plus/dashboard/page.tsx's `glass` card treatment, so this page
+// reads as the same product instead of a separate flat-Tailwind dashboard.
+const glass = {
+  background: 'var(--surface-card)',
+  border: '1px solid var(--border-default)',
+};
+
+function StatusDot({ active, tone = 'mint' }: { active: boolean; tone?: 'mint' | 'error' }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: '6px',
+        height: '6px',
+        borderRadius: '50%',
+        flexShrink: 0,
+        background: tone === 'error' ? 'var(--c-accent-error)' : 'var(--c-accent-mint)',
+        boxShadow: active ? `0 0 0 3px ${tone === 'error' ? 'rgba(255,158,158,0.18)' : 'rgba(126,244,203,0.18)'}` : 'none',
+        animation: active ? 'pulseDot 1.3s ease-in-out infinite' : 'none',
+        transition: 'box-shadow 0.3s ease, background 0.3s ease',
+      }}
+    />
+  );
+}
+
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-lg p-4">
-      <div className="text-[var(--c-dim)] text-xs mb-1">{label}</div>
-      <div className="text-xl font-semibold font-mono">{value}</div>
+    <div style={{ ...glass, borderRadius: '14px', padding: '0.9rem 1rem' }}>
+      <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginBottom: '0.3rem' }}>{label}</div>
+      <div style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{value}</div>
     </div>
   );
 }
@@ -54,14 +79,64 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-[var(--c-dim)] mb-1.5">{label}</label>
+      <label style={{ display: 'block', fontSize: '0.66rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-dim)', marginBottom: '0.4rem' }}>
+        {label}
+      </label>
       {children}
     </div>
   );
 }
 
-const inputClass =
-  'w-full bg-[var(--surface-input)] border border-[var(--border-input)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--border-strong)] transition-colors';
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '0.6rem 0.85rem',
+  borderRadius: '10px',
+  border: '1px solid var(--border-input)',
+  background: 'var(--surface-input)',
+  color: 'var(--c-text)',
+  fontSize: '0.82rem',
+  outline: 'none',
+  boxSizing: 'border-box',
+  transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+};
+
+function pillButtonStyle(variant: 'primary' | 'secondary' | 'danger' | 'warning', disabled?: boolean): React.CSSProperties {
+  const base: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.4rem',
+    padding: '0.55rem 1.1rem',
+    borderRadius: '999px',
+    fontSize: '0.8rem',
+    fontWeight: 600,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    transition: 'all 0.18s ease',
+    border: '1px solid transparent',
+    opacity: disabled ? 0.55 : 1,
+  };
+  if (variant === 'primary') {
+    return { ...base, background: 'rgba(233,236,242,0.92)', color: '#0a0a0a', border: '1px solid rgba(255,255,255,0.12)' };
+  }
+  if (variant === 'danger') {
+    return { ...base, background: 'rgba(255,158,158,0.08)', color: 'var(--c-accent-error)', border: '1px solid rgba(255,158,158,0.22)' };
+  }
+  if (variant === 'warning') {
+    return { ...base, background: 'rgba(251,191,36,0.08)', color: '#f2c879', border: '1px solid rgba(251,191,36,0.25)' };
+  }
+  return { ...base, ...glass, color: 'var(--c-text)' };
+}
+
+function permissionPillStyle(color: string): React.CSSProperties {
+  return {
+    padding: '0.2rem 0.6rem',
+    borderRadius: '999px',
+    fontSize: '0.65rem',
+    fontWeight: 600,
+    background: `${color}1a`,
+    color,
+  };
+}
 
 export default function DeveloperDashboard() {
   const router = useRouter();
@@ -234,25 +309,54 @@ export default function DeveloperDashboard() {
 
   return (
     <div
-      className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-6 sm:p-10"
-      style={{ fontFamily: 'var(--font-body)' }}
+      style={{
+        minHeight: '100vh',
+        background:
+          'radial-gradient(ellipse at 30% 20%, var(--wash-violet) 0%, var(--wash-base) 55%), radial-gradient(ellipse at 75% 80%, var(--wash-teal) 0%, var(--wash-base) 60%)',
+        backgroundAttachment: 'fixed',
+        color: 'var(--c-text)',
+        fontFamily: 'var(--font-body)',
+        padding: '2.2rem clamp(1.2rem, 4vw, 3rem)',
+      }}
     >
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
+      <style>{`
+        @keyframes pulseDot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.55; transform: scale(0.82); }
+        }
+      `}</style>
+
+      <div style={{ maxWidth: '880px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '1.8rem' }}>
           {isPlus && (
             <Link
               href="/plus/dashboard"
-              className="inline-flex items-center gap-1 text-xs text-[var(--c-dim)] hover:text-[var(--foreground)] transition-colors mb-3"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: 'var(--c-dim)', textDecoration: 'none', marginBottom: '0.6rem' }}
             >
               ← Plus vault
             </Link>
           )}
-          <h1 className="text-2xl font-semibold mb-1.5">Relay API</h1>
-          <p className="text-[var(--c-dim)] text-sm">Manage your API keys and integrate with Relay.</p>
+          <div style={{
+            display: 'inline-block',
+            marginBottom: '0.5rem',
+            padding: '0.15rem 0.5rem',
+            borderRadius: '999px',
+            fontSize: '0.62rem',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            background: 'rgba(126,244,203,0.14)',
+            color: 'var(--c-accent-mint)',
+          }}>
+            DEVELOPER API
+          </div>
+          <h1 style={{ margin: 0, fontSize: 'clamp(1.5rem, 3.4vw, 1.9rem)' }}>Relay API</h1>
+          <p style={{ margin: '0.3rem 0 0', color: 'var(--c-sub)', fontSize: '0.85rem' }}>
+            Manage your API keys and integrate with Relay.
+          </p>
         </div>
 
         {/* Stats overview */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.7rem', marginBottom: '1.6rem' }}>
           <StatCard label="Total keys" value={keys.length} />
           <StatCard label="Active keys" value={keys.filter((k) => k.isActive).length} />
           <StatCard label="Total uploads" value={keys.reduce((sum, k) => sum + k.usage.uploadCount, 0)} />
@@ -260,65 +364,65 @@ export default function DeveloperDashboard() {
         </div>
 
         {/* Action buttons */}
-        <div className="mb-6 flex gap-2">
-          <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="bg-[var(--foreground)] text-[var(--background)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition cursor-pointer"
-          >
+        <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.6rem', flexWrap: 'wrap' }}>
+          <button onClick={() => setShowCreateForm(!showCreateForm)} style={pillButtonStyle('primary')}>
             {showCreateForm ? 'Cancel' : '+ Create new API key'}
           </button>
-          <button
-            onClick={() => router.push('/docs')}
-            className="bg-[var(--surface-card)] text-[var(--foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[var(--surface-hover)] transition border border-[var(--border-subtle)] cursor-pointer"
-          >
+          <button onClick={() => router.push('/docs')} style={pillButtonStyle('secondary')}>
             View documentation
           </button>
         </div>
 
         {/* Create key form */}
         {showCreateForm && (
-          <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-lg p-5 mb-6">
-            <h2 className="text-sm font-semibold mb-4">Create new API key</h2>
-            <div className="space-y-4">
+          <div style={{ ...glass, borderRadius: '18px', padding: '1.3rem', marginBottom: '1.6rem', boxShadow: '0 8px 32px rgba(0,0,0,0.28)' }}>
+            <h2 style={{ margin: '0 0 1rem', fontSize: '0.85rem', fontWeight: 600 }}>Create new API key</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <Field label="Key name">
                 <input
                   type="text"
                   value={keyName}
                   onChange={(e) => setKeyName(e.target.value)}
                   placeholder="e.g., Production Server"
-                  className={inputClass}
+                  style={inputStyle}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--c-accent-mint)'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-input)'; }}
                 />
               </Field>
 
               <div>
-                <label className="block text-xs font-medium text-[var(--c-dim)] mb-1.5">Permissions</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={uploadPerm} onChange={(e) => setUploadPerm(e.target.checked)} className="w-3.5 h-3.5" />
+                <label style={{ display: 'block', fontSize: '0.66rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>
+                  Permissions
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.6rem', fontSize: '0.82rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={uploadPerm} onChange={(e) => setUploadPerm(e.target.checked)} style={{ width: '14px', height: '14px', accentColor: '#7ef4cb' }} />
                     Upload
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={downloadPerm} onChange={(e) => setDownloadPerm(e.target.checked)} className="w-3.5 h-3.5" />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={downloadPerm} onChange={(e) => setDownloadPerm(e.target.checked)} style={{ width: '14px', height: '14px', accentColor: '#7ef4cb' }} />
                     Download
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={deletePerm} onChange={(e) => setDeletePerm(e.target.checked)} className="w-3.5 h-3.5" />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={deletePerm} onChange={(e) => setDeletePerm(e.target.checked)} style={{ width: '14px', height: '14px', accentColor: '#7ef4cb' }} />
                     Delete
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={listPerm} onChange={(e) => setListPerm(e.target.checked)} className="w-3.5 h-3.5" />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={listPerm} onChange={(e) => setListPerm(e.target.checked)} style={{ width: '14px', height: '14px', accentColor: '#7ef4cb' }} />
                     List
                   </label>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
                 <Field label="Requests per hour">
                   <input
                     type="number"
                     value={requestsPerHour}
                     onChange={(e) => setRequestsPerHour(parseInt(e.target.value))}
-                    className={inputClass}
+                    style={inputStyle}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--c-accent-mint)'; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-input)'; }}
                   />
                 </Field>
                 <Field label="Max upload size (MB)">
@@ -326,7 +430,9 @@ export default function DeveloperDashboard() {
                     type="number"
                     value={uploadSizeMB}
                     onChange={(e) => setUploadSizeMB(parseInt(e.target.value))}
-                    className={inputClass}
+                    style={inputStyle}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--c-accent-mint)'; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-input)'; }}
                   />
                 </Field>
               </div>
@@ -337,14 +443,16 @@ export default function DeveloperDashboard() {
                   value={expiresInDays || ''}
                   onChange={(e) => setExpiresInDays(e.target.value ? parseInt(e.target.value) : undefined)}
                   placeholder="Leave empty for no expiration"
-                  className={inputClass}
+                  style={inputStyle}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--c-accent-mint)'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-input)'; }}
                 />
               </Field>
 
               <button
                 onClick={createKey}
                 disabled={creating}
-                className="w-full bg-[var(--foreground)] text-[var(--background)] px-4 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition disabled:opacity-50 cursor-pointer"
+                style={{ ...pillButtonStyle('primary', creating), width: '100%', padding: '0.7rem 1rem' }}
               >
                 {creating ? 'Creating…' : 'Create API key'}
               </button>
@@ -353,111 +461,107 @@ export default function DeveloperDashboard() {
         )}
 
         {/* API keys list */}
-        <div className="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
-            <h2 className="text-sm font-semibold">Your API keys</h2>
+        <div style={{ ...glass, borderRadius: '18px', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.28)' }}>
+          <div style={{ padding: '1rem 1.3rem', borderBottom: '1px solid var(--border-subtle)' }}>
+            <h2 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>Your API keys</h2>
           </div>
 
           {loading ? (
-            <div className="p-10 text-center text-[var(--c-dim)] text-sm">Loading…</div>
+            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--c-dim)', fontSize: '0.85rem' }}>Loading…</div>
           ) : keys.length === 0 ? (
-            <div className="p-10 text-center text-[var(--c-dim)] text-sm">No API keys yet. Create one to get started.</div>
+            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--c-dim)', fontSize: '0.85rem' }}>
+              No API keys yet. Create one to get started.
+            </div>
           ) : (
-            <div className="divide-y divide-[var(--border-subtle)]">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '1rem' }}>
               {keys.map((key) => (
-                <div key={key.id} className="p-5 hover:bg-[var(--surface-hover)] transition">
-                  <div className="flex items-start justify-between mb-3">
+                <div
+                  key={key.id}
+                  style={{
+                    padding: '0.9rem 1rem',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--surface-well)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.8rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
                     <div>
-                      <h3 className="text-sm font-semibold mb-0.5">{key.name}</h3>
-                      <p className="text-xs text-[var(--c-dim)] font-mono">{key.keyPreview}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.2rem' }}>
+                        {key.name}
+                        <StatusDot active={key.isActive} tone={key.isActive ? 'mint' : 'error'} />
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--c-dim)', fontFamily: 'var(--font-mono)' }}>{key.keyPreview}</p>
                     </div>
-                    <div className="flex gap-1.5">
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                       {key.isActive ? (
                         <>
-                          <button
-                            onClick={() => copyToClipboard(integrationSnippet('YOUR_API_KEY'))}
-                            className="px-3 py-1.5 bg-[var(--surface-card)] text-[var(--foreground)] rounded-md hover:bg-[var(--surface-hover)] transition text-xs border border-[var(--border-subtle)] cursor-pointer"
-                          >
+                          <button onClick={() => copyToClipboard(integrationSnippet('YOUR_API_KEY'))} style={{ ...pillButtonStyle('secondary'), padding: '0.4rem 0.85rem', fontSize: '0.72rem' }}>
                             Copy integration link
                           </button>
-                          <button
-                            onClick={() => revokeKey(key.id)}
-                            className="px-3 py-1.5 bg-[var(--surface-card)] text-amber-500 rounded-md hover:bg-amber-500/10 transition text-xs border border-[var(--border-subtle)] cursor-pointer"
-                          >
+                          <button onClick={() => revokeKey(key.id)} style={{ ...pillButtonStyle('warning'), padding: '0.4rem 0.85rem', fontSize: '0.72rem' }}>
                             Revoke
                           </button>
-                          <button
-                            onClick={() => deleteKey(key.id)}
-                            className="px-3 py-1.5 bg-[var(--surface-card)] text-red-500 rounded-md hover:bg-red-500/10 transition text-xs border border-[var(--border-subtle)] cursor-pointer"
-                          >
+                          <button onClick={() => deleteKey(key.id)} style={{ ...pillButtonStyle('danger'), padding: '0.4rem 0.85rem', fontSize: '0.72rem' }}>
                             Delete
                           </button>
                         </>
                       ) : (
-                        <span className="px-3 py-1.5 text-red-500 rounded-md text-xs">Revoked</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--c-accent-error)', padding: '0.4rem 0.6rem' }}>Revoked</span>
                       )}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '0.7rem', marginBottom: '0.7rem' }}>
                     <div>
-                      <div className="text-[0.65rem] text-[var(--c-dim)] mb-0.5">Created</div>
-                      <div className="text-xs">{formatDate(key.createdAt)}</div>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--c-dim)', marginBottom: '0.15rem' }}>Created</div>
+                      <div style={{ fontSize: '0.74rem' }}>{formatDate(key.createdAt)}</div>
                     </div>
                     <div>
-                      <div className="text-[0.65rem] text-[var(--c-dim)] mb-0.5">Last used</div>
-                      <div className="text-xs">{formatDate(key.lastUsedAt)}</div>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--c-dim)', marginBottom: '0.15rem' }}>Last used</div>
+                      <div style={{ fontSize: '0.74rem' }}>{formatDate(key.lastUsedAt)}</div>
                     </div>
                     <div>
-                      <div className="text-[0.65rem] text-[var(--c-dim)] mb-0.5">Expires</div>
-                      <div className="text-xs">{key.expiresAt ? formatDate(key.expiresAt) : 'Never'}</div>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--c-dim)', marginBottom: '0.15rem' }}>Expires</div>
+                      <div style={{ fontSize: '0.74rem' }}>{key.expiresAt ? formatDate(key.expiresAt) : 'Never'}</div>
                     </div>
                     <div>
-                      <div className="text-[0.65rem] text-[var(--c-dim)] mb-0.5">Status</div>
-                      <div className="text-xs">
-                        {key.isActive ? (
-                          <span className="text-[var(--c-accent-mint)]">● Active</span>
-                        ) : (
-                          <span className="text-red-500">● Inactive</span>
-                        )}
+                      <div style={{ fontSize: '0.62rem', color: 'var(--c-dim)', marginBottom: '0.15rem' }}>Status</div>
+                      <div style={{ fontSize: '0.74rem', color: key.isActive ? 'var(--c-accent-mint)' : 'var(--c-accent-error)' }}>
+                        {key.isActive ? 'Active' : 'Inactive'}
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3 text-xs font-mono">
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '0.7rem', marginBottom: '0.7rem' }}>
                     <div>
-                      <div className="text-[0.65rem] text-[var(--c-dim)] mb-0.5 font-sans">Requests</div>
-                      {key.usage.requestCount.toLocaleString()}
+                      <div style={{ fontSize: '0.62rem', color: 'var(--c-dim)', marginBottom: '0.15rem' }}>Requests</div>
+                      <div style={{ fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}>{key.usage.requestCount.toLocaleString()}</div>
                     </div>
                     <div>
-                      <div className="text-[0.65rem] text-[var(--c-dim)] mb-0.5 font-sans">Uploads</div>
-                      {key.usage.uploadCount.toLocaleString()}
+                      <div style={{ fontSize: '0.62rem', color: 'var(--c-dim)', marginBottom: '0.15rem' }}>Uploads</div>
+                      <div style={{ fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}>{key.usage.uploadCount.toLocaleString()}</div>
                     </div>
                     <div>
-                      <div className="text-[0.65rem] text-[var(--c-dim)] mb-0.5 font-sans">Downloads</div>
-                      {key.usage.downloadCount.toLocaleString()}
+                      <div style={{ fontSize: '0.62rem', color: 'var(--c-dim)', marginBottom: '0.15rem' }}>Downloads</div>
+                      <div style={{ fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}>{key.usage.downloadCount.toLocaleString()}</div>
                     </div>
                     <div>
-                      <div className="text-[0.65rem] text-[var(--c-dim)] mb-0.5 font-sans">Uploaded</div>
-                      {formatBytes(key.usage.totalBytesUploaded)}
+                      <div style={{ fontSize: '0.62rem', color: 'var(--c-dim)', marginBottom: '0.15rem' }}>Uploaded</div>
+                      <div style={{ fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}>{formatBytes(key.usage.totalBytesUploaded)}</div>
                     </div>
                     <div>
-                      <div className="text-[0.65rem] text-[var(--c-dim)] mb-0.5 font-sans">Downloaded</div>
-                      {formatBytes(key.usage.totalBytesDownloaded)}
+                      <div style={{ fontSize: '0.62rem', color: 'var(--c-dim)', marginBottom: '0.15rem' }}>Downloaded</div>
+                      <div style={{ fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}>{formatBytes(key.usage.totalBytesDownloaded)}</div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 text-[0.65rem]">
-                    <span className="px-2 py-1 bg-[var(--surface-card-strong)] rounded-md text-[var(--c-dim)]">
-                      {key.rateLimit.requestsPerHour} req/hr
-                    </span>
-                    <span className="px-2 py-1 bg-[var(--surface-card-strong)] rounded-md text-[var(--c-dim)]">
-                      Max {Math.round(key.rateLimit.uploadSizeLimit / (1024 * 1024))}MB
-                    </span>
-                    {key.permissions.upload && <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded-md">Upload</span>}
-                    {key.permissions.download && <span className="px-2 py-1 bg-[var(--c-accent-mint)]/10 text-[var(--c-accent-mint)] rounded-md">Download</span>}
-                    {key.permissions.delete && <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded-md">Delete</span>}
-                    {key.permissions.list && <span className="px-2 py-1 bg-purple-500/10 text-purple-400 rounded-md">List</span>}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    <span style={permissionPillStyle('var(--c-dim)')}>{key.rateLimit.requestsPerHour} req/hr</span>
+                    <span style={permissionPillStyle('var(--c-dim)')}>Max {Math.round(key.rateLimit.uploadSizeLimit / (1024 * 1024))}MB</span>
+                    {key.permissions.upload && <span style={permissionPillStyle('#7ba7ff')}>Upload</span>}
+                    {key.permissions.download && <span style={permissionPillStyle('#7ef4cb')}>Download</span>}
+                    {key.permissions.delete && <span style={permissionPillStyle('#ff9e9e')}>Delete</span>}
+                    {key.permissions.list && <span style={permissionPillStyle('#c9a6ff')}>List</span>}
                   </div>
                 </div>
               ))}
@@ -468,40 +572,45 @@ export default function DeveloperDashboard() {
 
       {/* New key modal */}
       {showNewKeyModal && newKeyData && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-[var(--background)] rounded-lg p-6 max-w-lg w-full border border-[var(--border-default)]">
-            <h2 className="text-lg font-semibold mb-3 text-[var(--c-accent-mint)]">API key created</h2>
-            <p className="text-amber-500 text-sm mb-4">⚠ {newKeyData.warning}</p>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 50 }}>
+          <div style={{
+            width: 'min(520px, 94vw)',
+            borderRadius: '20px',
+            border: '1px solid rgba(128,128,128,0.18)',
+            background: 'var(--wash-base)',
+            padding: '1.5rem',
+            boxShadow: '0 22px 60px rgba(0,0,0,0.4)',
+            maxHeight: '86vh',
+            overflow: 'auto',
+          }}>
+            <h2 style={{ margin: '0 0 0.7rem', fontSize: '1.05rem', fontWeight: 700, color: 'var(--c-accent-mint)' }}>API key created</h2>
+            <p style={{ fontSize: '0.8rem', color: '#f2c879', marginBottom: '1rem' }}>⚠ {newKeyData.warning}</p>
 
-            <div className="bg-[var(--surface-well)] p-3.5 rounded-lg mb-5 border border-[var(--border-subtle)]">
-              <div className="text-xs text-[var(--c-dim)] mb-1.5">Your API key</div>
-              <div className="font-mono text-sm break-all mb-2.5">{newKeyData.key}</div>
-              <button
-                onClick={() => copyToClipboard(newKeyData.key)}
-                className="text-xs bg-[var(--surface-card)] hover:bg-[var(--surface-hover)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-md transition cursor-pointer"
-              >
+            <div style={{ background: 'var(--surface-well)', padding: '0.9rem', borderRadius: '12px', marginBottom: '1.2rem', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginBottom: '0.4rem' }}>Your API key</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', wordBreak: 'break-all', marginBottom: '0.6rem' }}>{newKeyData.key}</div>
+              <button onClick={() => copyToClipboard(newKeyData.key)} style={{ ...pillButtonStyle('secondary'), fontSize: '0.72rem', padding: '0.4rem 0.85rem' }}>
                 Copy to clipboard
               </button>
             </div>
 
-            <div className="space-y-1.5 text-xs mb-5">
-              <div><span className="text-[var(--c-dim)]">Name:</span> {newKeyData.name}</div>
-              <div><span className="text-[var(--c-dim)]">ID:</span> <span className="font-mono">{newKeyData.id}</span></div>
-              <div><span className="text-[var(--c-dim)]">Created:</span> {formatDate(newKeyData.createdAt)}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.76rem', marginBottom: '1.2rem' }}>
+              <div><span style={{ color: 'var(--c-dim)' }}>Name:</span> {newKeyData.name}</div>
+              <div><span style={{ color: 'var(--c-dim)' }}>ID:</span> <span style={{ fontFamily: 'var(--font-mono)' }}>{newKeyData.id}</span></div>
+              <div><span style={{ color: 'var(--c-dim)' }}>Created:</span> {formatDate(newKeyData.createdAt)}</div>
               {newKeyData.expiresAt && (
-                <div><span className="text-[var(--c-dim)]">Expires:</span> {formatDate(newKeyData.expiresAt)}</div>
+                <div><span style={{ color: 'var(--c-dim)' }}>Expires:</span> {formatDate(newKeyData.expiresAt)}</div>
               )}
             </div>
 
-            <div className="bg-[var(--surface-well)] p-3.5 rounded-lg mb-5 border border-[var(--border-subtle)]">
-              <div className="text-xs text-[var(--c-dim)] mb-1.5">
+            <div style={{ background: 'var(--surface-well)', padding: '0.9rem', borderRadius: '12px', marginBottom: '1.2rem', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>
                 Integration link for &quot;{newKeyData.name}&quot; &mdash; paste this into that project now, since the key won&apos;t be shown again
               </div>
-              <pre className="font-mono text-[0.7rem] whitespace-pre-wrap break-all mb-2.5">{integrationSnippet(newKeyData.key)}</pre>
-              <button
-                onClick={() => copyToClipboard(integrationSnippet(newKeyData.key))}
-                className="text-xs bg-[var(--surface-card)] hover:bg-[var(--surface-hover)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-md transition cursor-pointer"
-              >
+              <pre style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '0 0 0.6rem', color: 'var(--c-text)' }}>
+                {integrationSnippet(newKeyData.key)}
+              </pre>
+              <button onClick={() => copyToClipboard(integrationSnippet(newKeyData.key))} style={{ ...pillButtonStyle('secondary'), fontSize: '0.72rem', padding: '0.4rem 0.85rem' }}>
                 Copy integration snippet
               </button>
             </div>
@@ -511,7 +620,7 @@ export default function DeveloperDashboard() {
                 setShowNewKeyModal(false);
                 setNewKeyData(null);
               }}
-              className="w-full bg-[var(--foreground)] text-[var(--background)] px-4 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition cursor-pointer"
+              style={{ ...pillButtonStyle('primary'), width: '100%', padding: '0.7rem 1rem' }}
             >
               I&apos;ve saved my key
             </button>

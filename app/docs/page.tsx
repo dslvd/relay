@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import LordIcon from '../components/LordIcon';
 
 type SectionId =
   | 'welcome'
@@ -315,7 +316,10 @@ export default function ApiDocumentation() {
               </button>
             </div>
             <div>
-              <h3 className="text-xs font-semibold text-[var(--c-dim)] uppercase tracking-wider mb-3">API</h3>
+              <h3 className="text-xs font-semibold text-[var(--c-dim)] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                API
+                <LordIcon name="api" size={18} trigger="loop" delay={5000} state="in-api" colors="primary:#000000" target={false} />
+              </h3>
               <div className="space-y-1">
                 <button onClick={() => navigate('overview')} className={navButtonClass(section === 'overview')}>
                   Overview

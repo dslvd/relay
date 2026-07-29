@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import LordIcon from '../../components/LordIcon';
+import CodeBlock from '../../components/CodeBlock';
+import { languageFromFilename } from '../../lib/lang-map';
+
+const RepoBrowser = dynamic(() => import('./RepoBrowser'), { ssr: false });
 
 interface UploadRecord {
   url: string;
@@ -11,6 +18,8 @@ interface UploadRecord {
   lastAccessTime?: number;
   expiresAt?: number;
   size?: number;
+  kind?: 'file' | 'snippet';
+  language?: string;
 }
 
 export default function DownloadPage() {
@@ -47,18 +56,22 @@ export default function DownloadPage() {
     ? `${window.location.origin}/p/${pathKey}`
     : `/p/${pathKey}`;
 
-  const isPreviewable = (fname: string): boolean => {
+  const isPreviewable = (fname: string, kind?: string): boolean => {
+    if (kind === 'snippet') return true;
     const ext = fname.split('.').pop()?.toLowerCase() || '';
-    const previewableTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'ogg', 'pdf', 'txt', 'json', 'md'];
+    const previewableTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'ogg', 'pdf', 'txt', 'json', 'md', 'zip'];
     return previewableTypes.includes(ext);
   };
 
-  const getFileType = (fname: string): string => {
+  const getFileType = (fname: string, kind?: string): string => {
+    if (kind === 'snippet') return 'snippet';
     const ext = fname.split('.').pop()?.toLowerCase() || '';
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
     if (['mp4', 'webm', 'ogg'].includes(ext)) return 'video';
     if (ext === 'pdf') return 'pdf';
-    if (['txt', 'json', 'md'].includes(ext)) return 'text';
+    if (ext === 'zip') return 'repo';
+    if (ext === 'md') return 'markdown';
+    if (['txt', 'json'].includes(ext)) return 'text';
     return 'unknown';
   };
 
@@ -66,7 +79,7 @@ export default function DownloadPage() {
     const directAbs = typeof window !== 'undefined'
       ? `${window.location.origin}${downloadUrl}`
       : downloadUrl;
-    const type = getFileType(fileData?.filename || filename);
+    const type = getFileType(fileData?.filename || filename, fileData?.kind);
     if (type === 'image') {
       return `<a href="${shortLink}" target="_blank" rel="noreferrer"><img src="${directAbs}" alt="${(fileData?.filename || filename).replace(/"/g, '')}" style="max-width:100%;height:auto" /></a>`;
     }
@@ -116,7 +129,8 @@ export default function DownloadPage() {
   useEffect(() => {
     if (!showPreview) return;
     if (!fileData) return;
-    if (getFileType(fileData.filename) !== 'text') return;
+    const previewType = getFileType(fileData.filename, fileData.kind);
+    if (!['text', 'markdown', 'snippet'].includes(previewType)) return;
 
     let cancelled = false;
     (async () => {
@@ -397,7 +411,10 @@ export default function DownloadPage() {
         ) : (
           <section
             style={{
-              width: 'min(500px, 92vw)',
+              width:
+                showPreview && getFileType(fileData.filename, fileData.kind) === 'repo'
+                  ? 'min(960px, 94vw)'
+                  : 'min(500px, 92vw)',
               borderRadius: '20px',
               border: '1px solid rgba(128,128,128,0.18)',
               background: 'rgba(128,128,128,0.05)',
@@ -472,7 +489,7 @@ export default function DownloadPage() {
                       </span>
                     </div>
                   )}
-                  {getFileType(fileData.filename) === 'image' && (
+                  {getFileType(fileData.filename, fileData.kind) === 'image' && (
                     <img
                       src={downloadUrl}
                       alt="Preview"
@@ -481,7 +498,7 @@ export default function DownloadPage() {
                       onError={() => setPreviewLoading(false)}
                     />
                   )}
-                  {getFileType(fileData.filename) === 'video' && (
+                  {getFileType(fileData.filename, fileData.kind) === 'video' && (
                     <video
                       controls
                       style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }}
@@ -492,14 +509,18 @@ export default function DownloadPage() {
                       Your browser does not support the video tag.
                     </video>
                   )}
-                  {getFileType(fileData.filename) === 'pdf' && (
+                  {getFileType(fileData.filename, fileData.kind) === 'pdf' && (
                     <iframe
                       src={downloadUrl}
                       style={{ width: '100%', height: '100%', borderRadius: '12px', border: 'none' }}
                       onLoad={() => setPreviewLoading(false)}
                     />
                   )}
-                  {getFileType(fileData.filename) === 'text' && (
+                  {getFileType(fileData.filename, fileData.kind) === 'repo' && (
+                    <RepoBrowser downloadUrl={downloadUrl} onReady={() => setPreviewLoading(false)} />
+                  )}
+                  {(getFileType(fileData.filename, fileData.kind) === 'text' ||
+                    getFileType(fileData.filename, fileData.kind) === 'snippet') && (
                     <div
                       style={{
                         width: '100%',
@@ -511,24 +532,92 @@ export default function DownloadPage() {
                         padding: '0.8rem',
                       }}
                     >
-                      <pre
-                        style={{
-                          margin: 0,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          fontSize: '0.78rem',
-                          lineHeight: 1.45,
-                          fontFamily:
-                            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                          color: 'var(--c-text)',
-                        }}
-                      >
-                        {previewText || (previewLoading ? 'Loading…' : 'No preview')}
-                      </pre>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(previewText);
+                            setIsCopied(true);
+                            setTimeout(() => setIsCopied(false), 2000);
+                          }}
+                          style={{
+                            padding: '0.3rem 0.65rem', borderRadius: '999px',
+                            border: '1px solid rgba(128,128,128,0.22)', background: 'rgba(128,128,128,0.07)',
+                            color: 'var(--c-text)', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer',
+                          }}
+                        >
+                          {isCopied ? 'Copied' : 'Copy code'}
+                        </button>
+                        <a
+                          href={downloadUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            padding: '0.3rem 0.65rem', borderRadius: '999px',
+                            border: '1px solid rgba(128,128,128,0.22)', background: 'rgba(128,128,128,0.07)',
+                            color: 'var(--c-text)', fontSize: '0.68rem', fontWeight: 600, textDecoration: 'none',
+                          }}
+                        >
+                          Raw
+                        </a>
+                      </div>
+                      {previewText ? (
+                        <CodeBlock
+                          code={previewText}
+                          language={fileData.language || languageFromFilename(fileData.filename)}
+                        />
+                      ) : (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--c-dim)' }}>
+                          {previewLoading ? 'Loading…' : 'No preview'}
+                        </span>
+                      )}
                       {previewTextTruncated && (
                         <div style={{ marginTop: '0.6rem', fontSize: '0.72rem', color: 'var(--c-dim)' }}>
                           Preview truncated.
                         </div>
+                      )}
+                    </div>
+                  )}
+                  {getFileType(fileData.filename, fileData.kind) === 'markdown' && (
+                    <div
+                      className="markdown-body"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(128,128,128,0.14)',
+                        background: 'rgba(128,128,128,0.06)',
+                        overflow: 'auto',
+                        padding: '1rem 1.2rem',
+                        textAlign: 'left',
+                      }}
+                    >
+                      {previewText ? (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            code(props) {
+                              const { children, className } = props;
+                              const match = /language-(\w+)/.exec(className || '');
+                              // No language className = inline `code` span, not a fenced block -
+                              // rendering that through CodeBlock would force it onto its own line.
+                              if (!match) {
+                                return <code className={className}>{children}</code>;
+                              }
+                              return (
+                                <CodeBlock
+                                  code={String(children).replace(/\n$/, '')}
+                                  language={match[1]}
+                                />
+                              );
+                            },
+                          }}
+                        >
+                          {previewText}
+                        </ReactMarkdown>
+                      ) : (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--c-dim)' }}>
+                          {previewLoading ? 'Loading…' : 'No preview'}
+                        </span>
                       )}
                     </div>
                   )}
@@ -693,7 +782,7 @@ export default function DownloadPage() {
                     )}
                   </button>
 
-                  {isPreviewable(fileData.filename) && (
+                  {isPreviewable(fileData.filename, fileData.kind) && (
                     <button
                       onClick={() => { setPreviewLoading(true); setShowPreview(true); }}
                       style={{
@@ -716,7 +805,7 @@ export default function DownloadPage() {
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(128,128,128,0.07)'; }}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      Preview
+                      {getFileType(fileData.filename, fileData.kind) === 'repo' ? 'Browse repo' : 'Preview'}
                     </button>
                   )}
                 </div>

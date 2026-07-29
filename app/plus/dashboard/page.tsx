@@ -11,6 +11,8 @@ interface UploadRecord {
   expiresAt: number;
   size: number;
   folder?: string;
+  displayName?: string;
+  kind?: 'file' | 'snippet';
 }
 
 interface FolderRecord {
@@ -303,7 +305,8 @@ export default function PlusDashboard() {
     })
     .filter((file) => {
       if (!searchQuery.trim()) return true;
-      return file.filename.toLowerCase().includes(searchQuery.toLowerCase());
+      const q = searchQuery.toLowerCase();
+      return file.filename.toLowerCase().includes(q) || (file.displayName?.toLowerCase().includes(q) ?? false);
     });
 
   const totalBytes = uploads.reduce((sum, file) => sum + (file.size || 0), 0);
@@ -348,7 +351,7 @@ export default function PlusDashboard() {
           background: 'radial-gradient(ellipse at 30% 20%, var(--wash-violet) 0%, var(--wash-base) 55%), radial-gradient(ellipse at 75% 80%, var(--wash-teal) 0%, var(--wash-base) 60%)',
           backgroundAttachment: 'fixed',
           color: 'var(--c-text)',
-          fontFamily: "'Sora', sans-serif",
+          fontFamily: 'var(--font-body)',
         }}
       >
         <input
@@ -394,7 +397,7 @@ export default function PlusDashboard() {
 
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
             <div className="navItem" style={{ padding: '0.5rem 0.6rem', borderRadius: '8px', background: 'var(--surface-card-strong)', fontSize: '0.82rem', fontWeight: 600 }}>
-              Home
+              Dashboard
             </div>
             <Link href="/" className="navItem pressable" style={{ padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
               Upload
@@ -656,7 +659,7 @@ export default function PlusDashboard() {
                     }}
                   >
                     <div style={{ minWidth: 0, flex: '1 1 240px' }}>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, wordBreak: 'break-all' }}>{file.filename}</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, wordBreak: 'break-all' }}>{file.displayName || file.filename}</div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.25rem' }}>
                         {formatFileSize(file.size)} · {formatTimestamp(file.timestamp)}
                       </div>

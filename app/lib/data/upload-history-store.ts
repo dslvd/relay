@@ -15,6 +15,8 @@ export interface UploadRecord {
   favorite?: boolean;
   displayName?: string;
   updatedAt?: number;
+  kind?: 'file' | 'snippet';
+  language?: string;
 }
 
 export type UploadHistoryScope = 'public' | 'plus';
@@ -36,6 +38,8 @@ interface UploadRow {
   favorite: boolean | null;
   display_name: string | null;
   updated_at: number | null;
+  kind: string | null;
+  language: string | null;
 }
 
 // Only used by the in-memory fallback (no Supabase configured) - a real
@@ -58,6 +62,8 @@ function recordFromRow(row: UploadRow): UploadRecord {
     favorite: row.favorite ?? undefined,
     displayName: row.display_name ?? undefined,
     updatedAt: row.updated_at ?? undefined,
+    kind: (row.kind as 'file' | 'snippet' | null) ?? 'file',
+    language: row.language ?? undefined,
   };
 }
 
@@ -78,6 +84,8 @@ function recordToRow(record: UploadRecord, scope: UploadHistoryScope) {
     favorite: record.favorite ?? null,
     display_name: record.displayName ?? null,
     updated_at: record.updatedAt ?? null,
+    kind: record.kind ?? 'file',
+    language: record.language ?? null,
   };
 }
 

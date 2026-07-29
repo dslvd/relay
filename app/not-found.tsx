@@ -1,313 +1,348 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
-import LordIcon from './components/LordIcon';
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-export default function NotFound() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+const PAGES: { path: string; label: string }[] = [
+  { path: '/', label: 'upload files & snippets' },
+  { path: '/docs', label: 'API docs' },
+  { path: '/api', label: 'developer API dashboard' },
+  { path: '/dmca', label: 'DMCA' },
+  { path: '/plus', label: 'Plus login' },
+  { path: '/plus/forgot', label: 'Plus — forgot password' },
+  { path: '/plus/reset', label: 'Plus — reset password' },
+  { path: '/plus/dashboard', label: 'Plus vault dashboard' },
+  { path: '/admin', label: 'admin login' },
+  { path: '/admin/dashboard', label: 'admin dashboard' },
+  { path: '/admin/analytics', label: 'admin analytics' },
+];
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+const ROUTE_PATTERNS: { pattern: string; label: string }[] = [
+  { pattern: '/d/[key]', label: 'share / download page' },
+  { pattern: '/download/[...path]', label: 'legacy download page' },
+  { pattern: '/folder/[code]', label: 'shared folder view' },
+  { pattern: '/dl/[...path]', label: 'raw file download' },
+  { pattern: '/p/[...path]', label: 'CDN passthrough' },
+  { pattern: '/s/[code]', label: 'short link redirect' },
+  { pattern: '/i/[shortId]', label: 'permanent view link' },
+];
 
-    let raf: number;
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    resize();
-    window.addEventListener('resize', resize);
+const COMMANDS = ['help', 'ls', 'cd', 'curl', 'pwd', 'whoami', 'clear'];
 
-    const COUNT = 60;
-    const particles = Array.from({ length: COUNT }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      r: Math.random() * 1.5 + 0.4,
-      vx: (Math.random() - 0.5) * 0.18,
-      vy: (Math.random() - 0.5) * 0.18,
-      o: Math.random() * 0.4 + 0.1,
-    }));
+const rowStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '3.2em 1fr',
+  columnGap: '0.9em',
+  lineHeight: 1.7,
+};
 
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const p of particles) {
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0) p.x = canvas.width;
-        if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height;
-        if (p.y > canvas.height) p.y = 0;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(126,244,203,${p.o})`;
-        ctx.fill();
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
-    };
-  }, []);
-
+function RouteDump() {
   return (
     <>
+      <div style={{ margin: '0.5rem 0 0.3rem', color: 'var(--c-dim, #8a92a1)', fontStyle: 'italic' }}>
+        {'// pages'}
+      </div>
+      {PAGES.map((p) => (
+        <div key={p.path} style={rowStyle}>
+          <span style={{ color: '#b9a6ff' }}>GET</span>
+          <span>
+            <Link href={p.path} className="nf-route-link">{p.path}</Link>
+            <span style={{ color: 'var(--c-dim, #8a92a1)' }}>{'  // ' + p.label}</span>
+          </span>
+        </div>
+      ))}
+
+      <div style={{ margin: '0.9rem 0 0.3rem', color: 'var(--c-dim, #8a92a1)', fontStyle: 'italic' }}>
+        {'// file & content routes — dynamic, need real params'}
+      </div>
+      {ROUTE_PATTERNS.map((r) => (
+        <div key={r.pattern} style={rowStyle}>
+          <span style={{ color: '#b9a6ff' }}>GET</span>
+          <span>
+            <span style={{ color: 'var(--c-accent-mint, #7ef4cb)' }}>{r.pattern}</span>
+            <span style={{ color: 'var(--c-dim, #8a92a1)' }}>{'  // ' + r.label}</span>
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+interface HistoryEntry {
+  id: number;
+  command: string;
+  output: ReactNode;
+}
+
+export default function NotFound() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [input, setInput] = useState('');
+  const [commandLog, setCommandLog] = useState<string[]>([]);
+  const [logIndex, setLogIndex] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const idRef = useRef(0);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [history]);
+
+  const focusInput = () => inputRef.current?.focus();
+
+  const runCommand = (raw: string) => {
+    const trimmed = raw.trim();
+    const id = idRef.current++;
+
+    if (!trimmed) {
+      setHistory((h) => [...h, { id, command: '', output: null }]);
+      return;
+    }
+
+    const [cmd, ...rest] = trimmed.split(/\s+/);
+    const arg = rest.join(' ');
+    let output: ReactNode = null;
+
+    switch (cmd) {
+      case 'help':
+        output = (
+          <div style={{ color: 'var(--c-dim, #8a92a1)' }}>
+            {'available commands: ' + COMMANDS.join(', ')}
+          </div>
+        );
+        break;
+
+      case 'ls':
+      case 'routes':
+        output = <RouteDump />;
+        break;
+
+      case 'pwd':
+        output = <div>{pathname || '/'}</div>;
+        break;
+
+      case 'whoami':
+        output = <div>guest@relay (404 — not authenticated to a route)</div>;
+        break;
+
+      case 'clear':
+        setHistory([]);
+        setInput('');
+        return;
+
+      case 'curl': {
+        const target = arg.replace(/^-\w+\s+/, '').trim() || '/';
+        const normalized = target.startsWith('/') ? target : `/${target}`;
+        const known = PAGES.some((p) => p.path === normalized);
+        output = known ? (
+          <span style={{ color: 'var(--c-accent-mint, #7ef4cb)', fontWeight: 700 }}>HTTP/1.1 200 OK</span>
+        ) : (
+          <span style={{ color: 'var(--c-accent-error, #ff9e9e)', fontWeight: 700 }}>HTTP/1.1 404 Not Found</span>
+        );
+        break;
+      }
+
+      case 'cd': {
+        const target = arg.trim();
+        if (!target || target === '~' || target === '/') {
+          router.push('/');
+          output = <div style={{ color: 'var(--c-dim, #8a92a1)' }}>navigating to /…</div>;
+        } else {
+          const normalized = target.startsWith('/') ? target : `/${target}`;
+          const match = PAGES.find((p) => p.path === normalized);
+          if (match) {
+            router.push(match.path);
+            output = <div style={{ color: 'var(--c-dim, #8a92a1)' }}>{`navigating to ${match.path}…`}</div>;
+          } else {
+            output = <div style={{ color: 'var(--c-accent-error, #ff9e9e)' }}>{`cd: no such route: ${normalized}`}</div>;
+          }
+        }
+        break;
+      }
+
+      default:
+        output = (
+          <div style={{ color: 'var(--c-accent-error, #ff9e9e)' }}>
+            {`command not found: ${cmd} — try `}
+            <span style={{ color: 'var(--c-text, #eef1f6)' }}>help</span>
+          </div>
+        );
+    }
+
+    setHistory((h) => [...h, { id, command: trimmed, output }]);
+    setCommandLog((log) => [...log, trimmed]);
+    setLogIndex(null);
+    setInput('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      runCommand(input);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (commandLog.length === 0) return;
+      const nextIndex = logIndex === null ? commandLog.length - 1 : Math.max(0, logIndex - 1);
+      setLogIndex(nextIndex);
+      setInput(commandLog[nextIndex]);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (logIndex === null) return;
+      const nextIndex = logIndex + 1;
+      if (nextIndex >= commandLog.length) {
+        setLogIndex(null);
+        setInput('');
+      } else {
+        setLogIndex(nextIndex);
+        setInput(commandLog[nextIndex]);
+      }
+    }
+  };
+
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem 1rem',
+        background:
+          'radial-gradient(ellipse at 30% 20%, var(--wash-violet, #1a1035) 0%, var(--wash-base, #0a0a0a) 55%), radial-gradient(ellipse at 75% 80%, var(--wash-teal, #0d1f2d) 0%, var(--wash-base, #0a0a0a) 60%)',
+      }}
+    >
       <style>{`
-        @keyframes nf-glitch {
-          0%, 90%, 100% {
-            text-shadow:
-              0 0 60px rgba(126,244,203,0.25),
-              0 0 120px rgba(126,244,203,0.1);
-            transform: translate(0, 0) skewX(0deg);
-          }
-          92% {
-            text-shadow:
-              -4px 0 rgba(255,50,100,0.7),
-              4px 0 rgba(50,100,255,0.7),
-              0 0 60px rgba(126,244,203,0.25);
-            transform: translate(-3px, 1px) skewX(-1deg);
-          }
-          94% {
-            text-shadow:
-              4px 0 rgba(255,50,100,0.7),
-              -4px 0 rgba(50,100,255,0.7),
-              0 0 80px rgba(126,244,203,0.35);
-            transform: translate(3px, -1px) skewX(1deg);
-          }
-          96% {
-            text-shadow:
-              -2px 0 rgba(255,50,100,0.5),
-              2px 0 rgba(50,100,255,0.5),
-              0 0 60px rgba(126,244,203,0.2);
-            transform: translate(-1px, 0) skewX(0deg);
-          }
-          98% {
-            text-shadow:
-              0 0 100px rgba(126,244,203,0.45);
-            transform: translate(0, 0);
-          }
-        }
-        @keyframes nf-float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-        @keyframes nf-fade-up {
-          from { opacity: 0; transform: translateY(24px); filter: blur(4px); }
-          to   { opacity: 1; transform: translateY(0);    filter: blur(0);   }
-        }
-        @keyframes nf-orbit {
-          from { transform: rotate(0deg) translateX(90px) rotate(0deg); }
-          to   { transform: rotate(360deg) translateX(90px) rotate(-360deg); }
-        }
-        @keyframes nf-scan {
-          0%   { top: -2px; opacity: 0; }
-          10%  { opacity: 0.6; }
-          90%  { opacity: 0.6; }
-          100% { top: 100%; opacity: 0; }
-        }
-        .nf-root {
-          min-height: 100vh;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-          padding: 2rem;
-          font-family: var(--font-sora, system-ui, sans-serif);
-          position: relative;
-          overflow: hidden;
-          background:
-            radial-gradient(ellipse at 25% 20%, rgba(20,10,40,0.9) 0%, transparent 60%),
-            radial-gradient(ellipse at 75% 80%, rgba(10,20,30,0.8) 0%, transparent 60%),
-            #0a0a0a;
-        }
-        .nf-canvas {
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-        }
-        .nf-glow-ring {
-          position: absolute;
-          width: 420px;
-          height: 420px;
-          border-radius: 50%;
-          border: 1px solid rgba(126,244,203,0.06);
-          box-shadow: 0 0 80px rgba(126,244,203,0.04) inset;
-          pointer-events: none;
-        }
-        .nf-orbit-dot {
-          position: absolute;
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: #7ef4cb;
-          box-shadow: 0 0 8px rgba(126,244,203,0.8), 0 0 16px rgba(126,244,203,0.4);
-          animation: nf-orbit 6s linear infinite;
-        }
-        .nf-content {
-          position: relative;
-          z-index: 10;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0;
-        }
-        .nf-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          padding: 0.3rem 0.85rem;
-          border-radius: 999px;
-          border: 1px solid rgba(126,244,203,0.2);
-          background: rgba(126,244,203,0.06);
-          color: #7ef4cb;
-          font-size: 0.68rem;
-          font-weight: 600;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          margin-bottom: 1.8rem;
-          animation: nf-fade-up 0.6s ease both;
-        }
-        .nf-badge-dot {
-          width: 5px;
-          height: 5px;
-          border-radius: 50%;
-          background: #7ef4cb;
-          box-shadow: 0 0 6px rgba(126,244,203,0.8);
-          animation: nf-float 2s ease-in-out infinite;
-        }
-        .nf-number {
-          font-size: clamp(7rem, 22vw, 14rem);
-          font-weight: 700;
-          line-height: 0.9;
-          letter-spacing: -0.04em;
-          background: linear-gradient(160deg, #ffffff 0%, #7ef4cb 40%, rgba(126,244,203,0.5) 80%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          animation:
-            nf-glitch 5s ease-in-out infinite,
-            nf-float 5s ease-in-out infinite,
-            nf-fade-up 0.5s ease both;
-          margin-bottom: 0.5rem;
-          position: relative;
-          user-select: none;
-        }
-        .nf-scan-line {
-          position: absolute;
-          left: 0;
-          right: 0;
-          height: 2px;
-          background: linear-gradient(90deg, transparent, rgba(126,244,203,0.5), transparent);
-          animation: nf-scan 4s linear infinite;
-          pointer-events: none;
-        }
-        .nf-title {
-          font-size: clamp(1.1rem, 3vw, 1.5rem);
-          font-weight: 600;
-          color: #eef1f6;
-          letter-spacing: -0.02em;
-          margin: 0 0 0.65rem;
-          animation: nf-fade-up 0.6s 0.1s ease both;
-        }
-        .nf-sub {
-          font-size: 0.9rem;
-          color: #8a92a1;
-          max-width: 340px;
-          line-height: 1.6;
-          margin: 0 0 2.5rem;
-          animation: nf-fade-up 0.6s 0.2s ease both;
-        }
-        .nf-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.7rem 1.6rem;
-          border-radius: 999px;
-          font-size: 0.85rem;
-          font-weight: 600;
-          font-family: inherit;
-          letter-spacing: 0.01em;
-          color: #eef1f6;
-          background: rgba(255,255,255,0.07);
-          border: 1px solid rgba(255,255,255,0.14);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
-          box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
-          text-decoration: none;
-          transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
-          cursor: pointer;
-          animation: nf-fade-up 0.6s 0.3s ease both;
-        }
-        .nf-btn:hover {
-          background: rgba(255,255,255,0.12);
-          border-color: rgba(255,255,255,0.22);
-          transform: translateY(-2px);
-          box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
-        }
-        .nf-btn:active {
-          transform: translateY(0px) scale(0.97);
-        }
-        .nf-divider {
-          width: 1px;
-          height: 14px;
-          background: rgba(255,255,255,0.2);
-        }
-        .nf-btn-code {
-          font-size: 0.7rem;
-          font-weight: 700;
-          color: #7ef4cb;
-          opacity: 0.9;
-        }
-        .nf-footer {
-          position: absolute;
-          bottom: 1.5rem;
-          font-size: 0.7rem;
-          color: rgba(138,146,161,0.5);
-          letter-spacing: 0.04em;
-          animation: nf-fade-up 0.6s 0.5s ease both;
-        }
+        @keyframes nf-cursor-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+        .nf-cursor { animation: nf-cursor-blink 1s step-end infinite; }
+        .nf-route-link { color: var(--c-accent-mint, #7ef4cb); text-decoration: none; }
+        .nf-route-link:hover { text-decoration: underline; }
+        .nf-back-link { color: var(--c-dim, #8a92a1); }
+        .nf-back-link:hover { color: var(--c-text, #eef1f6); }
+        .nf-terminal-input { caret-color: var(--c-accent-mint, #7ef4cb); }
       `}</style>
 
-      <div className="nf-root">
-        <canvas ref={canvasRef} className="nf-canvas" aria-hidden="true" />
+      <Link
+        href="/"
+        className="nf-back-link"
+        style={{
+          position: 'fixed',
+          top: '1.25rem',
+          left: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.375rem',
+          padding: '0.5rem 0.9rem',
+          borderRadius: '0.75rem',
+          fontFamily: 'var(--font-body, system-ui, sans-serif)',
+          fontSize: '0.8rem',
+          textDecoration: 'none',
+          transition: 'color 0.2s ease',
+        }}
+      >
+        ← Back to app
+      </Link>
 
-        {/* Orbit ring + dot */}
-        <div className="nf-glow-ring" aria-hidden="true">
-          <div className="nf-orbit-dot" />
+      <div
+        style={{
+          width: 'min(680px, 94vw)',
+          borderRadius: '12px',
+          border: '1px solid rgba(255,255,255,0.1)',
+          background: '#0b0b0d',
+          boxShadow: '0 28px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05)',
+          overflow: 'hidden',
+          fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+        }}
+      >
+        {/* Terminal chrome */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            padding: '0.6rem 0.85rem',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            background: 'rgba(255,255,255,0.03)',
+          }}
+        >
+          <div style={{ display: 'flex', gap: '0.32rem' }}>
+            <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#ff6259' }} />
+            <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#ffbd2e' }} />
+            <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#28c93f' }} />
+          </div>
+          <span style={{ fontSize: '0.72rem', color: 'var(--c-dim, #8a92a1)' }}>relay — router — 80×24</span>
         </div>
 
-        <div className="nf-content">
-          <div className="nf-badge">
-            <span className="nf-badge-dot" />
-            Error
+        {/* Terminal body */}
+        <div
+          onClick={focusInput}
+          style={{
+            padding: '1.1rem 1.2rem 1.4rem',
+            fontSize: '0.8rem',
+            color: '#c9d1d9',
+            overflowX: 'auto',
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            cursor: 'text',
+          }}
+        >
+          <div style={{ color: 'var(--c-dim, #8a92a1)' }}>
+            <span style={{ color: 'var(--c-accent-mint, #7ef4cb)' }}>relay@edge</span>:~$ curl -I https://relay{pathname || '/unknown'}
+          </div>
+          <div style={{ margin: '0.25rem 0 1rem' }}>
+            <span style={{ color: 'var(--c-accent-error, #ff9e9e)', fontWeight: 700 }}>HTTP/1.1 404 Not Found</span>
+            <br />
+            <span style={{ color: 'var(--c-dim, #8a92a1)' }}>x-served-by: relay-router</span>
           </div>
 
-          <div style={{ position: 'relative' }}>
-            <div className="nf-number">404</div>
-            <div className="nf-scan-line" aria-hidden="true" />
+          <div style={{ color: 'var(--c-dim, #8a92a1)' }}>
+            <span style={{ color: 'var(--c-accent-mint, #7ef4cb)' }}>relay@edge</span>:~$ relay-router --dump routes
           </div>
 
-          <h1 className="nf-title">Page not found</h1>
-          <p className="nf-sub">
-            This page doesn&apos;t exist or was removed. If you&apos;re looking for a file, it may have expired.
-          </p>
+          <RouteDump />
 
-          <Link href="/" className="nf-btn">
-            <LordIcon name="arrowRight" size={13} mirror />
-            Back to Relay
-            <div className="nf-divider" />
-            <span className="nf-btn-code">404</span>
-          </Link>
+          <div style={{ margin: '0.9rem 0 0.4rem', color: 'var(--c-dim, #8a92a1)', fontStyle: 'italic' }}>
+            {'// try it yourself — help, ls, cd <path>, curl <path>, whoami, clear'}
+          </div>
+
+          {history.map((entry) => (
+            <div key={entry.id}>
+              <div style={{ color: 'var(--c-dim, #8a92a1)' }}>
+                <span style={{ color: 'var(--c-accent-mint, #7ef4cb)' }}>relay@edge</span>:~$ {entry.command}
+              </div>
+              {entry.output && <div style={{ margin: '0.15rem 0 0.5rem' }}>{entry.output}</div>}
+            </div>
+          ))}
+
+          <div style={{ marginTop: history.length ? 0 : '1rem', color: 'var(--c-dim, #8a92a1)', display: 'flex', alignItems: 'center' }}>
+            <span style={{ color: 'var(--c-accent-mint, #7ef4cb)', flexShrink: 0 }}>relay@edge</span>:~$&nbsp;
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              autoFocus
+              spellCheck={false}
+              autoCapitalize="none"
+              autoCorrect="off"
+              className="nf-terminal-input"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: 'var(--c-text, #eef1f6)',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+              }}
+            />
+            <span className="nf-cursor" aria-hidden="true">▊</span>
+            <div ref={bottomRef} />
+          </div>
         </div>
-
-        {/* <div className="nf-footer">relay &nbsp;·&nbsp; page not found</div> */}
       </div>
-    </>
+    </main>
   );
 }

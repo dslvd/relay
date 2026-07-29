@@ -13,6 +13,10 @@ type LordIconProps = {
   mirror?: boolean;
   className?: string;
   style?: CSSProperties;
+  /** Milliseconds to wait between loop iterations (only meaningful with trigger="loop"). */
+  delay?: number | string;
+  /** Named animation state for icons that ship multiple sub-animations. */
+  state?: string;
   /**
    * CSS selector for the ancestor whose hover/click should drive the
    * animation (Lordicon walks up via closest()), so the icon animates as
@@ -33,6 +37,8 @@ export default function LordIcon({
   className,
   style,
   target = 'button, a',
+  delay,
+  state,
 }: LordIconProps) {
   return (
     <lord-icon
@@ -41,6 +47,8 @@ export default function LordIcon({
       target={target || undefined}
       colors={colors}
       stroke={stroke}
+      delay={delay}
+      state={state}
       aria-hidden="true"
       // "current-color" is a built-in lord-icon class that makes the icon inherit `color`
       // from its parent, same as our old stroke="currentColor" inline SVGs did.

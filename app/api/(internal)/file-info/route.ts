@@ -57,6 +57,8 @@ export async function GET(request: NextRequest) {
               favorite: record.favorite,
               displayName: record.displayName,
               updatedAt: record.updatedAt,
+              kind: record.kind ?? 'file',
+              language: record.language,
             },
           },
         },

@@ -6,6 +6,8 @@ import logo from './logo.png';
 import { useTheme } from './components/ThemeProvider';
 import LordIcon from './components/LordIcon';
 import type { LordIconName } from './lib/lordicons';
+import { LANGUAGE_OPTIONS, languageFromFilename } from './lib/lang-map';
+import SnippetEditor from './components/SnippetEditor';
 
 interface UploadedItem {
   url: string;
@@ -380,6 +382,9 @@ const computeFileHash = async (file: File): Promise<string> => {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 };
 
+const SNIPPET_DEFAULT_SIZE = { width: 420, height: 420 };
+const SNIPPET_MIN_SIZE = { width: 320, height: 280 };
+
 export default function Home() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
   const [uploadedFilesSearch, setUploadedFilesSearch] = useState('');
@@ -421,6 +426,20 @@ export default function Home() {
   const [remoteAuthHeader, setRemoteAuthHeader] = useState('');
   const [remoteFilenameOverride, setRemoteFilenameOverride] = useState('');
   const [remoteUploading, setRemoteUploading] = useState(false);
+  const [showSnippetPanel, setShowSnippetPanel] = useState(false);
+  const [snippetContent, setSnippetContent] = useState('');
+  const [snippetFilename, setSnippetFilename] = useState('');
+  const [snippetSubmitting, setSnippetSubmitting] = useState(false);
+  // Picture-in-picture position for the snippet composer - randomized each
+  // time the panel is opened (see the "Paste code" button) rather than
+  // pinned to one corner.
+  const [snippetPipPos, setSnippetPipPos] = useState<{ x: number; y: number } | null>(null);
+  const snippetDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const [snippetSize, setSnippetSize] = useState(SNIPPET_DEFAULT_SIZE);
+  const snippetResizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number } | null>(null);
+  const [snippetWindowState, setSnippetWindowState] = useState<'normal' | 'minimized' | 'maximized'>('normal');
+  // Purely derived from the filename extension - no manual override.
+  const snippetLanguage = useMemo(() => languageFromFilename(snippetFilename), [snippetFilename]);
   const [remoteStage, setRemoteStage] = useState<'idle' | 'download' | 'enqueue' | 'server'>('idle');
   const [remoteDownloadedBytes, setRemoteDownloadedBytes] = useState(0);
   const [remoteTotalBytes, setRemoteTotalBytes] = useState<number | null>(null);
@@ -736,8 +755,74 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'pageview', path: '/' })
     }).catch(() => {}); // Silently fail
-    
+
   }, []);
+
+  // For Plus accounts, the server (not localStorage) is the source of truth
+  // for "what files exist" - this is what the Plus vault dashboard also
+  // reads from (GET /api/plus/uploads), so a delete/move/rename made on
+  // either surface shows up on the other instead of only being visible in
+  // whichever browser tab performed it.
+  useEffect(() => {
+    if (!isPlus) return;
+
+    let cancelled = false;
+
+    const syncFromServer = async () => {
+      try {
+        const res = await fetch('/api/plus/uploads', { cache: 'no-store' });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const uploads: Array<{
+          url: string;
+          filename: string;
+          size: number;
+          timestamp: number;
+          folder?: string;
+          displayName?: string;
+        }> = Array.isArray(data?.uploads) ? data.uploads : [];
+        if (cancelled) return;
+
+        setUploadedFiles(
+          uploads.map((u) => ({
+            url: u.url,
+            filename: u.filename,
+            size: u.size,
+            timestamp: u.timestamp,
+          }))
+        );
+        setFilesFolderMap((prev) => {
+          const next = { ...prev };
+          uploads.forEach((u) => {
+            if (u.folder) next[u.url] = u.folder;
+            else delete next[u.url];
+          });
+          return next;
+        });
+        setDisplayNames((prev) => {
+          const next = { ...prev };
+          uploads.forEach((u) => {
+            if (u.displayName) next[u.url] = u.displayName;
+            else delete next[u.url];
+          });
+          return next;
+        });
+      } catch {
+        // Best-effort - keep whatever was last shown rather than clearing the list.
+      }
+    };
+
+    void syncFromServer();
+    const interval = window.setInterval(() => void syncFromServer(), 20000);
+    const handleFocus = () => void syncFromServer();
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [isPlus]);
 
   const logoutPlus = async () => {
     try {
@@ -1474,6 +1559,114 @@ export default function Home() {
     enqueueFiles(files);
   };
 
+  const handleSnippetDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    const panel = e.currentTarget.closest('[data-snippet-pip]') as HTMLElement | null;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    snippetDragRef.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top };
+
+    const handleMove = (moveEvent: MouseEvent) => {
+      const drag = snippetDragRef.current;
+      if (!drag) return;
+      const nextX = drag.origX + (moveEvent.clientX - drag.startX);
+      const nextY = drag.origY + (moveEvent.clientY - drag.startY);
+      const maxX = window.innerWidth - 60;
+      const maxY = window.innerHeight - 60;
+      setSnippetPipPos({ x: Math.min(Math.max(nextX, -60), maxX), y: Math.min(Math.max(nextY, 0), maxY) });
+    };
+    const handleUp = () => {
+      snippetDragRef.current = null;
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  };
+
+  const handleSnippetResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    snippetResizeRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origW: snippetSize.width,
+      origH: snippetSize.height,
+    };
+
+    const handleMove = (moveEvent: MouseEvent) => {
+      const resize = snippetResizeRef.current;
+      if (!resize) return;
+      const nextW = resize.origW + (moveEvent.clientX - resize.startX);
+      const nextH = resize.origH + (moveEvent.clientY - resize.startY);
+      setSnippetSize({
+        width: Math.min(Math.max(nextW, SNIPPET_MIN_SIZE.width), window.innerWidth - 40),
+        height: Math.min(Math.max(nextH, SNIPPET_MIN_SIZE.height), window.innerHeight - 40),
+      });
+    };
+    const handleUp = () => {
+      snippetResizeRef.current = null;
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  };
+
+  // Closing with unsaved content discards it - mirrors closing a dirty
+  // document without saving, so we warn first rather than silently losing it.
+  const handleSnippetClose = () => {
+    if (snippetContent.trim().length > 0) {
+      const confirmed = window.confirm('This snippet has not been created yet - closing now will discard it and it will not be saved. Close anyway?');
+      if (!confirmed) return;
+    }
+    setShowSnippetPanel(false);
+    setSnippetWindowState('normal');
+  };
+
+  const submitSnippet = async () => {
+    if (snippetSubmitting) return;
+
+    const content = snippetContent.trim();
+    if (!content) {
+      showToast('Paste some code first', 'info');
+      return;
+    }
+
+    setSnippetSubmitting(true);
+    try {
+      const res = await fetch('/api/snippet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: snippetContent,
+          language: snippetLanguage,
+          filename: snippetFilename.trim() || undefined,
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload?.error || 'Failed to create snippet');
+      }
+
+      const record = payload.record as { url: string; filename: string; size: number; timestamp: number };
+
+      setUploadedFiles((prev) => [
+        { url: record.url, filename: record.filename, size: record.size, timestamp: record.timestamp },
+        ...prev,
+      ]);
+
+      lastSuccessUrlRef.current = record.url;
+      showUploadSuccessCue(record.filename);
+      setSnippetContent('');
+      setSnippetFilename('');
+      setShowSnippetPanel(false);
+      showToast('Snippet created', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to create snippet', 'error');
+    } finally {
+      setSnippetSubmitting(false);
+    }
+  };
+
   const submitRemoteUpload = async () => {
     if (uploading || remoteUploading) {
       return;
@@ -2035,7 +2228,7 @@ export default function Home() {
               onContextMenu={(e) => e.preventDefault()}
               style={{
                 transform: 'translateY(-26px)',
-                animation: 'spinDiamond 1.8s cubic-bezier(0.4, 0, 0.2, 1) 1',
+                animation: 'spinDiamond 1.2s cubic-bezier(0.4, 0, 0.2, 1) 1',
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
                 WebkitUserDrag: 'none',
@@ -2045,19 +2238,19 @@ export default function Home() {
             />
           </div>
           <h1 style={{
-          fontFamily: "'Sora', sans-serif",
+          fontFamily: 'var(--font-body)',
           fontSize: '1.45rem',
           fontWeight: 700,
           lineHeight: 1.42,
           letterSpacing: '-0.03em',
           color: 'var(--c-text)',
-          animation: 'fadeSlideIn 1s ease-out',
+          animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both',
           marginTop: '-4.2rem',
           textAlign: 'center'
         }}>
           Quick, secure, and
           <br />
-          seamless file sharing.
+          sleek code/file sharing.
           </h1>
           <div
             style={{
@@ -2068,7 +2261,8 @@ export default function Home() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.75rem',
-              flexWrap: 'wrap'
+              flexWrap: 'wrap',
+              animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.13s both'
             }}
           >
             <div
@@ -2155,21 +2349,6 @@ export default function Home() {
         </div>
         )}
 
-        {!uploading && (
-          <p
-            style={{
-              marginTop: '0.4rem',
-              marginBottom: '0.2rem',
-              fontSize: '0.7rem',
-              color: 'var(--c-dim)',
-              textAlign: 'center',
-              letterSpacing: '0.03em'
-            }}
-          >
-          </p>
-        )}
-
-
         <input
           ref={fileInputRef}
           type="file"
@@ -2232,10 +2411,10 @@ export default function Home() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '1rem',
+          gap: '0.5rem',
           flexWrap: 'wrap',
-          marginTop: '0.85rem',
-          animation: 'fadeSlideIn 1s ease-out 0.2s backwards'
+          marginTop: '0.65rem',
+          animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.21s both'
         }}>
           {/* Remote Upload — secondary */}
           <button
@@ -2244,7 +2423,7 @@ export default function Home() {
               setActiveView('upload');
             }}
             style={{
-              fontFamily: "'Sora', sans-serif",
+              fontFamily: 'var(--font-body)',
               display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
               padding: '0.52rem 1.2rem',
               fontSize: '0.81rem',
@@ -2272,8 +2451,60 @@ export default function Home() {
             }}
           >
             {remoteUploading
-              ? <><LordIcon name="spinner" trigger="loop" size={12} />Uploading…</>
-              : <><LordIcon name="copy" size={12} />Remote URL</>}
+              ? <><LordIcon name="spinner" trigger="loop" size={12} />Pushing File…</>
+              : <><LordIcon name="copy" size={12} />Remote Pull</>}
+          </button>
+
+          {/* Paste code — secondary */}
+          <button
+            onClick={() => {
+              setShowSnippetPanel((v) => {
+                const opening = !v;
+                if (opening) {
+                  // Spawn somewhere new each time instead of always the same corner.
+                  const margin = 32;
+                  const maxX = Math.max(margin, window.innerWidth - SNIPPET_DEFAULT_SIZE.width - margin);
+                  const maxY = Math.max(margin, window.innerHeight - SNIPPET_DEFAULT_SIZE.height - margin);
+                  setSnippetPipPos({
+                    x: margin + Math.random() * (maxX - margin),
+                    y: margin + Math.random() * (maxY - margin),
+                  });
+                  setSnippetSize(SNIPPET_DEFAULT_SIZE);
+                  setSnippetWindowState('normal');
+                }
+                return opening;
+              });
+              setActiveView('upload');
+            }}
+            style={{
+              fontFamily: 'var(--font-body)',
+              display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+              padding: '0.52rem 1.2rem',
+              fontSize: '0.81rem',
+              fontWeight: 500,
+              letterSpacing: '0.02em',
+              color: showSnippetPanel ? 'var(--c-text)' : 'var(--c-dim)',
+              background: showSnippetPanel ? 'rgba(255,255,255,0.1)' : 'transparent',
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+              border: showSnippetPanel ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.11)',
+              borderRadius: '50px',
+              cursor: 'pointer',
+              transition: 'all 0.22s',
+              boxShadow: showSnippetPanel ? '0 2px 12px rgba(0,0,0,0.22)' : 'none',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+              e.currentTarget.style.color = 'var(--c-text)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = showSnippetPanel ? 'rgba(255,255,255,0.1)' : 'transparent';
+              e.currentTarget.style.borderColor = showSnippetPanel ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.11)';
+              e.currentTarget.style.color = showSnippetPanel ? 'var(--c-text)' : 'var(--c-dim)';
+            }}
+          >
+            <LordIcon name="pasteCode" size={12} />Snip Code
           </button>
 
           {/* Choose File — primary */}
@@ -2284,7 +2515,7 @@ export default function Home() {
             }}
             disabled={uploading}
             style={{
-              fontFamily: "'Sora', sans-serif",
+              fontFamily: 'var(--font-body)',
               display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
               padding: '0.52rem 1.35rem',
               fontSize: '0.81rem',
@@ -2323,7 +2554,7 @@ export default function Home() {
           >
             {uploading
               ? <><LordIcon name="spinner" trigger="loop" size={12} />Uploading…</>
-              : <><LordIcon name="rocket" size={12} />Choose File</>}
+              : <><LordIcon name="rocket" size={12} />Upload File</>}
           </button>
 
         </div>
@@ -2357,7 +2588,7 @@ export default function Home() {
                 color: 'var(--c-dim)',
                 fontWeight: 600,
               }}>
-                Remote URL
+                Remote Pull
               </div>
               <button
                 onClick={() => setShowRemoteUpload(false)}
@@ -2416,7 +2647,7 @@ export default function Home() {
                   width: '100%',
                   padding: '0.65rem 0.9rem 0.65rem 2.35rem',
                   fontSize: '0.85rem',
-                  fontFamily: "'Sora', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   color: 'var(--c-text)',
                   background: t.input,
                   border: `1px solid ${t.inputBorder}`,
@@ -2466,7 +2697,7 @@ export default function Home() {
                     width: '100%',
                     padding: '0.55rem 0.8rem',
                     fontSize: '0.8rem',
-                    fontFamily: "'Sora', sans-serif",
+                    fontFamily: 'var(--font-body)',
                     color: 'var(--c-text)',
                     background: t.input,
                     border: `1px solid ${t.inputBorder}`,
@@ -2508,7 +2739,7 @@ export default function Home() {
                     width: '100%',
                     padding: '0.55rem 0.8rem',
                     fontSize: '0.8rem',
-                    fontFamily: "'Sora', sans-serif",
+                    fontFamily: 'var(--font-body)',
                     color: 'var(--c-text)',
                     background: t.input,
                     border: `1px solid ${t.inputBorder}`,
@@ -2537,7 +2768,7 @@ export default function Home() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.4rem',
-                  fontFamily: "'Sora', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   padding: '0.55rem 1.15rem',
                   fontSize: '0.82rem',
                   fontWeight: 600,
@@ -2569,6 +2800,214 @@ export default function Home() {
                   : <><LordIcon name="rocket" size={12} />Upload URL</>}
               </button>
             </div>
+          </div>
+        )}
+
+        {showSnippetPanel && (
+          <div
+            data-snippet-pip
+            style={{
+              position: 'fixed',
+              zIndex: 80,
+              display: 'flex',
+              flexDirection: 'column',
+              ...(snippetWindowState === 'maximized'
+                ? { left: '3vw', top: '5vh', width: '94vw', height: '90vh' }
+                : {
+                    ...(snippetPipPos
+                      ? { left: `${snippetPipPos.x}px`, top: `${snippetPipPos.y}px` }
+                      : { right: '1.5rem', bottom: '1.5rem' }),
+                    width: snippetWindowState === 'minimized' ? '260px' : `${snippetSize.width}px`,
+                    height: snippetWindowState === 'minimized' ? 'auto' : `${snippetSize.height}px`,
+                  }),
+              borderRadius: '18px',
+              border: `1px solid ${t.border}`,
+              background: isDark
+                ? 'linear-gradient(180deg, rgba(30,30,36,0.92), rgba(18,18,22,0.92))'
+                : 'linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245,245,248,0.94))',
+              backdropFilter: 'blur(24px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+              boxShadow: '0 28px 70px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)',
+              animation: 'heroReveal 0.3s cubic-bezier(0.16, 1, 0.3, 1) both',
+              overflow: 'hidden',
+              transition: 'width 0.18s ease, height 0.18s ease',
+            }}
+          >
+            {/* Header — drag handle (normal state only), doubling as a
+                lightweight "editor window" cue with functioning macOS-style
+                traffic lights: red closes (discarding unsaved content),
+                yellow minimizes, green maximizes. */}
+            <div
+              onMouseDown={snippetWindowState === 'normal' ? handleSnippetDragStart : undefined}
+              onClick={() => {
+                if (snippetWindowState === 'minimized') setSnippetWindowState('normal');
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.65rem 0.7rem 0.65rem 0.85rem',
+                cursor: snippetWindowState === 'normal' ? 'grab' : 'default',
+                userSelect: 'none',
+                borderBottom: snippetWindowState === 'minimized' ? 'none' : `1px solid ${t.borderSub}`,
+                background: 'rgba(128,128,128,0.04)',
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                <div style={{ display: 'flex', gap: '0.32rem', flexShrink: 0 }} onMouseDown={(e) => e.stopPropagation()}>
+                  <span
+                    onClick={handleSnippetClose}
+                    title="Close (won't be saved)"
+                    style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#ff6259', cursor: 'pointer' }}
+                  />
+                  <span
+                    onClick={() => setSnippetWindowState((s) => (s === 'minimized' ? 'normal' : 'minimized'))}
+                    title="Minimize"
+                    style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#ffbd2e', cursor: 'pointer' }}
+                  />
+                  <span
+                    onClick={() => setSnippetWindowState((s) => (s === 'maximized' ? 'normal' : 'maximized'))}
+                    title="Full screen"
+                    style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#28c93f', cursor: 'pointer' }}
+                  />
+                </div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--c-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  New snippet
+                </span>
+                <span style={{
+                  padding: '0.1rem 0.5rem',
+                  borderRadius: '999px',
+                  fontSize: '0.6rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  background: 'rgba(126,244,203,0.14)',
+                  color: '#7ef4cb',
+                  flexShrink: 0,
+                }}>
+                  {LANGUAGE_OPTIONS.find((o) => o.value === snippetLanguage)?.label || snippetLanguage}
+                </span>
+              </div>
+            </div>
+
+            {snippetWindowState !== 'minimized' && (
+              <div style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <SnippetEditor
+                    code={snippetContent}
+                    onChange={setSnippetContent}
+                    language={snippetLanguage}
+                    placeholder="Paste or type code…"
+                    disabled={snippetSubmitting}
+                    height="100%"
+                  />
+                </div>
+
+                <div style={{ marginTop: '0.6rem', flexShrink: 0 }}>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.58rem',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: 'var(--c-dim)',
+                    marginBottom: '0.3rem',
+                  }}>
+                    Filename <span style={{ opacity: 0.6, textTransform: 'none' }}>· language auto-detects from the extension</span>
+                  </label>
+                  <input
+                    value={snippetFilename}
+                    onChange={(e) => setSnippetFilename(e.target.value)}
+                    placeholder="script.py"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    disabled={snippetSubmitting}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.7rem',
+                      fontSize: '0.78rem',
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--c-text)',
+                      background: t.input,
+                      border: `1px solid ${t.inputBorder}`,
+                      borderRadius: '10px',
+                      outline: 'none',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+                      transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--c-accent-mint)';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(94,234,212,0.15), inset 0 1px 0 rgba(255,255,255,0.06)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = t.inputBorder;
+                      e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.06)';
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.7rem', marginTop: '0.75rem', flexShrink: 0 }}>
+                  <button
+                    onClick={submitSnippet}
+                    disabled={snippetSubmitting || snippetContent.trim().length === 0}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      fontFamily: 'var(--font-body)',
+                      padding: '0.5rem 1.1rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      letterSpacing: '0.02em',
+                      color: snippetSubmitting || snippetContent.trim().length === 0 ? 'rgba(255,255,255,0.35)' : (isDark ? '#0a0a0a' : '#ffffff'),
+                      background: snippetSubmitting || snippetContent.trim().length === 0
+                        ? 'rgba(255,255,255,0.05)'
+                        : isDark ? 'rgba(233,236,242,0.92)' : 'rgba(20,20,20,0.88)',
+                      border: snippetSubmitting || snippetContent.trim().length === 0
+                        ? '1px solid rgba(255,255,255,0.08)'
+                        : isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.12)',
+                      borderRadius: '999px',
+                      cursor: snippetSubmitting || snippetContent.trim().length === 0 ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!snippetSubmitting && snippetContent.trim().length > 0) {
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = isDark ? '0 4px 18px rgba(233,236,242,0.2)' : '0 4px 18px rgba(0,0,0,0.22)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    {snippetSubmitting
+                      ? <><LordIcon name="spinner" trigger="loop" size={12} />Creating…</>
+                      : <><LordIcon name="rocket" size={12} />Create snippet</>}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {snippetWindowState === 'normal' && (
+              <div
+                onMouseDown={handleSnippetResizeStart}
+                title="Drag to resize"
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  bottom: 0,
+                  width: '16px',
+                  height: '16px',
+                  cursor: 'nwse-resize',
+                  backgroundImage:
+                    'linear-gradient(135deg, transparent 0%, transparent 45%, var(--c-dim) 45%, var(--c-dim) 55%, transparent 55%, transparent 65%, var(--c-dim) 65%, var(--c-dim) 75%, transparent 75%)',
+                  opacity: 0.5,
+                }}
+              />
+            )}
           </div>
         )}
 
@@ -3058,8 +3497,8 @@ export default function Home() {
                         }
                         {isRenamingThis ? (
                           <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') { const n = renameValue.trim(); if (n) setDisplayNames(p => ({ ...p, [url]: n })); setRenamingUrl(null); } if (e.key === 'Escape') setRenamingUrl(null); }}
-                            onBlur={() => { const n = renameValue.trim(); if (n) setDisplayNames(p => ({ ...p, [url]: n })); setRenamingUrl(null); }}
+                            onKeyDown={e => { if (e.key === 'Enter') { const n = renameValue.trim(); if (n) { setDisplayNames(p => ({ ...p, [url]: n })); updateFileMetadata(url, { displayName: n }); } setRenamingUrl(null); } if (e.key === 'Escape') setRenamingUrl(null); }}
+                            onBlur={() => { const n = renameValue.trim(); if (n) { setDisplayNames(p => ({ ...p, [url]: n })); updateFileMetadata(url, { displayName: n }); } setRenamingUrl(null); }}
                             style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: 'var(--c-text)', fontSize: '0.84rem', fontWeight: 500, padding: 0, fontFamily: 'inherit' }}
                           />
                         ) : (
@@ -3210,8 +3649,8 @@ export default function Home() {
                           }
                           {isRenamingThis ? (
                             <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
-                              onKeyDown={e => { if (e.key === 'Enter') { const n = renameValue.trim(); if (n) setDisplayNames(p => ({ ...p, [url]: n })); setRenamingUrl(null); } if (e.key === 'Escape') setRenamingUrl(null); }}
-                              onBlur={() => { const n = renameValue.trim(); if (n) setDisplayNames(p => ({ ...p, [url]: n })); setRenamingUrl(null); }}
+                              onKeyDown={e => { if (e.key === 'Enter') { const n = renameValue.trim(); if (n) { setDisplayNames(p => ({ ...p, [url]: n })); updateFileMetadata(url, { displayName: n }); } setRenamingUrl(null); } if (e.key === 'Escape') setRenamingUrl(null); }}
+                              onBlur={() => { const n = renameValue.trim(); if (n) { setDisplayNames(p => ({ ...p, [url]: n })); updateFileMetadata(url, { displayName: n }); } setRenamingUrl(null); }}
                               style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--c-text)', fontSize: '0.7rem', fontWeight: 600, padding: 0, width: '100%', textAlign: 'center', fontFamily: 'inherit' }}
                             />
                           ) : (

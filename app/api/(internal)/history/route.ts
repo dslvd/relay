@@ -33,6 +33,8 @@ function stripOwnershipFields(record: UploadRecord) {
     favorite,
     displayName,
     updatedAt,
+    kind,
+    language,
   } = record;
 
   return {
@@ -48,6 +50,8 @@ function stripOwnershipFields(record: UploadRecord) {
     favorite,
     displayName,
     updatedAt,
+    kind: kind ?? 'file',
+    language,
   };
 }
 

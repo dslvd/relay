@@ -37,6 +37,10 @@ export const LORD_ICON = {
   // "system-solid-102-wifi" — stand-in for "CDN"/network delivery (no open cloud asset found
   // despite an extensive search; swap this one out first if a real cloud icon turns up).
   network: 'https://cdn.lordicon.com/shquqxad.json',
+  // Requested explicitly for the "Paste code" snippet button.
+  pasteCode: 'https://cdn.lordicon.com/lrubprlz.json',
+  // Requested explicitly for the "API" sidebar heading on /docs.
+  api: 'https://cdn.lordicon.com/qmmouute.json',
 } as const;
 
 export type LordIconName = keyof typeof LORD_ICON;

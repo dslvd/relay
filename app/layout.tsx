@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sora, Space_Mono } from 'next/font/google';
+import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
@@ -9,11 +9,11 @@ import ThemeProvider from "./components/ThemeProvider";
 import ThemeToggle from "./components/ThemeToggle";
 import type { Viewport } from "next";
 
-const sora = Sora({
+const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
-  variable: '--font-sora',
+  variable: '--font-space-grotesk',
 });
 
 // Used sparingly (via var(--font-space-mono)) for code, IDs, and other
@@ -41,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sora.variable} ${spaceMono.variable}`} style={{ backgroundColor: "#0a0a0a" }}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${spaceMono.variable}`} style={{ backgroundColor: "#0a0a0a" }}>
       <body className="antialiased" style={{ backgroundColor: "#0a0a0a", margin: 0 }}>
         {/* Hover/click-triggered decorative animations only — safe to load after
             hydration instead of blocking it. */}
@@ -52,7 +52,7 @@ export default function RootLayout({
         </ThemeProvider>
         <ClickRipple />
         <DisableInspect />
-        <Link className="footer-link api-link" href="/docs" prefetch>
+        <Link className="footer-link api-link" href="/api" prefetch>
           API
         </Link>
         <Link className="footer-link dmca-link" href="/dmca" prefetch>
