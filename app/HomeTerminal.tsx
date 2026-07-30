@@ -648,11 +648,11 @@ export default function HomeTerminal() {
           </div>
         )}
 
-        <p className="t-disclaimer">
+        {/* <p className="t-disclaimer">
           &quot;Upload file&quot; opens your browser&apos;s own file picker — Relay only ever reads the
           single file you choose there. We get no access to your folders or any other files, and
           nothing more once the upload finishes.
-        </p>
+        </p> */}
 
         <div className="t-recent">
           <div className="t-recent-head">recent</div>
