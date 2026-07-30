@@ -20,10 +20,6 @@ export type ScanVerdict = {
   reason?: string;
 };
 
-export function isVirusTotalConfigured(): boolean {
-  return Boolean(process.env.VIRUSTOTAL_API_KEY);
-}
-
 /**
  * Looks up a file hash against VirusTotal's existing analysis database.
  * Returns `{ scanned: false }` if VT isn't configured, the hash hasn't been

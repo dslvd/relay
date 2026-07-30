@@ -159,11 +159,6 @@ export async function loadQuarantineMap(): Promise<Map<string, QuarantineRecord>
   return map;
 }
 
-export async function isQuarantined(objectKey: string): Promise<boolean> {
-  const map = await loadQuarantineMap();
-  return map.has(normalizeObjectKey(objectKey));
-}
-
 declare global {
   // eslint-disable-next-line no-var
   var adminBlacklist: BlacklistRule[] | undefined;

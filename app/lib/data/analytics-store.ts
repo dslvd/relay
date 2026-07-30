@@ -137,13 +137,6 @@ export async function loadAnalyticsData(): Promise<AnalyticsData> {
   };
 }
 
-// No-op: retention is enforced at query time (loadAnalyticsData only reads
-// the last 30 days / ANALYTICS_LIMIT rows) and there's no full blob to save
-// back anymore. Kept so existing callers don't need restructuring.
-export function cleanupAnalyticsData(data: AnalyticsData): AnalyticsData {
-  return data;
-}
-
 export async function recordDownloadEvent(
   event: Omit<DownloadEvent, 'timestamp'> & { timestamp?: number }
 ): Promise<void> {

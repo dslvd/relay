@@ -15,8 +15,6 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomBytes } from 'crypto';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 
-const DEFAULT_MAX_UPLOAD_FILE_BYTES = 100 * 1024 * 1024;
-
 let r2Client: S3Client | null = null;
 
 function getRequiredEnv(name: string): string {
@@ -25,15 +23,6 @@ function getRequiredEnv(name: string): string {
     throw new Error(`${name} environment variable is not set`);
   }
   return value;
-}
-
-export function getMaxUploadFileBytes(): number {
-  const value = Number(process.env.MAX_UPLOAD_FILE_MB);
-  if (!Number.isFinite(value) || value <= 0) {
-    return DEFAULT_MAX_UPLOAD_FILE_BYTES;
-  }
-
-  return Math.floor(value * 1024 * 1024);
 }
 
 export function getR2BucketName(): string {
