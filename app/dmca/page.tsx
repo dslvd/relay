@@ -73,7 +73,7 @@ export default function DmcaPage() {
             <p style={textStyle}>Please send your DMCA takedown notice to our designated agent:</p>
             <p style={{ margin: '0.9rem 0 0', fontWeight: 600 }}>Designated DMCA Agent</p>
             <p style={{ margin: '0.5rem 0 0' }}>
-              Email: contactdslvd@gmail.com
+              Email: matthew@xstlo.com
               <br />
               Subject Line: DMCA Takedown Request
             </p>
@@ -150,7 +150,7 @@ export default function DmcaPage() {
             Back to home
           </Link>
           <a
-            href="mailto:contactdslvd@gmail.com?subject=DMCA%20Takedown%20Request"
+            href="mailto:matthew@xstlo.com?subject=DMCA%20Takedown%20Request"
             style={{ padding: '0.7rem 1.2rem', borderRadius: '999px', border: '1px solid rgba(255, 255, 255, 0.35)', color: '#f5f5f5', textDecoration: 'none' }}
           >
             Contact DMCA agent

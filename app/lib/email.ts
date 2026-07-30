@@ -76,7 +76,7 @@ export async function sendAbuseReportEmail(report: {
   description: string;
   reporterEmail?: string;
 }): Promise<void> {
-  const to = process.env.ABUSE_REPORT_EMAIL || 'contactdslvd@gmail.com';
+  const to = process.env.ABUSE_REPORT_EMAIL || 'matthew@xstlo.com';
 
   if (!hasResendConfigured()) {
     // Dev/local fallback: log the report instead of failing the request, so

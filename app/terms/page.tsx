@@ -136,7 +136,7 @@ export default function TermsPage() {
           <Card title="10. Contact">
             <p style={textStyle}>
               Questions about these Terms can be sent to{' '}
-              <a href="mailto:contactdslvd@gmail.com" style={{ color: '#7ef4cb' }}>contactdslvd@gmail.com</a>.
+              <a href="mailto:matthew@xstlo.com" style={{ color: '#7ef4cb' }}>matthew@xstlo.com</a>.
             </p>
           </Card>
         </div>
