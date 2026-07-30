@@ -7,6 +7,7 @@ import ClickRipple from "./components/ClickRipple";
 import DisableInspect from "./components/DisableInspect";
 import ThemeProvider from "./components/ThemeProvider";
 import ThemeToggle from "./components/ThemeToggle";
+import PolicyMenu from "./components/PolicyMenu";
 import type { Viewport } from "next";
 
 const spaceGrotesk = Space_Grotesk({
@@ -105,14 +106,12 @@ export default function RootLayout({
         </ThemeProvider>
         <ClickRipple />
         <DisableInspect />
+        <PolicyMenu />
         <Link className="footer-link pricing-link" href="/pricing" prefetch>
           Pricing
         </Link>
         <Link className="footer-link api-link" href="/api" prefetch>
           API
-        </Link>
-        <Link className="footer-link dmca-link" href="/dmca" prefetch>
-          DMCA
         </Link>
       </body>
     </html>

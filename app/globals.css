@@ -518,20 +518,16 @@ button, input, select, textarea {
   transform: translateY(-1px);
 }
 
-.dmca-link {
+.api-link {
   right: 1rem;
 }
 
-.api-link {
+.pricing-link {
   right: 4.3rem;
 }
 
-.pricing-link {
-  right: 7.6rem;
-}
-
 .footer-link--show-files {
-  right: 10.9rem;
+  right: 7.6rem;
 }
 
 .minimal-link {

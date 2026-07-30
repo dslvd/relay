@@ -2069,6 +2069,17 @@ export default function AdminDashboard() {
                   {new Date(entry.timestamp).toLocaleString()} • {entry.actorIp || 'unknown'}
                   {entry.target ? ` • ${entry.target}` : ''}
                 </div>
+                {entry.meta && Object.keys(entry.meta).length > 0 && (
+                  <div style={{ fontSize: '0.7rem', color: '#a9b2c1', marginTop: '0.35rem', display: 'grid', gap: '0.15rem' }}>
+                    {Object.entries(entry.meta).map(([key, value]) => (
+                      value === undefined || value === null || value === '' ? null : (
+                        <div key={key} style={{ wordBreak: 'break-word' }}>
+                          <strong style={{ color: '#8a8a8a' }}>{key}:</strong> {String(value)}
+                        </div>
+                      )
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
