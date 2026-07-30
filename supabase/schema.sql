@@ -88,6 +88,12 @@ create table if not exists plus_users (
   created_at bigint not null,
   last_login_at bigint
 );
+-- Migration for tables created before Lemon Squeezy billing existed.
+alter table plus_users add column if not exists lemonsqueezy_customer_id text;
+alter table plus_users add column if not exists lemonsqueezy_subscription_id text;
+alter table plus_users add column if not exists plan_status text not null default 'active' check (plan_status in ('active', 'canceled', 'past_due'));
+create index if not exists idx_plus_users_lemonsqueezy_customer on plus_users (lemonsqueezy_customer_id);
+create index if not exists idx_plus_users_lemonsqueezy_subscription on plus_users (lemonsqueezy_subscription_id);
 alter table plus_users enable row level security;
 
 -- Plus signup invites. Used invites are kept (not deleted) with used_at set,

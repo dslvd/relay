@@ -1,6 +1,8 @@
 import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'crypto';
 import { getSupabaseClient, hasSupabaseConfigured } from '@/app/lib/data/supabase-client';
 
+export type PlusPlanStatus = 'active' | 'canceled' | 'past_due';
+
 export interface PlusUserRecord {
   id: string;
   email: string;
@@ -8,6 +10,9 @@ export interface PlusUserRecord {
   salt: string;
   createdAt: number;
   lastLoginAt?: number;
+  lemonSqueezyCustomerId?: string;
+  lemonSqueezySubscriptionId?: string;
+  planStatus?: PlusPlanStatus;
 }
 
 export interface PlusInviteRecord {
@@ -59,6 +64,9 @@ interface UserRow {
   salt: string;
   created_at: number;
   last_login_at: number | null;
+  lemonsqueezy_customer_id?: string | null;
+  lemonsqueezy_subscription_id?: string | null;
+  plan_status?: PlusPlanStatus | null;
 }
 
 interface InviteRow {
@@ -78,6 +86,9 @@ function userFromRow(row: UserRow): PlusUserRecord {
     salt: row.salt,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at ?? undefined,
+    lemonSqueezyCustomerId: row.lemonsqueezy_customer_id ?? undefined,
+    lemonSqueezySubscriptionId: row.lemonsqueezy_subscription_id ?? undefined,
+    planStatus: row.plan_status ?? undefined,
   };
 }
 
@@ -361,6 +372,130 @@ export async function createPlusUserFromInvite(input: {
   return { user };
 }
 
+// Creates (or reactivates, on re-subscribe) a Plus account directly from a
+// successful Lemon Squeezy payment - no invite token involved. The account starts
+// with a random, never-communicated password; the caller (the Lemon Squeezy
+// webhook route) is expected to follow up with createPasswordResetToken()
+// so the paying customer gets a set-password link instead.
+export async function provisionPlusFromLemonSqueezy(input: {
+  email: string;
+  lemonSqueezyCustomerId: string;
+  lemonSqueezySubscriptionId: string;
+}): Promise<PlusUserRecord> {
+  const now = Date.now();
+  const normalizedEmail = input.email.trim().toLowerCase();
+
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+
+    const { data: existingRow, error: readError } = await supabase
+      .from('plus_users')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+    if (readError) throw readError;
+
+    if (existingRow) {
+      const { data: updatedRow, error: updateError } = await supabase
+        .from('plus_users')
+        .update({
+          lemonsqueezy_customer_id: input.lemonSqueezyCustomerId,
+          lemonsqueezy_subscription_id: input.lemonSqueezySubscriptionId,
+          plan_status: 'active',
+        })
+        .eq('id', (existingRow as UserRow).id)
+        .select('*')
+        .single();
+      if (updateError) throw updateError;
+      return userFromRow(updatedRow as UserRow);
+    }
+
+    const salt = randomBytes(16).toString('hex');
+    const user: PlusUserRecord = {
+      id: randomUUID(),
+      email: normalizedEmail,
+      salt,
+      passwordHash: hashPassword(randomBytes(32).toString('hex'), salt),
+      createdAt: now,
+      lemonSqueezyCustomerId: input.lemonSqueezyCustomerId,
+      lemonSqueezySubscriptionId: input.lemonSqueezySubscriptionId,
+      planStatus: 'active',
+    };
+
+    const { error: insertError } = await supabase.from('plus_users').insert({
+      id: user.id,
+      email: user.email,
+      password_hash: user.passwordHash,
+      salt: user.salt,
+      created_at: user.createdAt,
+      lemonsqueezy_customer_id: user.lemonSqueezyCustomerId,
+      lemonsqueezy_subscription_id: user.lemonSqueezySubscriptionId,
+      plan_status: user.planStatus,
+    });
+    if (insertError) throw insertError;
+
+    return user;
+  }
+
+  const store = getStore();
+  const users = store.plusUsers || [];
+  const existing = users.find((candidate) => candidate.email === normalizedEmail);
+
+  if (existing) {
+    const updated: PlusUserRecord = {
+      ...existing,
+      lemonSqueezyCustomerId: input.lemonSqueezyCustomerId,
+      lemonSqueezySubscriptionId: input.lemonSqueezySubscriptionId,
+      planStatus: 'active',
+    };
+    store.plusUsers = users.map((candidate) => (candidate.id === existing.id ? updated : candidate));
+    return updated;
+  }
+
+  const salt = randomBytes(16).toString('hex');
+  const user: PlusUserRecord = {
+    id: randomUUID(),
+    email: normalizedEmail,
+    salt,
+    passwordHash: hashPassword(randomBytes(32).toString('hex'), salt),
+    createdAt: now,
+    lemonSqueezyCustomerId: input.lemonSqueezyCustomerId,
+    lemonSqueezySubscriptionId: input.lemonSqueezySubscriptionId,
+    planStatus: 'active',
+  };
+  store.plusUsers = [...users, user];
+  return user;
+}
+
+// Called from the Lemon Squeezy webhook when a subscription is cancelled/unpaid -
+// flips plan_status so getPlusUserFromSession() stops treating the account
+// as Plus without touching their files or login history.
+export async function setPlusPlanStatusBySubscriptionId(
+  lemonSqueezySubscriptionId: string,
+  planStatus: PlusPlanStatus
+): Promise<boolean> {
+  if (hasSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('plus_users')
+      .update({ plan_status: planStatus })
+      .eq('lemonsqueezy_subscription_id', lemonSqueezySubscriptionId)
+      .select('id');
+    if (error) throw error;
+    return (data?.length ?? 0) > 0;
+  }
+
+  const store = getStore();
+  const users = store.plusUsers || [];
+  let changed = false;
+  store.plusUsers = users.map((user) => {
+    if (user.lemonSqueezySubscriptionId !== lemonSqueezySubscriptionId) return user;
+    changed = true;
+    return { ...user, planStatus };
+  });
+  return changed;
+}
+
 export async function authenticatePlusUser(email: string, password: string): Promise<PlusUserRecord | null> {
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -444,7 +579,10 @@ export async function getPlusUserFromSession(token: string): Promise<PlusUserRec
       .eq('id', session.user_id)
       .maybeSingle();
     if (userError) throw userError;
-    return userRow ? userFromRow(userRow as UserRow) : null;
+    if (!userRow) return null;
+    const user = userFromRow(userRow as UserRow);
+    // Missing planStatus means the account predates Lemon Squeezy billing (invite-created) - treat as active.
+    return user.planStatus === 'canceled' ? null : user;
   }
 
   const store = getStore();
@@ -456,7 +594,8 @@ export async function getPlusUserFromSession(token: string): Promise<PlusUserRec
   const session = activeSessions.find((candidate) => safeEqual(candidate.token, token));
   if (!session) return null;
 
-  return (store.plusUsers || []).find((user) => user.id === session.userId) ?? null;
+  const user = (store.plusUsers || []).find((user) => user.id === session.userId) ?? null;
+  return user && user.planStatus === 'canceled' ? null : user;
 }
 
 export async function destroyPlusSession(token: string): Promise<void> {

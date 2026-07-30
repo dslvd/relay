@@ -172,6 +172,16 @@ export async function addUploadRecord(
   saveGlobalHistory([record, ...history], scope);
 }
 
+// Sums stored bytes for one Plus account's uploads (incl. snippets), for
+// enforcing the per-account total storage cap at upload-init time. Follows
+// the same load-then-filter pattern already used by GET /api/plus/uploads.
+export async function getPlusStorageUsedBytes(userId: string): Promise<number> {
+  const history = await loadUploadHistory('plus');
+  return history
+    .filter((record) => record.ownerId === userId)
+    .reduce((sum, record) => sum + (record.size || 0), 0);
+}
+
 export async function removeUploadUrls(
   urls: string[],
   scope: UploadHistoryScope = 'public'

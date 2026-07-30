@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import SnippetEditor from '@/app/components/SnippetEditor';
+import { languageFromFilename } from '@/app/lib/lang-map';
 
 interface UploadRecord {
   url: string;
@@ -13,6 +15,7 @@ interface UploadRecord {
   folder?: string;
   displayName?: string;
   kind?: 'file' | 'snippet';
+  language?: string;
 }
 
 interface FolderRecord {
@@ -62,6 +65,12 @@ export default function PlusDashboard() {
   const mountedRef = useRef(false);
   const syncRequestIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [showSnippetModal, setShowSnippetModal] = useState(false);
+  const [snippetContent, setSnippetContent] = useState('');
+  const [snippetFilename, setSnippetFilename] = useState('');
+  const [snippetSubmitting, setSnippetSubmitting] = useState(false);
+  const snippetLanguage = useMemo(() => languageFromFilename(snippetFilename), [snippetFilename]);
 
   const loadFolders = async () => {
     try {
@@ -275,6 +284,43 @@ export default function PlusDashboard() {
     }
 
     void syncAll(false);
+  };
+
+  const submitSnippet = async () => {
+    const content = snippetContent.trim();
+    if (!content || snippetSubmitting) return;
+
+    setSnippetSubmitting(true);
+    try {
+      const res = await fetch('/api/snippet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: snippetContent,
+          language: snippetLanguage,
+          filename: snippetFilename.trim() || undefined,
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.error || 'Failed to create snippet');
+
+      if (selectedFolderId && payload?.record?.url) {
+        await fetch('/api/history', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: payload.record.url, folder: selectedFolderId }),
+        });
+      }
+
+      setSnippetContent('');
+      setSnippetFilename('');
+      setShowSnippetModal(false);
+      void syncAll(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to create snippet');
+    } finally {
+      setSnippetSubmitting(false);
+    }
   };
 
   const logout = async () => {
@@ -572,6 +618,14 @@ export default function PlusDashboard() {
               <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>Organize your files</div>
             </button>
             <button
+              onClick={() => setShowSnippetModal(true)}
+              className="actionCard pressable"
+              style={{ ...glass, borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
+            >
+              <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>+ New snippet</div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>Paste and share code</div>
+            </button>
+            <button
               onClick={copyAllLinks}
               disabled={uploads.length === 0}
               className="actionCard pressable"
@@ -659,7 +713,18 @@ export default function PlusDashboard() {
                     }}
                   >
                     <div style={{ minWidth: 0, flex: '1 1 240px' }}>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, wordBreak: 'break-all' }}>{file.displayName || file.filename}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, wordBreak: 'break-all' }}>{file.displayName || file.filename}</div>
+                        {file.kind === 'snippet' && (
+                          <span style={{
+                            flexShrink: 0, padding: '0.1rem 0.4rem', borderRadius: '999px',
+                            fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.04em',
+                            background: 'rgba(96,165,250,0.14)', color: '#60a5fa',
+                          }}>
+                            {file.language ? file.language.toUpperCase() : 'SNIPPET'}
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.25rem' }}>
                         {formatFileSize(file.size)} · {formatTimestamp(file.timestamp)}
                       </div>
@@ -703,6 +768,89 @@ export default function PlusDashboard() {
             )}
           </div>
         </main>
+
+        {showSnippetModal && (
+          <div
+            onClick={() => {
+              if (snippetSubmitting) return;
+              if (snippetContent.trim().length > 0 && !window.confirm('Discard this snippet?')) return;
+              setShowSnippetModal(false);
+            }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', padding: '1.2rem',
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                ...glass, borderRadius: '16px', width: 'min(560px, 100%)', display: 'flex', flexDirection: 'column',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.4)', background: 'var(--surface-card-strong)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.9rem 1.1rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>New snippet</div>
+                <button
+                  onClick={() => {
+                    if (snippetContent.trim().length > 0 && !window.confirm('Discard this snippet?')) return;
+                    setShowSnippetModal(false);
+                  }}
+                  className="pressable"
+                  style={{ border: 'none', background: 'transparent', color: 'var(--c-dim)', fontSize: '1rem', cursor: 'pointer', lineHeight: 1, padding: '0.2rem' }}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+                <input
+                  value={snippetFilename}
+                  onChange={(e) => setSnippetFilename(e.target.value)}
+                  placeholder="filename.ext (optional)"
+                  disabled={snippetSubmitting}
+                  style={{ padding: '0.5rem 0.7rem', borderRadius: '8px', border: '1px solid var(--border-input)', background: 'var(--surface-input)', color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none' }}
+                />
+
+                <SnippetEditor
+                  code={snippetContent}
+                  onChange={setSnippetContent}
+                  language={snippetLanguage}
+                  placeholder="Paste your code here…"
+                  disabled={snippetSubmitting}
+                  height="260px"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.6rem', padding: '0.9rem 1.1rem', borderTop: '1px solid var(--border-subtle)' }}>
+                <button
+                  onClick={() => {
+                    if (snippetContent.trim().length > 0 && !window.confirm('Discard this snippet?')) return;
+                    setShowSnippetModal(false);
+                  }}
+                  disabled={snippetSubmitting}
+                  className="pressable"
+                  style={{ padding: '0.5rem 0.9rem', borderRadius: '999px', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--c-sub)', fontSize: '0.75rem', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitSnippet}
+                  disabled={snippetSubmitting || snippetContent.trim().length === 0}
+                  className="pressable"
+                  style={{
+                    padding: '0.5rem 1rem', borderRadius: '999px', border: 'none', fontSize: '0.75rem', fontWeight: 700,
+                    color: snippetSubmitting || snippetContent.trim().length === 0 ? 'var(--c-dim)' : '#0a0a0a',
+                    background: snippetSubmitting || snippetContent.trim().length === 0 ? 'var(--surface-input)' : 'var(--c-accent-mint)',
+                    cursor: snippetSubmitting || snippetContent.trim().length === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {snippetSubmitting ? 'Creating…' : 'Create snippet'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

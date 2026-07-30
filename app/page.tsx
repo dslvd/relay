@@ -8,6 +8,7 @@ import LordIcon from './components/LordIcon';
 import type { LordIconName } from './lib/lordicons';
 import { LANGUAGE_OPTIONS, languageFromFilename } from './lib/lang-map';
 import SnippetEditor from './components/SnippetEditor';
+import { FREE_MAX_FILE_BYTES, PLUS_MAX_FILE_BYTES } from './lib/plan-limits';
 
 interface UploadedItem {
   url: string;
@@ -157,8 +158,8 @@ function MonoIcon({
   }
 }
 
-const FREE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
-const PLUS_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+const FREE_MAX_UPLOAD_BYTES = FREE_MAX_FILE_BYTES;
+const PLUS_MAX_UPLOAD_BYTES = PLUS_MAX_FILE_BYTES;
 const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
 const IDB_NAME = 'relay_uploads_v1';
 const IDB_STORE = 'files';
@@ -2325,25 +2326,45 @@ export default function Home() {
                 </button>
               </div>
             ) : (
-              <a
-                href="/plus"
-              style={{
-                  padding: '0.36rem 0.75rem',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(233,236,242,0.28)',
-                  background: 'linear-gradient(180deg, rgba(233,236,242,0.16), rgba(233,236,242,0.11))',
-                  backdropFilter: 'blur(14px)',
-                  WebkitBackdropFilter: 'blur(14px)',
-                  color: 'var(--c-text)',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  textDecoration: 'none',
-                  boxShadow: '0 6px 18px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.08)'
-                }}
-              >
-                Relay Plus login
-              </a>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <a
+                  href="/pricing"
+                  style={{
+                    padding: '0.34rem 0.72rem',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(255,255,255,0.045)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    color: 'var(--c-text)',
+                    fontSize: '0.68rem',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    boxShadow: '0 3px 12px rgba(0,0,0,0.16)'
+                  }}
+                >
+                  Pricing
+                </a>
+                <a
+                  href="/plus"
+                style={{
+                    padding: '0.36rem 0.75rem',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(233,236,242,0.28)',
+                    background: 'linear-gradient(180deg, rgba(233,236,242,0.16), rgba(233,236,242,0.11))',
+                    backdropFilter: 'blur(14px)',
+                    WebkitBackdropFilter: 'blur(14px)',
+                    color: 'var(--c-text)',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.08)'
+                  }}
+                >
+                  Relay Plus login
+                </a>
+              </div>
             )}
           </div>
         </div>

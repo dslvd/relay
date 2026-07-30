@@ -4,11 +4,11 @@ import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isBlacklisted } from '@/app/lib/data/abuse-store';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
+import { FREE_MAX_FILE_BYTES, PLUS_MAX_FILE_BYTES, PLUS_STORAGE_LIMIT_BYTES } from '@/app/lib/plan-limits';
+import { getPlusStorageUsedBytes } from '@/app/lib/data/upload-history-store';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
-const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024;
-const PLUS_MAX_FILE_BYTES = 500 * 1024 * 1024;
 const PLUS_COOKIE_NAME = 'plus_auth';
 
 export async function POST(request: NextRequest) {
@@ -49,6 +49,13 @@ export async function POST(request: NextRequest) {
 
     if (size > maxFileBytes) {
       return NextResponse.json({ error: 'File too large' }, { status: 413 });
+    }
+
+    if (plusUser) {
+      const used = await getPlusStorageUsedBytes(plusUser.id);
+      if (used + size > PLUS_STORAGE_LIMIT_BYTES) {
+        return NextResponse.json({ error: 'Plus storage limit reached (80GB)' }, { status: 413 });
+      }
     }
 
     const objectKey = normalizeObjectKey(pathname);

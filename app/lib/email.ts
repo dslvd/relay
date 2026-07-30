@@ -42,3 +42,30 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     throw new Error(`Failed to send password reset email: ${error.message}`);
   }
 }
+
+export async function sendPlusWelcomeEmail(to: string, setPasswordUrl: string): Promise<void> {
+  if (!hasResendConfigured()) {
+    // Dev/local fallback: log the link instead of failing the webhook, so
+    // the provisioning flow is still testable without a Resend account.
+    console.warn('[email] RESEND_API_KEY not set - Plus welcome/set-password link for', to, 'is:', setPasswordUrl);
+    return;
+  }
+
+  const resend = getResendClient();
+  const from = process.env.RESEND_FROM_EMAIL || 'Relay <onboarding@resend.dev>';
+
+  const { error } = await resend.emails.send({
+    from,
+    to,
+    subject: 'Your Relay Plus subscription is active',
+    html: `
+      <p>Thanks for subscribing to Relay Plus! Your account now has 80GB of storage and an 8GB per-file upload limit.</p>
+      <p><a href="${setPasswordUrl}">Click here to set your password</a> and log in. This link expires in 1 hour.</p>
+      <p>If you need a new link later, use "Forgot password" on the Relay Plus login page.</p>
+    `,
+  });
+
+  if (error) {
+    throw new Error(`Failed to send Plus welcome email: ${error.message}`);
+  }
+}

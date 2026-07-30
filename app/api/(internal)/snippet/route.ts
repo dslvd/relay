@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildObjectKey, putObjectText } from '@/app/lib/storage/r2-storage';
-import { addUploadRecord, type UploadRecord } from '@/app/lib/data/upload-history-store';
+import { addUploadRecord, getPlusStorageUsedBytes, type UploadRecord } from '@/app/lib/data/upload-history-store';
 import { RETENTION_MS } from '@/app/lib/storage/retention';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isBlacklisted } from '@/app/lib/data/abuse-store';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
+import { PLUS_STORAGE_LIMIT_BYTES } from '@/app/lib/plan-limits';
 
 const MAX_SNIPPETS_PER_HOUR = 30;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -85,6 +86,13 @@ export async function POST(request: NextRequest) {
 
     const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
     const plusUser = token ? await getPlusUserFromSession(token) : null;
+
+    if (plusUser) {
+      const used = await getPlusStorageUsedBytes(plusUser.id);
+      if (used + byteSize > PLUS_STORAGE_LIMIT_BYTES) {
+        return NextResponse.json({ error: 'Plus storage limit reached (80GB)' }, { status: 413 });
+      }
+    }
 
     const objectKey = buildObjectKey(filename);
     await putObjectText({ objectKey, content, contentType: 'text/plain; charset=utf-8' });
