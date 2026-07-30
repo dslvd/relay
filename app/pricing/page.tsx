@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { PLUS_PRICE_PHP_CENTAVOS, PLUS_MAX_FILE_BYTES, PLUS_STORAGE_LIMIT_BYTES } from '@/app/lib/plan-limits';
+import {
+  PLUS_PRICE_PHP_CENTAVOS,
+  PLUS_MAX_FILE_BYTES,
+  PLUS_STORAGE_LIMIT_BYTES,
+  PLUS_CHECKOUT_ENABLED,
+  PLUS_CHECKOUT_CONTACT_EMAIL,
+} from '@/app/lib/plan-limits';
 
 function formatGb(bytes: number) {
   return `${Math.round(bytes / (1024 * 1024 * 1024))}GB`;
@@ -128,6 +134,22 @@ export default function PricingPage() {
               >
                 You&apos;re already on Plus — go to your vault
               </a>
+            ) : !PLUS_CHECKOUT_ENABLED ? (
+              <div
+                style={{
+                  padding: '0.9rem 1rem', borderRadius: '14px', textAlign: 'center',
+                  border: '1px solid var(--border-default)', background: 'var(--surface-well, var(--surface-card))',
+                }}
+              >
+                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>Checkout is under construction</p>
+                <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'var(--c-sub)' }}>
+                  Please contact{' '}
+                  <a href={`mailto:${PLUS_CHECKOUT_CONTACT_EMAIL}`} style={{ color: 'var(--c-accent-mint)' }}>
+                    {PLUS_CHECKOUT_CONTACT_EMAIL}
+                  </a>{' '}
+                  for early access.
+                </p>
+              </div>
             ) : !showEmailStep ? (
               <button
                 onClick={() => setShowEmailStep(true)}

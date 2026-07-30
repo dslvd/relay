@@ -526,8 +526,12 @@ button, input, select, textarea {
   right: 4.3rem;
 }
 
-.footer-link--show-files {
+.pricing-link {
   right: 7.6rem;
+}
+
+.footer-link--show-files {
+  right: 10.9rem;
 }
 
 .minimal-link {

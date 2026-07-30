@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLemonSqueezyCheckout, hasLemonSqueezyConfigured } from '@/app/lib/lemonsqueezy';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
+import { PLUS_CHECKOUT_ENABLED, PLUS_CHECKOUT_CONTACT_EMAIL } from '@/app/lib/plan-limits';
 
 const MAX_CHECKOUTS_PER_HOUR = 10;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: NextRequest) {
+  if (!PLUS_CHECKOUT_ENABLED) {
+    return NextResponse.json(
+      { error: `Relay Plus checkout is under construction. Please contact ${PLUS_CHECKOUT_CONTACT_EMAIL} for early access.` },
+      { status: 503 }
+    );
+  }
+
   if (!hasLemonSqueezyConfigured()) {
     return NextResponse.json({ error: 'Checkout is not configured yet' }, { status: 503 });
   }

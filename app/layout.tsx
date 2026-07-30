@@ -52,6 +52,9 @@ export default function RootLayout({
         </ThemeProvider>
         <ClickRipple />
         <DisableInspect />
+        <Link className="footer-link pricing-link" href="/pricing" prefetch>
+          Pricing
+        </Link>
         <Link className="footer-link api-link" href="/api" prefetch>
           API
         </Link>
