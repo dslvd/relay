@@ -98,6 +98,7 @@ export default function RootLayout({
         {/* Hover/click-triggered decorative animations only — safe to load after
             hydration instead of blocking it. */}
         <Script src="https://cdn.lordicon.com/lordicon.js" strategy="lazyOnload" />
+        <Script src="https://static.getclicky.com/js" data-id="101509478" strategy="afterInteractive" />
         <ThemeProvider>
           <ThemeToggle />
           {children}
