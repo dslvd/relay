@@ -171,8 +171,11 @@ export default function HomeTerminal() {
     setPanel('none');
     setLines([{ text: `push ./${file.name}` }]);
     try {
-      log('hashing', 'dim');
-      const hash = await hashFile(file);
+      // Hashing only gates the final malware-check commit below, not the
+      // upload itself — run it off to the side so a slow CPU/large file
+      // doesn't delay the network transfer from starting.
+      log('hashing + uploading', 'dim');
+      const hashPromise = hashFile(file);
 
       const pathname = randomName(file.name);
       const initRes = await fetch('/api/multipart/init', {
@@ -195,25 +198,37 @@ export default function HomeTerminal() {
       const totalParts = Math.max(1, Math.ceil(file.size / effectivePartSize));
       const parts: { partNumber: number; etag: string }[] = [];
 
-      for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
-        log(`uploading — part ${partNumber}/${totalParts}`, 'dim');
-        const start = (partNumber - 1) * effectivePartSize;
-        const end = Math.min(file.size, start + effectivePartSize);
+      // Upload several parts concurrently instead of one at a time — the
+      // old loop serialized presign+PUT per part, which meant a fast
+      // connection sat idle waiting on round trips instead of pushing bytes.
+      const PARALLEL_PARTS = 8;
+      const partNumbers = Array.from({ length: totalParts }, (_, i) => i + 1);
+      for (let i = 0; i < partNumbers.length; i += PARALLEL_PARTS) {
+        const batch = partNumbers.slice(i, i + PARALLEL_PARTS);
+        log(`uploading — part${batch.length > 1 ? 's' : ''} ${batch[0]}-${batch[batch.length - 1]}/${totalParts}`, 'dim');
 
-        const partRes = await fetch('/api/multipart/part', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uploadId, objectKey, partNumber }),
-        });
-        const partPayload = await partRes.json().catch(() => ({}));
-        if (!partRes.ok || !partPayload?.data?.url) {
-          throw new Error(partPayload?.error || 'failed to presign part');
-        }
+        const batchResults = await Promise.all(
+          batch.map(async (partNumber) => {
+            const start = (partNumber - 1) * effectivePartSize;
+            const end = Math.min(file.size, start + effectivePartSize);
 
-        const putRes = await fetch(partPayload.data.url, { method: 'PUT', body: file.slice(start, end) });
-        if (!putRes.ok) throw new Error('part upload failed');
-        const etag = (putRes.headers.get('ETag') || '').replace(/^"|"$/g, '');
-        parts.push({ partNumber, etag });
+            const partRes = await fetch('/api/multipart/part', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ uploadId, objectKey, partNumber }),
+            });
+            const partPayload = await partRes.json().catch(() => ({}));
+            if (!partRes.ok || !partPayload?.data?.url) {
+              throw new Error(partPayload?.error || 'failed to presign part');
+            }
+
+            const putRes = await fetch(partPayload.data.url, { method: 'PUT', body: file.slice(start, end) });
+            if (!putRes.ok) throw new Error('part upload failed');
+            const etag = (putRes.headers.get('ETag') || '').replace(/^"|"$/g, '');
+            return { partNumber, etag };
+          })
+        );
+        parts.push(...batchResults);
       }
 
       const completeRes = await fetch('/api/multipart/complete', {
@@ -226,6 +241,7 @@ export default function HomeTerminal() {
 
       // Malware check runs before the link is ever shown — a flagged hash
       // gets quarantined server-side and this throws instead of printing a link.
+      const hash = await hashPromise;
       const commitRes = await fetch('/api/dedupe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

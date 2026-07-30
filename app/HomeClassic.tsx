@@ -164,7 +164,7 @@ const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
 const IDB_NAME = 'relay_uploads_v1';
 const IDB_STORE = 'files';
 const MAX_CONCURRENT_UPLOADS = 3;
-const PARALLEL_PARTS = 6;
+const PARALLEL_PARTS = 8;
 
 const DARK_T = {
   card: 'rgba(255,255,255,0.04)',
@@ -955,6 +955,38 @@ export default function Home() {
     });
   };
 
+  const initMultipart = async (
+    file: File
+  ): Promise<NonNullable<UploadQueueItem['multipart']>> => {
+    const pathname = generateRandomFilename(file.name);
+    const initRes = await fetchWithRetry(
+      '/api/multipart/init',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pathname,
+          contentType: file.type || 'application/octet-stream',
+          size: file.size,
+          filename: file.name,
+        }),
+      },
+      3
+    );
+
+    const initPayload = await initRes.json().catch(() => ({}));
+    if (!initRes.ok || !initPayload?.data?.uploadId || !initPayload?.data?.objectKey) {
+      throw new Error(initPayload?.error || 'Failed to initialize multipart upload');
+    }
+
+    return {
+      objectKey: initPayload.data.objectKey as string,
+      uploadId: initPayload.data.uploadId as string,
+      partSize: Number(initPayload.data.partSize) || 8 * 1024 * 1024,
+      parts: [],
+    };
+  };
+
   const ensureContentHash = async (item: UploadQueueItem): Promise<string> => {
     if (item.contentHash) return item.contentHash;
     const hash = await computeFileHash(item.file);
@@ -1066,12 +1098,28 @@ export default function Home() {
     }
 
     setUploadStatus('Checking for duplicates...');
+    // Hashing (reads + digests the whole file) and multipart init (a cheap
+    // metadata round trip, no bytes sent yet) don't depend on each other —
+    // run them together instead of paying both latencies back-to-back.
+    // No bandwidth is wasted if this turns out to be a duplicate below,
+    // since actual part bytes aren't uploaded until after that check.
+    const initPromise = item.multipart ? null : initMultipart(file);
     const contentHash = await ensureContentHash(item);
     throwIfPaused();
     throwIfCancelled();
     const duplicateUrl = await checkDuplicateUpload(contentHash, file);
     throwIfPaused();
     if (duplicateUrl) {
+      if (initPromise) {
+        // Best-effort cleanup — nothing was ever uploaded to it.
+        initPromise.then((m) => {
+          fetch('/api/multipart/abort', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uploadId: m.uploadId, objectKey: m.objectKey }),
+          }).catch(() => {});
+        }).catch(() => {});
+      }
       const downloadPageUrl = toDownloadPageUrl(duplicateUrl);
       setUploadQueue((prev) =>
         prev.map((it) =>
@@ -1119,35 +1167,8 @@ export default function Home() {
     let multipart = item.multipart;
 
     if (!multipart) {
-      const randomFilename = generateRandomFilename(file.name);
-      const pathname = randomFilename;
-      const initRes = await fetchWithRetry(
-        '/api/multipart/init',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pathname,
-            contentType: file.type || 'application/octet-stream',
-            size: file.size,
-            filename: file.name,
-          }),
-        },
-        3
-      );
-
-      const initPayload = await initRes.json().catch(() => ({}));
-      if (!initRes.ok || !initPayload?.data?.uploadId || !initPayload?.data?.objectKey) {
-        throw new Error(initPayload?.error || 'Failed to initialize multipart upload');
-      }
+      multipart = await initPromise!;
       throwIfPaused();
-
-      multipart = {
-        objectKey: initPayload.data.objectKey as string,
-        uploadId: initPayload.data.uploadId as string,
-        partSize: Number(initPayload.data.partSize) || 8 * 1024 * 1024,
-        parts: [],
-      };
 
       setUploadQueue((prev) =>
         prev.map((it) => (it.id === itemId ? { ...it, multipart } : it))

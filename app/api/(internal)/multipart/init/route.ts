@@ -12,7 +12,10 @@ const RATE_WINDOW_MS = 60 * 60 * 1000;
 const PLUS_COOKIE_NAME = 'plus_auth';
 
 const MIN_PART_SIZE = 5 * 1024 * 1024;
-const DEFAULT_PART_SIZE = 8 * 1024 * 1024;
+// Larger parts mean fewer presign/PUT round trips for big files — worth it
+// since clients already upload several parts concurrently, so throughput is
+// bandwidth-bound rather than round-trip-bound at this size.
+const DEFAULT_PART_SIZE = 16 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   const ip =
