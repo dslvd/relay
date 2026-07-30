@@ -1,6 +1,7 @@
 import { getRedisClient, hasRedisConfigured } from '@/app/lib/data/redis-client';
 
 export type ReportStatus = 'open' | 'resolved' | 'dismissed';
+export type ReportAction = 'disabled' | 'deleted' | 'dismissed' | 'reopened';
 
 export type AbuseReport = {
   id: string;
@@ -12,6 +13,8 @@ export type AbuseReport = {
   reporterIp?: string;
   status: ReportStatus;
   resolvedAt?: number;
+  resolvedAction?: ReportAction;
+  resolvedByIp?: string;
 };
 
 const REPORTS_KEY = 'admin:abuse-reports';
@@ -55,7 +58,11 @@ export async function addAbuseReport(report: AbuseReport): Promise<void> {
   await saveAbuseReports([report, ...reports]);
 }
 
-export async function updateAbuseReportStatus(id: string, status: ReportStatus): Promise<boolean> {
+export async function updateAbuseReportStatus(
+  id: string,
+  status: ReportStatus,
+  details?: { action?: ReportAction; actorIp?: string }
+): Promise<boolean> {
   const reports = await loadAbuseReports();
   const index = reports.findIndex((r) => r.id === id);
   if (index === -1) return false;
@@ -64,6 +71,8 @@ export async function updateAbuseReportStatus(id: string, status: ReportStatus):
     ...reports[index],
     status,
     resolvedAt: status === 'open' ? undefined : Date.now(),
+    resolvedAction: status === 'open' ? undefined : details?.action,
+    resolvedByIp: status === 'open' ? undefined : details?.actorIp,
   };
   await saveAbuseReports(reports);
   return true;

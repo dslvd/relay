@@ -116,6 +116,8 @@ interface AbuseReport {
   reporterIp?: string;
   status: 'open' | 'resolved' | 'dismissed';
   resolvedAt?: number;
+  resolvedAction?: 'disabled' | 'deleted' | 'dismissed' | 'reopened';
+  resolvedByIp?: string;
 }
 
 interface AuditLogEntry {
@@ -615,19 +617,28 @@ export default function AdminDashboard() {
     }
   };
 
-  const updateReportStatusById = async (id: string, status: 'open' | 'resolved' | 'dismissed'): Promise<boolean> => {
+  const updateReportStatusById = async (
+    id: string,
+    status: 'open' | 'resolved' | 'dismissed',
+    action?: 'disabled' | 'deleted' | 'dismissed' | 'reopened'
+  ): Promise<boolean> => {
     try {
       const response = await fetch('/api/admin/reports', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ id, status }),
+        body: JSON.stringify({ id, status, action }),
       });
       if (!response.ok) {
         alert('Failed to update report');
         return false;
       }
-      setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status, resolvedAt: status === 'open' ? undefined : Date.now() } : r)));
+      setReports((prev) => prev.map((r) => (r.id === id ? {
+        ...r,
+        status,
+        resolvedAt: status === 'open' ? undefined : Date.now(),
+        resolvedAction: status === 'open' ? undefined : action,
+      } : r)));
       return true;
     } catch (error) {
       console.error('Failed to update report status:', error);
@@ -645,7 +656,7 @@ export default function AdminDashboard() {
     setReportActionId(report.id);
     try {
       const ok = await runBulkAction('quarantine', [report.url], { skipPrompts: true, reason: `Reported: ${report.category}` });
-      if (ok) await updateReportStatusById(report.id, 'resolved');
+      if (ok) await updateReportStatusById(report.id, 'resolved', 'disabled');
     } finally {
       setReportActionId(null);
     }
@@ -656,7 +667,7 @@ export default function AdminDashboard() {
     setReportActionId(report.id);
     try {
       const ok = await runBulkAction('delete', [report.url], { skipPrompts: true });
-      if (ok) await updateReportStatusById(report.id, 'resolved');
+      if (ok) await updateReportStatusById(report.id, 'resolved', 'deleted');
     } finally {
       setReportActionId(null);
     }
@@ -665,7 +676,7 @@ export default function AdminDashboard() {
   const dismissReport = async (report: AbuseReport) => {
     setReportActionId(report.id);
     try {
-      await updateReportStatusById(report.id, 'dismissed');
+      await updateReportStatusById(report.id, 'dismissed', 'dismissed');
     } finally {
       setReportActionId(null);
     }
@@ -674,7 +685,7 @@ export default function AdminDashboard() {
   const reopenReport = async (report: AbuseReport) => {
     setReportActionId(report.id);
     try {
-      await updateReportStatusById(report.id, 'open');
+      await updateReportStatusById(report.id, 'open', 'reopened');
     } finally {
       setReportActionId(null);
     }
@@ -2063,7 +2074,7 @@ export default function AdminDashboard() {
                             {categoryLabels[report.category] || report.category}
                           </span>
                           <span style={{ fontSize: '0.68rem', color: '#8a8a8a' }}>
-                            {report.status !== 'open' ? `${report.status} • ` : ''}{new Date(report.timestamp).toLocaleString()}
+                            Reported {new Date(report.timestamp).toLocaleString()}
                           </span>
                         </div>
                         <div style={{ fontSize: '0.78rem', color: '#f5f5f5', wordBreak: 'break-all', marginTop: '0.35rem' }}>
@@ -2075,6 +2086,28 @@ export default function AdminDashboard() {
                         {report.reporterEmail && (
                           <div style={{ fontSize: '0.7rem', color: '#8a8a8a', marginTop: '0.3rem' }}>
                             Reporter: {report.reporterEmail}
+                          </div>
+                        )}
+                        {report.status !== 'open' && (
+                          <div style={{
+                            marginTop: '0.5rem', padding: '0.4rem 0.6rem', borderRadius: '8px',
+                            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                            fontSize: '0.7rem', color: '#a9b2c1',
+                          }}>
+                            {(() => {
+                              const actionLabels: Record<string, string> = {
+                                disabled: '🔒 Link disabled',
+                                deleted: '🗑️ File deleted',
+                                dismissed: '✕ Dismissed',
+                              };
+                              const label = (report.resolvedAction && actionLabels[report.resolvedAction]) || `Marked ${report.status}`;
+                              return (
+                                <>
+                                  {label} by admin{report.resolvedByIp ? ` (${report.resolvedByIp})` : ''}
+                                  {report.resolvedAt ? ` · ${new Date(report.resolvedAt).toLocaleString()}` : ''}
+                                </>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
