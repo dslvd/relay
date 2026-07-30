@@ -2245,7 +2245,7 @@ export default function Home() {
           lineHeight: 1.42,
           letterSpacing: '-0.03em',
           color: 'var(--c-text)',
-          animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both',
+          animation: 'heroReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both',
           marginTop: '-4.2rem',
           textAlign: 'center'
         }}>
@@ -2263,7 +2263,7 @@ export default function Home() {
               justifyContent: 'center',
               gap: '0.75rem',
               flexWrap: 'wrap',
-              animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.13s both'
+              animation: 'heroReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.18s both'
             }}
           >
             <div
@@ -2415,7 +2415,7 @@ export default function Home() {
           gap: '0.5rem',
           flexWrap: 'wrap',
           marginTop: '0.65rem',
-          animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.21s both'
+          animation: 'heroReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.31s both'
         }}>
           {/* Remote Upload — secondary */}
           <button
