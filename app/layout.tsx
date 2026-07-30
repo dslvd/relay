@@ -25,14 +25,62 @@ const spaceMono = Space_Mono({
   variable: '--font-space-mono',
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://relay.xstlo.com";
+const SITE_DESCRIPTION =
+  "Relay is a fast, no-signup way to share files and code snippets. Drop a file, get a link. Relay Plus adds 8GB uploads and an 80GB personal vault.";
+
 export const metadata: Metadata = {
-  title: "Relay",
-  description: "CDN Uploader built with Next.js 14 and Vercel Edge Functions",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Relay — Quick, secure file & code sharing",
+    template: "%s | Relay",
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: "Relay",
+  keywords: ["Relay", "file sharing", "code sharing", "snippet sharing", "file upload", "anonymous file sharing"],
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "Relay",
+    title: "Relay — Quick, secure file & code sharing",
+    description: SITE_DESCRIPTION,
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Relay — Quick, secure file & code sharing",
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: "#0a0a0a",
   colorScheme: "dark",
+};
+
+// Tells Google exactly what Relay is and gives it a stable identity to
+// associate with the "Relay" brand query - separate from the generic
+// dictionary word, which no amount of on-page markup can win outright.
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "Relay",
+  url: SITE_URL,
+  description: SITE_DESCRIPTION,
+  applicationCategory: "Utility",
+  operatingSystem: "Any",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "PHP",
+  },
 };
 
 export default function RootLayout({
@@ -43,6 +91,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${spaceMono.variable}`} style={{ backgroundColor: "#0a0a0a" }}>
       <body className="antialiased" style={{ backgroundColor: "#0a0a0a", margin: 0 }}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
         {/* Hover/click-triggered decorative animations only — safe to load after
             hydration instead of blocking it. */}
         <Script src="https://cdn.lordicon.com/lordicon.js" strategy="lazyOnload" />

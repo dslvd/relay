@@ -1,3 +1,13 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'DMCA Policy',
+  description: 'Relay DMCA takedown policy and copyright infringement reporting process.',
+  alternates: { canonical: '/dmca' },
+  robots: { index: false, follow: true },
+};
+
 export default function DmcaPage() {
   return (
     <main style={{
@@ -248,7 +258,7 @@ export default function DmcaPage() {
           gap: '0.75rem',
           flexWrap: 'wrap'
         }}>
-          <a
+          <Link
             href="/"
             style={{
               padding: '0.7rem 1.2rem',
@@ -264,7 +274,7 @@ export default function DmcaPage() {
             }}
           >
             Back to home
-          </a>
+          </Link>
           <a
             href="mailto:contactdslvd@gmail.com?subject=DMCA%20Takedown%20Request"
             style={{
