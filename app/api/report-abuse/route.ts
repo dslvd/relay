@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
-import { sendAbuseReportEmail } from '@/app/lib/email';
+import { addAbuseReport } from '@/app/lib/data/report-store';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
 
 const MAX_REPORTS_PER_HOUR = 10;
@@ -53,23 +52,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Reporter email looks invalid' }, { status: 400 });
     }
 
-    await appendAuditLog({
+    await addAbuseReport({
       id: randomUUID(),
       timestamp: Date.now(),
-      action: 'abuse.report.submitted',
-      actorIp: ip,
-      userAgent: request.headers.get('user-agent') || undefined,
-      target: url,
-      meta: { category, description, reporterEmail: reporterEmail || undefined },
+      url,
+      category,
+      description,
+      reporterEmail: reporterEmail || undefined,
+      reporterIp: ip,
+      status: 'open',
     });
-
-    try {
-      await sendAbuseReportEmail({ url, category, description, reporterEmail: reporterEmail || undefined });
-    } catch (emailError) {
-      // Logged, but not surfaced - the report is already durably recorded in
-      // the audit log above, so a delivery failure shouldn't fail the request.
-      console.error('Failed to send abuse report email:', emailError);
-    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

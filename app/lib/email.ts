@@ -69,39 +69,3 @@ export async function sendPlusWelcomeEmail(to: string, setPasswordUrl: string): 
     throw new Error(`Failed to send Plus welcome email: ${error.message}`);
   }
 }
-
-export async function sendAbuseReportEmail(report: {
-  url: string;
-  category: string;
-  description: string;
-  reporterEmail?: string;
-}): Promise<void> {
-  const to = process.env.ABUSE_REPORT_EMAIL || 'matthew@xstlo.com';
-
-  if (!hasResendConfigured()) {
-    // Dev/local fallback: log the report instead of failing the request, so
-    // the report is still captured (and testable) without a Resend account.
-    console.warn('[email] RESEND_API_KEY not set - abuse report:', report);
-    return;
-  }
-
-  const resend = getResendClient();
-  const from = process.env.RESEND_FROM_EMAIL || 'Relay <onboarding@resend.dev>';
-  const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  const { error } = await resend.emails.send({
-    from,
-    to,
-    subject: `[Relay] Abuse report: ${report.category}`,
-    html: `
-      <p><strong>Reported URL:</strong> ${escape(report.url)}</p>
-      <p><strong>Category:</strong> ${escape(report.category)}</p>
-      <p><strong>Description:</strong><br>${escape(report.description).replace(/\n/g, '<br>')}</p>
-      <p><strong>Reporter contact:</strong> ${report.reporterEmail ? escape(report.reporterEmail) : '(not provided)'}</p>
-    `,
-  });
-
-  if (error) {
-    throw new Error(`Failed to send abuse report email: ${error.message}`);
-  }
-}

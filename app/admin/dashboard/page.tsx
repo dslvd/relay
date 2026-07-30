@@ -106,6 +106,18 @@ interface QuarantineRecord {
   createdByIp?: string;
 }
 
+interface AbuseReport {
+  id: string;
+  timestamp: number;
+  url: string;
+  category: string;
+  description: string;
+  reporterEmail?: string;
+  reporterIp?: string;
+  status: 'open' | 'resolved' | 'dismissed';
+  resolvedAt?: number;
+}
+
 interface AuditLogEntry {
   id: string;
   timestamp: number;
@@ -143,6 +155,9 @@ export default function AdminDashboard() {
   const [blacklistRules, setBlacklistRules] = useState<BlacklistRule[]>([]);
   const [quarantineRecords, setQuarantineRecords] = useState<QuarantineRecord[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [reports, setReports] = useState<AbuseReport[]>([]);
+  const [reportActionId, setReportActionId] = useState<string | null>(null);
+  const [reportFilter, setReportFilter] = useState<'open' | 'resolved' | 'dismissed' | 'all'>('open');
   const [blacklistType, setBlacklistType] = useState<'ip' | 'filename'>('ip');
   const [blacklistPattern, setBlacklistPattern] = useState('');
   const [addingRule, setAddingRule] = useState(false);
@@ -166,16 +181,17 @@ export default function AdminDashboard() {
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const [filesResponse, analyticsResponse, plusResponse, statsResponse, abuseResponse, auditResponse] = await Promise.all([
+      const [filesResponse, analyticsResponse, plusResponse, statsResponse, abuseResponse, auditResponse, reportsResponse] = await Promise.all([
         fetch('/api/admin/files', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/analytics', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/admin/plus', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/admin/stats', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/admin/abuse', { cache: 'no-store', credentials: 'include' }),
         fetch('/api/admin/audit?limit=200', { cache: 'no-store', credentials: 'include' }),
+        fetch('/api/admin/reports', { cache: 'no-store', credentials: 'include' }),
       ]);
 
-      const responses = [filesResponse, analyticsResponse, plusResponse, statsResponse, abuseResponse, auditResponse];
+      const responses = [filesResponse, analyticsResponse, plusResponse, statsResponse, abuseResponse, auditResponse, reportsResponse];
       if (responses.some((res) => res.status === 401)) {
         sessionStorage.removeItem('admin_authenticated');
         router.push('/admin');
@@ -212,6 +228,11 @@ export default function AdminDashboard() {
       if (auditResponse.ok) {
         const data = await auditResponse.json();
         setAuditLog(data.entries || []);
+      }
+
+      if (reportsResponse.ok) {
+        const data = await reportsResponse.json();
+        setReports(data.reports || []);
       }
     } catch (error) {
       console.error('Failed to fetch files:', error);
@@ -545,20 +566,26 @@ export default function AdminDashboard() {
   };
 
 
-  const runBulkAction = async (action: 'delete' | 'expire' | 'quarantine' | 'unquarantine', urls?: string[]) => {
+  const runBulkAction = async (
+    action: 'delete' | 'expire' | 'quarantine' | 'unquarantine',
+    urls?: string[],
+    options?: { skipPrompts?: boolean; reason?: string }
+  ): Promise<boolean> => {
     const targets = urls || Array.from(selectedFiles);
-    if (targets.length === 0) return;
+    if (targets.length === 0) return false;
 
-    if (action === 'delete' && !confirm(`Delete ${targets.length} file(s)? This cannot be undone.`)) {
-      return;
+    if (!options?.skipPrompts) {
+      if (action === 'delete' && !confirm(`Delete ${targets.length} file(s)? This cannot be undone.`)) {
+        return false;
+      }
+
+      if (action === 'expire' && !confirm(`Expire ${targets.length} file(s)? They will be removed permanently.`)) {
+        return false;
+      }
     }
 
-    if (action === 'expire' && !confirm(`Expire ${targets.length} file(s)? They will be removed permanently.`)) {
-      return;
-    }
-
-    let reason = '';
-    if (action === 'quarantine') {
+    let reason = options?.reason ?? '';
+    if (action === 'quarantine' && !options?.skipPrompts) {
       reason = prompt('Reason for quarantine (optional):') || '';
     }
 
@@ -573,16 +600,83 @@ export default function AdminDashboard() {
 
       if (!response.ok) {
         alert('Bulk action failed');
-        return;
+        return false;
       }
 
       setSelectedFiles(new Set());
       await fetchFiles();
+      return true;
     } catch (error) {
       console.error('Bulk action failed:', error);
       alert('Bulk action failed');
+      return false;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateReportStatusById = async (id: string, status: 'open' | 'resolved' | 'dismissed'): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/admin/reports', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id, status }),
+      });
+      if (!response.ok) {
+        alert('Failed to update report');
+        return false;
+      }
+      setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status, resolvedAt: status === 'open' ? undefined : Date.now() } : r)));
+      return true;
+    } catch (error) {
+      console.error('Failed to update report status:', error);
+      alert('Failed to update report');
+      return false;
+    }
+  };
+
+  // Disable/Delete act on the reported URL via the existing bulk-action
+  // endpoint (same code path as the file manager's own quarantine/delete
+  // buttons) - the report is then marked resolved only if the file action
+  // actually succeeded, so a failed R2 call never silently hides a report.
+  const disableReportedLink = async (report: AbuseReport) => {
+    if (!confirm(`Disable this link?\n\n${report.url}\n\nThe file stays in storage but will no longer be servable.`)) return;
+    setReportActionId(report.id);
+    try {
+      const ok = await runBulkAction('quarantine', [report.url], { skipPrompts: true, reason: `Reported: ${report.category}` });
+      if (ok) await updateReportStatusById(report.id, 'resolved');
+    } finally {
+      setReportActionId(null);
+    }
+  };
+
+  const deleteReportedFile = async (report: AbuseReport) => {
+    if (!confirm(`Permanently delete this file?\n\n${report.url}\n\nThis cannot be undone.`)) return;
+    setReportActionId(report.id);
+    try {
+      const ok = await runBulkAction('delete', [report.url], { skipPrompts: true });
+      if (ok) await updateReportStatusById(report.id, 'resolved');
+    } finally {
+      setReportActionId(null);
+    }
+  };
+
+  const dismissReport = async (report: AbuseReport) => {
+    setReportActionId(report.id);
+    try {
+      await updateReportStatusById(report.id, 'dismissed');
+    } finally {
+      setReportActionId(null);
+    }
+  };
+
+  const reopenReport = async (report: AbuseReport) => {
+    setReportActionId(report.id);
+    try {
+      await updateReportStatusById(report.id, 'open');
+    } finally {
+      setReportActionId(null);
     }
   };
 
@@ -1901,6 +1995,146 @@ export default function AdminDashboard() {
           >
             🗑️ Delete All Files
           </button>
+        </div>
+
+        {/* Reported content */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.04)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '16px',
+          padding: '1.5rem',
+          marginBottom: '2rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 300, margin: 0, color: '#f5f5f5' }}>
+              🚩 Reported content ({reports.filter((r) => r.status === 'open').length} open)
+            </h3>
+            <select
+              value={reportFilter}
+              onChange={(e) => setReportFilter(e.target.value as typeof reportFilter)}
+              style={{
+                padding: '0.45rem 0.65rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '8px',
+                color: '#f5f5f5',
+                fontSize: '0.78rem',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="open">Open</option>
+              <option value="resolved">Resolved</option>
+              <option value="dismissed">Dismissed</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gap: '0.7rem', maxHeight: '480px', overflowY: 'auto' }}>
+            {reports.filter((r) => reportFilter === 'all' || r.status === reportFilter).length === 0 && (
+              <div style={{ fontSize: '0.8rem', color: '#666666' }}>No {reportFilter === 'all' ? '' : reportFilter} reports</div>
+            )}
+            {reports
+              .filter((r) => reportFilter === 'all' || r.status === reportFilter)
+              .map((report) => {
+                const categoryLabels: Record<string, string> = {
+                  'illegal-content': 'Illegal content',
+                  csam: 'CSAM',
+                  malware: 'Malware/Ransomware',
+                  copyright: 'Copyright',
+                  'phishing-scam': 'Phishing/Scam',
+                  other: 'Other',
+                };
+                const isBusy = reportActionId === report.id;
+                return (
+                  <div key={report.id} style={{
+                    border: report.category === 'csam' ? '1px solid rgba(255,100,100,0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '10px',
+                    padding: '0.85rem',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.6rem', flexWrap: 'wrap' }}>
+                      <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span style={{
+                            fontSize: '0.62rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '999px',
+                            color: report.category === 'csam' ? '#ff9e9e' : '#7ef4cb',
+                            background: report.category === 'csam' ? 'rgba(255,158,158,0.14)' : 'rgba(126,244,203,0.14)',
+                            letterSpacing: '0.03em', textTransform: 'uppercase',
+                          }}>
+                            {categoryLabels[report.category] || report.category}
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: '#8a8a8a' }}>
+                            {report.status !== 'open' ? `${report.status} • ` : ''}{new Date(report.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#f5f5f5', wordBreak: 'break-all', marginTop: '0.35rem' }}>
+                          {report.url}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#a9b2c1', marginTop: '0.35rem', lineHeight: 1.5 }}>
+                          {report.description}
+                        </div>
+                        {report.reporterEmail && (
+                          <div style={{ fontSize: '0.7rem', color: '#8a8a8a', marginTop: '0.3rem' }}>
+                            Reporter: {report.reporterEmail}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', flexShrink: 0 }}>
+                        {report.status === 'open' ? (
+                          <>
+                            <button
+                              onClick={() => disableReportedLink(report)}
+                              disabled={isBusy}
+                              style={{
+                                padding: '0.35rem 0.65rem', borderRadius: '8px', border: '1px solid rgba(242,200,121,0.4)',
+                                background: 'rgba(242,200,121,0.12)', color: '#f2c879', fontSize: '0.72rem', fontWeight: 600,
+                                cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
+                              }}
+                            >
+                              Disable link
+                            </button>
+                            <button
+                              onClick={() => deleteReportedFile(report)}
+                              disabled={isBusy}
+                              style={{
+                                padding: '0.35rem 0.65rem', borderRadius: '8px', border: '1px solid rgba(255,158,158,0.4)',
+                                background: 'rgba(255,158,158,0.12)', color: '#ff9e9e', fontSize: '0.72rem', fontWeight: 600,
+                                cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
+                              }}
+                            >
+                              Delete file
+                            </button>
+                            <button
+                              onClick={() => dismissReport(report)}
+                              disabled={isBusy}
+                              style={{
+                                padding: '0.35rem 0.65rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)',
+                                background: 'transparent', color: '#f5f5f5', fontSize: '0.72rem',
+                                cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
+                              }}
+                            >
+                              Dismiss
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => reopenReport(report)}
+                            disabled={isBusy}
+                            style={{
+                              padding: '0.35rem 0.65rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)',
+                              background: 'transparent', color: '#f5f5f5', fontSize: '0.72rem',
+                              cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
+                            }}
+                          >
+                            Reopen
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
         </div>
 
         {/* Abuse + Blacklist */}
