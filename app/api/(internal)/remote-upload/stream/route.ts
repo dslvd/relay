@@ -10,6 +10,7 @@ import { UploadPartCommand } from '@aws-sdk/client-s3';
 import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/retention';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isBlacklisted } from '@/app/lib/data/abuse-store';
+import { fetchWithValidatedRedirects } from '@/app/lib/security/ssrf-guard';
 
 const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024;
 const PLUS_MAX_FILE_BYTES = 500 * 1024 * 1024;
@@ -100,9 +101,8 @@ export async function POST(request: NextRequest) {
 
         send({ type: 'start' });
 
-        const remoteResponse = await fetch(sourceUrl, {
+        const remoteResponse = await fetchWithValidatedRedirects(parsedUrl, {
           method: 'GET',
-          redirect: 'follow',
           headers: {
             'accept-encoding': 'identity',
             'user-agent': 'RelayRemoteUploader/1.0',

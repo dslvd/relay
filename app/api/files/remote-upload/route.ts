@@ -5,6 +5,7 @@ import { createFileRecord, getOwnerStorageUsed } from '@/app/lib/data/api-file-s
 import { getStorageLimit } from '@/app/lib/data/api-key-store';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
 import { dispatchFileWebhook } from '@/app/lib/webhooks/dispatch';
+import { fetchWithValidatedRedirects } from '@/app/lib/security/ssrf-guard';
 
 const ANON_MAX_FILE_BYTES = 25 * 1024 * 1024 * 1024; // 25GB
 const ANON_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, matches rootz's anonymous remote-upload expiry
@@ -71,9 +72,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'URL must start with http:// or https://' }, { status: 400 });
     }
 
-    const remoteResponse = await fetch(sourceUrl, {
+    const remoteResponse = await fetchWithValidatedRedirects(parsedUrl, {
       method: 'GET',
-      redirect: 'follow',
       headers: {
         'accept-encoding': 'identity',
         'user-agent': 'RelayRemoteUploader/1.0',
@@ -191,6 +191,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Files remote-upload error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to upload from remote URL' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to upload from remote URL';
+    const status = message.includes('private or reserved') || message.includes('resolve URL host') || message.includes('Redirect target') || message.includes('Too many redirects')
+      ? 400
+      : 500;
+    return NextResponse.json({ success: false, error: status === 400 ? message : 'Failed to upload from remote URL' }, { status });
   }
 }

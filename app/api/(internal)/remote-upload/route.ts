@@ -3,6 +3,7 @@ import { createPresignedUploadUrl, normalizeObjectKey } from '@/app/lib/storage/
 import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/retention';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
+import { fetchWithValidatedRedirects } from '@/app/lib/security/ssrf-guard';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -107,9 +108,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const remoteResponse = await fetch(sourceUrl, {
+    const remoteResponse = await fetchWithValidatedRedirects(parsedUrl, {
       method: 'GET',
-      redirect: 'follow',
       headers: {
         // Avoid getting compressed bodies so Content-Length, when present, is meaningful.
         'accept-encoding': 'identity',
@@ -207,7 +207,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to remote upload';
-    const status = message === 'File too large' ? 413 : 500;
+    const status =
+      message === 'File too large'
+        ? 413
+        : message.includes('private or reserved') || message.includes('resolve URL host') || message.includes('Redirect target') || message.includes('Too many redirects')
+          ? 400
+          : 500;
     console.error('Remote upload failed:', error);
     return NextResponse.json({ error: message }, { status });
   }
