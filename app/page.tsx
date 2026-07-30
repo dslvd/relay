@@ -403,6 +403,7 @@ export default function Home() {
   const [toastsExpanded, setToastsExpanded] = useState(false);
   const [isPlus, setIsPlus] = useState(false);
   const [plusEmail, setPlusEmail] = useState('');
+  const [isBanned, setIsBanned] = useState(false);
   const toastTimeoutRefs = useRef<Record<number, number>>({});
   const toastIdRef = useRef(0);
   const cancelUploadRef = useRef(false);
@@ -756,6 +757,11 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'pageview', path: '/' })
     }).catch(() => {}); // Silently fail
+
+    fetch('/api/ban-check', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => setIsBanned(Boolean(data?.banned)))
+      .catch(() => setIsBanned(false));
 
   }, []);
 
@@ -2156,8 +2162,36 @@ export default function Home() {
 
   return (
     <>
+      {isBanned && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 2000,
+            padding: '0.7rem 1rem',
+            textAlign: 'center',
+            background: 'rgba(180,50,50,0.92)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            color: '#fff',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.35)',
+          }}
+        >
+          Your access to Relay has been restricted. Uploads from this connection are blocked. Contact{' '}
+          <a href="mailto:matthew@xstlo.com" style={{ color: '#fff', textDecoration: 'underline' }}>matthew@xstlo.com</a>{' '}
+          if you believe this is a mistake.
+        </div>
+      )}
       <main style={{
         padding: uploading ? '6.5rem 6vw 4rem' : '4rem 6vw',
+        paddingTop: isBanned
+          ? `calc(${uploading ? '6.5rem' : '4rem'} + 2.6rem)`
+          : undefined,
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
