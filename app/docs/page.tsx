@@ -3,6 +3,22 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import LordIcon from '../components/LordIcon';
+import {
+  FREE_MAX_FILE_BYTES,
+  FREE_STORAGE_LIMIT_BYTES,
+  PLUS_MAX_FILE_BYTES,
+  PLUS_STORAGE_LIMIT_BYTES,
+} from '@/app/lib/plan-limits';
+
+function formatGb(bytes: number) {
+  const gb = bytes / (1024 * 1024 * 1024);
+  return gb >= 1 ? `${Math.round(gb)}GB` : `${Math.round(bytes / (1024 * 1024))}MB`;
+}
+
+const freeFileLabel = formatGb(FREE_MAX_FILE_BYTES);
+const freeStorageLabel = formatGb(FREE_STORAGE_LIMIT_BYTES);
+const plusFileLabel = formatGb(PLUS_MAX_FILE_BYTES);
+const plusStorageLabel = formatGb(PLUS_STORAGE_LIMIT_BYTES);
 
 type SectionId =
   | 'welcome'
@@ -156,7 +172,7 @@ const FAQ_ITEMS: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: 'Is there a limit to the file size I can upload?',
-    a: 'Through the web app, free uploads are capped at 100MB and Plus accounts get up to 500MB. Through the API, anonymous uploads are capped at 25GB and expire after 15 days; uploads made with an API key have no expiration.',
+    a: `Through the web app, free uploads are capped at ${freeFileLabel} per file (${freeStorageLabel} total), and Plus accounts get up to ${plusFileLabel} per file (${plusStorageLabel} vault). Through the API, anonymous uploads are capped at 25GB and expire after 15 days; uploads made with an API key have no expiration.`,
   },
   {
     q: 'How do I upload a file?',

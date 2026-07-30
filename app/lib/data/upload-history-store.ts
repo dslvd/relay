@@ -182,6 +182,16 @@ export async function getPlusStorageUsedBytes(userId: string): Promise<number> {
     .reduce((sum, record) => sum + (record.size || 0), 0);
 }
 
+// Same idea as getPlusStorageUsedBytes, but for anonymous free-tier uploads,
+// which have no account to key off — the IP is the only handle available,
+// same as the existing per-IP daily quota in POST /api/history.
+export async function getFreeStorageUsedBytesByIp(ip: string): Promise<number> {
+  const history = await loadUploadHistory('public');
+  return history
+    .filter((record) => !record.ownerId && record.ip === ip)
+    .reduce((sum, record) => sum + (record.size || 0), 0);
+}
+
 export async function removeUploadUrls(
   urls: string[],
   scope: UploadHistoryScope = 'public'

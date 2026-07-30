@@ -9,6 +9,7 @@ import {
   PLUS_MAX_FILE_BYTES,
   PLUS_STORAGE_LIMIT_BYTES,
   FREE_MAX_FILE_BYTES,
+  FREE_STORAGE_LIMIT_BYTES,
   PLUS_CHECKOUT_ENABLED,
   PLUS_CHECKOUT_CONTACT_EMAIL,
 } from '@/app/lib/plan-limits';
@@ -21,6 +22,7 @@ function formatGb(bytes: number) {
 const priceDisplay = `₱${(PLUS_PRICE_PHP_CENTAVOS / 100).toFixed(0)}`;
 const freeFileLabel = formatGb(FREE_MAX_FILE_BYTES);
 const plusFileLabel = formatGb(PLUS_MAX_FILE_BYTES);
+const freeStorageLabel = formatGb(FREE_STORAGE_LIMIT_BYTES);
 const plusStorageLabel = formatGb(PLUS_STORAGE_LIMIT_BYTES);
 
 // Real, code-verified differences only - folders and the 15-day retention
@@ -28,7 +30,7 @@ const plusStorageLabel = formatGb(PLUS_STORAGE_LIMIT_BYTES);
 const COMPARISON_ROWS: Array<{ label: string; free: string; plus: string }> = [
   { label: 'Per-file upload limit', free: freeFileLabel, plus: plusFileLabel },
   { label: 'Account & vault dashboard', free: '—', plus: 'Included' },
-  { label: 'Storage', free: 'This browser only', plus: `${plusStorageLabel} vault` },
+  { label: 'Storage', free: `${freeStorageLabel} total`, plus: `${plusStorageLabel} vault` },
   { label: 'Developer API access', free: '—', plus: 'Included' },
   { label: 'Code snippet sharing', free: 'Included', plus: 'Included' },
   { label: 'Ads', free: 'Shown', plus: 'None' },
@@ -251,11 +253,16 @@ export default function PricingPage() {
               <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)', marginBottom: '0.4rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                 Account storage
               </div>
-              <div className="meterTrack">
-                <div className={`meterFill meterFill--plus ${metersIn ? 'in plus' : ''}`} />
+              <div style={{ display: 'grid', gap: '0.35rem' }}>
+                <div className="meterTrack">
+                  <div className={`meterFill meterFill--free ${metersIn ? 'in free' : ''}`} />
+                </div>
+                <div className="meterTrack">
+                  <div className={`meterFill meterFill--plus ${metersIn ? 'in plus' : ''}`} />
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.4rem', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
-                <span style={{ color: 'var(--c-dim)' }}>Free · no account vault</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
+                <span style={{ color: 'var(--c-dim)' }}>Free · {freeStorageLabel} total</span>
                 <span style={{ color: 'var(--c-accent-mint)', fontWeight: 700 }}>Plus · {plusStorageLabel}</span>
               </div>
             </div>

@@ -4,8 +4,8 @@ import { createMultipartUpload, normalizeObjectKey } from '@/app/lib/storage/r2-
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isBlacklisted } from '@/app/lib/data/abuse-store';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
-import { FREE_MAX_FILE_BYTES, PLUS_MAX_FILE_BYTES, PLUS_STORAGE_LIMIT_BYTES } from '@/app/lib/plan-limits';
-import { getPlusStorageUsedBytes } from '@/app/lib/data/upload-history-store';
+import { FREE_MAX_FILE_BYTES, FREE_STORAGE_LIMIT_BYTES, PLUS_MAX_FILE_BYTES, PLUS_STORAGE_LIMIT_BYTES } from '@/app/lib/plan-limits';
+import { getFreeStorageUsedBytesByIp, getPlusStorageUsedBytes } from '@/app/lib/data/upload-history-store';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -55,6 +55,11 @@ export async function POST(request: NextRequest) {
       const used = await getPlusStorageUsedBytes(plusUser.id);
       if (used + size > PLUS_STORAGE_LIMIT_BYTES) {
         return NextResponse.json({ error: 'Plus storage limit reached (80GB)' }, { status: 413 });
+      }
+    } else {
+      const used = await getFreeStorageUsedBytesByIp(ip);
+      if (used + size > FREE_STORAGE_LIMIT_BYTES) {
+        return NextResponse.json({ error: 'Free storage limit reached (2GB) — upgrade to Plus for more' }, { status: 413 });
       }
     }
 

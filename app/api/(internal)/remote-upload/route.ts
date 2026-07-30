@@ -4,11 +4,16 @@ import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
 import { fetchWithValidatedRedirects } from '@/app/lib/security/ssrf-guard';
+import {
+  FREE_MAX_FILE_BYTES,
+  FREE_STORAGE_LIMIT_BYTES,
+  PLUS_MAX_FILE_BYTES,
+  PLUS_STORAGE_LIMIT_BYTES,
+} from '@/app/lib/plan-limits';
+import { getFreeStorageUsedBytesByIp, getPlusStorageUsedBytes } from '@/app/lib/data/upload-history-store';
 
 const MAX_UPLOADS_PER_HOUR = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
-const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024;
-const PLUS_MAX_FILE_BYTES = 500 * 1024 * 1024;
 const PLUS_COOKIE_NAME = 'plus_auth';
 
 function getClientIp(request: NextRequest): string {
@@ -131,6 +136,23 @@ export async function POST(request: NextRequest) {
 
     if (Number.isFinite(declaredSize) && declaredSize > maxFileBytes) {
       return NextResponse.json({ error: 'File too large' }, { status: 413 });
+    }
+
+    if (Number.isFinite(declaredSize)) {
+      const used = plusUser
+        ? await getPlusStorageUsedBytes(plusUser.id)
+        : await getFreeStorageUsedBytesByIp(ip);
+      const limit = plusUser ? PLUS_STORAGE_LIMIT_BYTES : FREE_STORAGE_LIMIT_BYTES;
+      if (used + declaredSize > limit) {
+        return NextResponse.json(
+          {
+            error: plusUser
+              ? 'Plus storage limit reached (80GB)'
+              : 'Free storage limit reached (2GB) — upgrade to Plus for more',
+          },
+          { status: 413 }
+        );
+      }
     }
 
     const dispositionName = tryGetFilenameFromContentDisposition(

@@ -11,9 +11,14 @@ import { deleteExpiredBlobs, pruneExpiredHistoryCache } from '@/app/lib/storage/
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isBlacklisted } from '@/app/lib/data/abuse-store';
 import { fetchWithValidatedRedirects } from '@/app/lib/security/ssrf-guard';
+import {
+  FREE_MAX_FILE_BYTES,
+  FREE_STORAGE_LIMIT_BYTES,
+  PLUS_MAX_FILE_BYTES,
+  PLUS_STORAGE_LIMIT_BYTES,
+} from '@/app/lib/plan-limits';
+import { getFreeStorageUsedBytesByIp, getPlusStorageUsedBytes } from '@/app/lib/data/upload-history-store';
 
-const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024;
-const PLUS_MAX_FILE_BYTES = 500 * 1024 * 1024;
 const PLUS_COOKIE_NAME = 'plus_auth';
 const PART_SIZE = 8 * 1024 * 1024;
 
@@ -95,6 +100,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        const ip = getClientIp(request);
         const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
         const plusUser = token ? await getPlusUserFromSession(token) : null;
         const maxFileBytes = plusUser ? PLUS_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES;
@@ -125,11 +131,27 @@ export async function POST(request: NextRequest) {
           return;
         }
 
+        if (Number.isFinite(declaredSize)) {
+          const used = plusUser
+            ? await getPlusStorageUsedBytes(plusUser.id)
+            : await getFreeStorageUsedBytesByIp(ip);
+          const limit = plusUser ? PLUS_STORAGE_LIMIT_BYTES : FREE_STORAGE_LIMIT_BYTES;
+          if (used + declaredSize > limit) {
+            send({
+              type: 'error',
+              error: plusUser
+                ? 'Plus storage limit reached (80GB)'
+                : 'Free storage limit reached (2GB) — upgrade to Plus for more',
+            });
+            controller.close();
+            return;
+          }
+        }
+
         const dispositionName = tryGetFilenameFromContentDisposition(remoteResponse.headers.get('content-disposition'));
         const urlNameRaw = parsedUrl.pathname.split('/').filter(Boolean).pop() || '';
         const originalFilename = sanitizeFilename(filenameOverride || dispositionName || urlNameRaw || 'remote-file');
 
-        const ip = getClientIp(request);
         if (await isBlacklisted(ip, originalFilename)) {
           send({ type: 'error', error: 'Upload blocked' });
           controller.close();

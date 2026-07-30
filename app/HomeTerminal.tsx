@@ -2,18 +2,30 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import {
+  FREE_MAX_FILE_BYTES,
+  FREE_STORAGE_LIMIT_BYTES,
+  PLUS_MAX_FILE_BYTES,
+  PLUS_STORAGE_LIMIT_BYTES,
+} from '@/app/lib/plan-limits';
+
+// Single source of truth (app/lib/plan-limits.ts) drives these labels
+// directly, rather than mirroring the numbers as separate literals here —
+// that mirroring is exactly what let this page's copy drift out of sync
+// with the real limits the last time they changed.
+function formatLimit(bytes: number): string {
+  const gb = bytes / (1024 * 1024 * 1024);
+  return gb >= 1 ? `${Math.round(gb)}gb` : `${Math.round(bytes / (1024 * 1024))}mb`;
+}
 
 const MANIFEST = [
-  { k: 'free_tier_upload_limit', v: '100mb / file' },
-  { k: 'plus_tier_upload_limit', v: '8gb / file' },
-  { k: 'plus_vault', v: '80gb total' },
+  { k: 'free_tier_upload_limit', v: `${formatLimit(FREE_MAX_FILE_BYTES)} / file` },
+  { k: 'free_tier_total_storage', v: `${formatLimit(FREE_STORAGE_LIMIT_BYTES)} total` },
+  { k: 'plus_tier_upload_limit', v: `${formatLimit(PLUS_MAX_FILE_BYTES)} / file` },
+  { k: 'plus_vault', v: `${formatLimit(PLUS_STORAGE_LIMIT_BYTES)} total` },
   { k: 'retention', v: '15d idle → gone' },
   { k: 'signup_required', v: 'false' },
 ];
-
-// Mirrors app/lib/plan-limits.ts's FREE_MAX_FILE_BYTES — kept as a literal
-// here so this client bundle doesn't need to import server-side config.
-const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024;
 
 // Same key the classic homepage uses for its local "recent uploads" list
 // (see app/HomeClassic.tsx) — sharing it means a file pushed from either
@@ -152,7 +164,7 @@ export default function HomeTerminal() {
   const runUpload = async (file: File) => {
     if (busy) return;
     if (file.size > FREE_MAX_FILE_BYTES) {
-      setLines([{ text: `push ./${file.name}` }, { text: `over the 100mb free-tier limit (${formatBytes(file.size)})`, tone: 'err' }]);
+      setLines([{ text: `push ./${file.name}` }, { text: `over the ${formatLimit(FREE_MAX_FILE_BYTES)} free-tier limit (${formatBytes(file.size)})`, tone: 'err' }]);
       return;
     }
     setBusy(true);
@@ -336,120 +348,57 @@ export default function HomeTerminal() {
           display: flex;
           flex-direction: column;
           align-items: center;
-          padding: clamp(2.5rem, 6vw, 5rem) 1.25rem 4rem;
+          padding: clamp(2rem, 6vw, 5rem) 1.5rem 3rem;
         }
         .tpage a { color: var(--fg); }
         .tpage ::selection { background: var(--fg); color: var(--bg); }
         .tpage :focus-visible { outline: 1px dashed var(--fg); outline-offset: 2px; }
+        .t-wrap { width: 100%; max-width: 680px; }
 
-        .t-wrap { width: 100%; max-width: 70ch; font-size: 0.86rem; }
-
-        /* man(1)-style header/footer bar — the one authentic borrowing this
-           whole page is built around: NAME(SECTION) on both edges, the
-           manual's title centered, exactly like "man" renders on any unix box. */
-        .man-bar {
+        .t-nav {
           display: flex;
-          justify-content: space-between;
-          gap: 1rem;
-          font-size: 0.7rem;
-          letter-spacing: 0.03em;
-          color: var(--fg-dim);
-          padding-bottom: 0.9rem;
-          border-bottom: 1px solid var(--fg-ghost);
+          align-items: center;
+          margin-bottom: clamp(3rem, 10vw, 6rem);
+          font-size: 0.72rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
         }
-        .man-bar span:nth-child(2) { flex: 1; text-align: center; }
-        .man-bar--foot {
-          border-bottom: none;
-          border-top: 1px solid var(--fg-ghost);
-          padding-top: 0.9rem;
-          padding-bottom: 0;
-          margin-top: 2.6rem;
+        .t-nav .mark { display: flex; align-items: center; gap: 0.5rem; }
+        .t-diamond {
+          width: 9px; height: 9px;
+          border: 1px solid var(--fg);
+          transform: rotate(45deg);
+          flex-shrink: 0;
         }
 
-        .man-section { margin-top: 1.9rem; }
-        .man-h {
-          font-size: 0.72rem;
-          font-weight: 700;
-          letter-spacing: 0.12em;
-          color: var(--fg);
-          margin: 0 0 0.6rem;
+        .t-h1 {
+          font-size: clamp(1.5rem, 4.5vw, 2.1rem);
+          line-height: 1.35;
+          font-weight: 400;
+          margin: 0 0 0.9rem;
+          letter-spacing: -0.01em;
         }
-        .man-body {
-          padding-left: 2ch;
+        .t-h1 .dim { color: var(--fg-dim); }
+        .t-sub {
+          font-size: 0.82rem;
           color: var(--fg-dim);
-          line-height: 1.7;
-          max-width: 62ch;
+          line-height: 1.6;
+          margin: 0 0 2.4rem;
+          max-width: 52ch;
         }
-        .man-body b { color: var(--fg); font-weight: 700; }
-        .man-dim { color: var(--fg-faint); margin: 0; }
 
-        /* SYNOPSIS — the three commands double as the actual controls. */
-        .man-syn { display: flex; flex-direction: column; gap: 0.15rem; max-width: none; }
-        .syn-line {
-          appearance: none;
-          display: block;
-          width: fit-content;
-          max-width: 100%;
-          text-align: left;
-          background: transparent;
-          border: none;
-          color: var(--fg);
-          font-family: inherit;
-          font-size: 0.95rem;
-          padding: 0.2rem 0;
-          margin: 0.1rem 0;
-          cursor: pointer;
-        }
-        .syn-line::before { content: '$ '; color: var(--fg-faint); }
-        .syn-line:hover:not(:disabled),
-        .syn-line[aria-expanded="true"] { text-decoration: underline; text-underline-offset: 3px; }
-        .syn-line:disabled { color: var(--fg-faint); cursor: default; }
-        .syn-note {
-          color: var(--fg-faint);
-          font-size: 0.72rem;
-          margin: 0 0 0.7rem;
-          padding-left: 2ch;
-        }
-        .syn-block {
-          margin: 0.4rem 0 1rem 2ch;
-          padding: 0.8rem;
-          border: 1px solid var(--fg-ghost);
+        /* OUTPUT — plain command output, no fake terminal-window chrome.
+           Status is signalled the way real monochrome terminals always
+           have: reverse video, not color. */
+        .t-output {
           display: flex;
           flex-direction: column;
-          gap: 0.6rem;
-        }
-        .syn-block textarea,
-        .syn-block input {
-          font-family: inherit;
+          gap: 0.25rem;
           font-size: 0.82rem;
-          background: var(--bg);
-          color: var(--fg);
-          border: 1px solid var(--fg-faint);
-          padding: 0.55rem 0.65rem;
-          resize: vertical;
+          line-height: 1.8;
+          margin-bottom: 1.3rem;
+          min-height: 3rem;
         }
-        .syn-block textarea:focus,
-        .syn-block input:focus { outline: none; border-color: var(--fg); }
-        .syn-block-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
-
-        .man-btn {
-          font-family: inherit;
-          font-size: 0.7rem;
-          background: transparent;
-          color: var(--fg-dim);
-          border: 1px solid var(--fg-faint);
-          padding: 0.35rem 0.7rem;
-          cursor: pointer;
-        }
-        .man-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--fg); }
-        .man-btn:disabled { opacity: 0.4; cursor: default; }
-        .man-btn--solid { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-        .man-btn--solid:hover:not(:disabled) { background: var(--fg); color: var(--bg); opacity: 0.85; }
-
-        /* OUTPUT — plain command output, no fake window chrome. Status is
-           signalled the way real monochrome terminals always have: reverse
-           video, not color. */
-        .man-output { display: flex; flex-direction: column; gap: 0.2rem; max-width: none; }
         .out-line { white-space: pre-wrap; word-break: break-word; }
         .out-line--dim { color: var(--fg-faint); }
         .out-line--link a { text-decoration: underline; text-underline-offset: 2px; color: var(--fg); }
@@ -461,27 +410,85 @@ export default function HomeTerminal() {
           padding: 0.05rem 0.4ch;
         }
         .out-line--err::before { content: '✗ '; }
-        .man-cursor {
+        .t-cursor {
           display: inline-block;
-          width: 0.6ch; height: 1em;
+          width: 7px; height: 1.05em;
           background: var(--fg);
           margin-left: 2px;
           vertical-align: text-bottom;
-          animation: man-caret 0.8s step-end infinite;
+          animation: t-caret 0.8s step-end infinite;
         }
-        @keyframes man-caret { 50% { opacity: 0; } }
-        @media (prefers-reduced-motion: reduce) { .man-cursor { animation: none; } }
+        @keyframes t-caret { 50% { opacity: 0; } }
+        @media (prefers-reduced-motion: reduce) { .t-cursor { animation: none; } }
 
-        /* RECENT */
-        .recent-row {
+        .t-actions {
+          display: flex;
+          gap: 0.6rem;
+          flex-wrap: wrap;
+          margin-bottom: 0.6rem;
+        }
+        .t-action-btn {
+          font-family: inherit;
+          font-size: 0.74rem;
+          background: transparent;
+          color: var(--fg);
+          border: 1px solid var(--fg-faint);
+          padding: 0.55rem 0.9rem;
+          cursor: pointer;
+          transition: border-color 0.15s ease, background 0.15s ease;
+        }
+        .t-action-btn:hover:not(:disabled) { border-color: var(--fg); background: var(--fg-ghost); }
+        .t-action-btn[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+        .t-action-btn:disabled { opacity: 0.4; cursor: default; }
+
+        .t-inline-panel {
+          border: 1px solid var(--fg-ghost);
+          padding: 0.9rem;
+          margin-bottom: 1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.6rem;
+        }
+        .t-inline-panel textarea,
+        .t-inline-panel input {
+          font-family: inherit;
+          font-size: 0.78rem;
+          background: var(--bg);
+          color: var(--fg);
+          border: 1px solid var(--fg-faint);
+          padding: 0.6rem 0.7rem;
+          resize: vertical;
+        }
+        .t-inline-panel textarea:focus,
+        .t-inline-panel input:focus { outline: none; border-color: var(--fg); }
+        .t-inline-panel-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
+
+        .t-disclaimer {
+          font-size: 0.68rem;
+          color: var(--fg-faint);
+          line-height: 1.6;
+          margin-bottom: 2rem;
+          max-width: 56ch;
+        }
+
+        .t-recent { margin-bottom: 2.4rem; font-size: 0.76rem; }
+        .t-recent-head {
+          color: var(--fg-dim);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          font-size: 0.66rem;
+          margin-bottom: 0.6rem;
+        }
+        .t-recent-empty { color: var(--fg-faint); }
+        .t-recent-row {
           display: flex;
           align-items: baseline;
           gap: 0.7rem;
-          padding: 0.4rem 0;
+          padding: 0.45rem 0;
           border-bottom: 1px solid var(--fg-ghost);
         }
-        .recent-row:last-child { border-bottom: none; }
-        .recent-name {
+        .t-recent-row:last-child { border-bottom: none; }
+        .t-recent-name {
           flex: 1;
           min-width: 0;
           color: var(--fg);
@@ -490,184 +497,194 @@ export default function HomeTerminal() {
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-        .recent-name:hover { text-decoration: underline; }
-        .recent-meta { color: var(--fg-faint); font-size: 0.72rem; white-space: nowrap; }
-
-        /* LIMITS — dot-leader table, same trick used in a printed manual's
-           table of contents to tie a label to its value across the gap. */
-        .limits-row { display: flex; align-items: baseline; gap: 0.6ch; max-width: none; }
-        .limits-row .leader { flex: 1; overflow: hidden; white-space: nowrap; }
-        .limits-row .leader::after {
-          content: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ';
-          color: var(--fg-ghost);
+        .t-recent-name:hover { text-decoration: underline; }
+        .t-recent-meta { color: var(--fg-faint); font-size: 0.68rem; white-space: nowrap; }
+        .t-recent-copy {
+          font-family: inherit;
+          font-size: 0.66rem;
+          background: transparent;
+          color: var(--fg-dim);
+          border: 1px solid var(--fg-faint);
+          padding: 0.2rem 0.55rem;
+          cursor: pointer;
+          flex-shrink: 0;
         }
-        .limits-row b { flex-shrink: 0; }
+        .t-recent-copy:hover { color: var(--fg); border-color: var(--fg); }
 
-        @media (max-width: 560px) {
-          .limits-row .leader { display: none; }
-          .limits-row { justify-content: space-between; }
+        .t-manifest {
+          border-top: 1px solid var(--fg-ghost);
+          border-bottom: 1px solid var(--fg-ghost);
+          padding: 1.1rem 0;
+          margin-bottom: 2.4rem;
+          font-size: 0.74rem;
         }
+        .t-manifest-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 0.32rem 0;
+          color: var(--fg-dim);
+        }
+        .t-manifest-row b { color: var(--fg); font-weight: 400; }
+
+        .t-cta {
+          display: flex;
+          gap: 0.7rem;
+          flex-wrap: wrap;
+        }
+        .t-btn {
+          display: inline-block;
+          padding: 0.7rem 1.1rem;
+          font-size: 0.76rem;
+          text-decoration: none;
+          border: 1px solid var(--fg);
+          transition: background 0.15s ease, color 0.15s ease;
+        }
+        .tpage a.t-btn--solid { background: var(--fg); color: var(--bg); }
+        .tpage a.t-btn--solid:hover { opacity: 0.85; }
+        .t-btn--outline { color: var(--fg); }
+        .t-btn--outline:hover { background: var(--fg); color: var(--bg); }
       `}</style>
 
       <div className="t-wrap">
-        <header className="man-bar">
-          {/* <span>RELAY(1)</span>
-          <span>Developer Commands</span>
-          <span>RELAY(1)</span> */}
-        </header>
+        <nav className="t-nav">
+          <span className="mark">
+            <span className="t-diamond" />
+            relay
+          </span>
+        </nav>
 
-        <section className="man-section">
-          <h2 className="man-h">NAME</h2>
-          <p className="man-body">
-            <b>relay</b> — push a file, snip code, or pull a url. no account, no dashboard.
-          </p>
-        </section>
+        <h1 className="t-h1">
+          Share a file.<br />
+          Get a link.<br />
+          <span className="dim">Nothing else.</span>
+        </h1>
+        <p className="t-sub">
+          No account, no dashboard tour, no upsell before you&apos;ve uploaded a single byte.
+          This terminal is wired to the real thing — try it.
+        </p>
 
-        <section className="man-section">
-          <h2 className="man-h">SYNOPSIS</h2>
-          <div className="man-body man-syn">
-            <button
-              type="button"
-              className="syn-line"
-              disabled={busy}
-              onClick={() => fileInputRef.current?.click()}
+        <div className="t-output">
+          {lines.map((line, i) => (
+            <div
+              key={`${i}-${line.text}`}
+              className={`out-line ${line.tone ? `out-line--${line.tone}` : ''}`}
             >
-              relay push &lt;file&gt;
-            </button>
-            <p className="syn-note"># opens your device&apos;s file picker — relay only reads the one file you choose, nothing else, before or after.</p>
+              {line.href ? <a href={line.href}>{line.text}</a> : line.text}
+              {i === lines.length - 1 && line.tone !== 'err' && <span className="t-cursor" aria-hidden="true" />}
+            </div>
+          ))}
+        </div>
 
-            <button
-              type="button"
-              className="syn-line"
-              aria-expanded={panel === 'snippet'}
-              disabled={busy}
-              onClick={() => setPanel((p) => (p === 'snippet' ? 'none' : 'snippet'))}
-            >
-              relay snip
-            </button>
-            {panel === 'snippet' && (
-              <div className="syn-block">
-                <textarea
-                  rows={5}
-                  placeholder="paste code here…"
-                  value={snippetText}
-                  onChange={(e) => setSnippetText(e.target.value)}
-                  autoFocus
-                />
-                <div className="syn-block-row">
-                  <button type="button" className="man-btn" onClick={() => setPanel('none')}>cancel</button>
-                  <button type="button" className="man-btn man-btn--solid" disabled={!snippetText.trim() || busy} onClick={runSnippet}>push →</button>
-                </div>
-              </div>
-            )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) runUpload(file);
+          }}
+        />
 
-            <button
-              type="button"
-              className="syn-line"
-              aria-expanded={panel === 'remote'}
-              disabled={busy}
-              onClick={() => setPanel((p) => (p === 'remote' ? 'none' : 'remote'))}
-            >
-              relay pull &lt;url&gt;
-            </button>
-            {panel === 'remote' && (
-              <div className="syn-block">
-                <input
-                  type="url"
-                  placeholder="https://example.com/file.zip"
-                  value={remoteUrlText}
-                  onChange={(e) => setRemoteUrlText(e.target.value)}
-                  autoFocus
-                  onKeyDown={(e) => { if (e.key === 'Enter') runRemotePull(); }}
-                />
-                <div className="syn-block-row">
-                  <button type="button" className="man-btn" onClick={() => setPanel('none')}>cancel</button>
-                  <button type="button" className="man-btn man-btn--solid" disabled={!remoteUrlText.trim() || busy} onClick={runRemotePull}>pull →</button>
-                </div>
-              </div>
-            )}
+        <div className="t-actions">
+          <button
+            type="button"
+            className="t-action-btn"
+            aria-pressed={panel === 'snippet'}
+            disabled={busy}
+            onClick={() => setPanel((p) => (p === 'snippet' ? 'none' : 'snippet'))}
+          >
+            Snip code
+          </button>
+          <button
+            type="button"
+            className="t-action-btn"
+            disabled={busy}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Upload file
+          </button>
+          <button
+            type="button"
+            className="t-action-btn"
+            aria-pressed={panel === 'remote'}
+            disabled={busy}
+            onClick={() => setPanel((p) => (p === 'remote' ? 'none' : 'remote'))}
+          >
+            Remote pull
+          </button>
+        </div>
+
+        {panel === 'snippet' && (
+          <div className="t-inline-panel">
+            <textarea
+              rows={5}
+              placeholder="paste code here…"
+              value={snippetText}
+              onChange={(e) => setSnippetText(e.target.value)}
+              autoFocus
+            />
+            <div className="t-inline-panel-row">
+              <button type="button" className="t-action-btn" onClick={() => setPanel('none')}>Cancel</button>
+              <button type="button" className="t-action-btn" disabled={!snippetText.trim() || busy} onClick={runSnippet}>Push snippet</button>
+            </div>
           </div>
-        </section>
+        )}
 
-        {/* <section className="man-section">
-          <h2 className="man-h">DESCRIPTION</h2>
-          <p className="man-body">
-            Upload something, get a link back. Files and snippets sit for 15 days without a
-            visit, then they&apos;re gone — like /tmp, but shareable.
-          </p>
-        </section> */}
+        {panel === 'remote' && (
+          <div className="t-inline-panel">
+            <input
+              type="url"
+              placeholder="https://example.com/file.zip"
+              value={remoteUrlText}
+              onChange={(e) => setRemoteUrlText(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') runRemotePull(); }}
+            />
+            <div className="t-inline-panel-row">
+              <button type="button" className="t-action-btn" onClick={() => setPanel('none')}>Cancel</button>
+              <button type="button" className="t-action-btn" disabled={!remoteUrlText.trim() || busy} onClick={runRemotePull}>Pull</button>
+            </div>
+          </div>
+        )}
 
-        <section className="man-section">
-          <h2 className="man-h">OUTPUT</h2>
-          <div className="man-body man-output">
-            {lines.map((line, i) => (
-              <div
-                key={`${i}-${line.text}`}
-                className={`out-line ${line.tone ? `out-line--${line.tone}` : ''}`}
-              >
-                {line.href ? <a href={line.href}>{line.text}</a> : line.text}
-                {i === lines.length - 1 && line.tone !== 'err' && <span className="man-cursor" aria-hidden="true" />}
+        <p className="t-disclaimer">
+          &quot;Upload file&quot; opens your browser&apos;s own file picker — Relay only ever reads the
+          single file you choose there. We get no access to your folders or any other files, and
+          nothing more once the upload finishes.
+        </p>
+
+        <div className="t-recent">
+          <div className="t-recent-head">recent</div>
+          {recent.length === 0 ? (
+            <div className="t-recent-empty">nothing yet — try the terminal above.</div>
+          ) : (
+            recent.slice(0, RECENT_DISPLAY).map((item) => (
+              <div className="t-recent-row" key={`${item.url}-${item.timestamp}`}>
+                <a href={item.url} className="t-recent-name">{item.filename}</a>
+                <span className="t-recent-meta">{formatBytes(item.size)} · {formatRelativeTime(item.timestamp)}</span>
+                <button type="button" className="t-recent-copy" onClick={() => copyLink(item.url)}>
+                  {copiedUrl === item.url ? 'copied' : 'copy'}
+                </button>
               </div>
-            ))}
-          </div>
-        </section>
+            ))
+          )}
+        </div>
 
-        <section className="man-section">
-          <h2 className="man-h">RECENT{recent.length ? `(${Math.min(recent.length, RECENT_DISPLAY)})` : ''}</h2>
-          <div className="man-body">
-            {recent.length === 0 ? (
-              <p className="man-dim">nothing yet — try a command above.</p>
-            ) : (
-              recent.slice(0, RECENT_DISPLAY).map((item) => (
-                <div className="recent-row" key={`${item.url}-${item.timestamp}`}>
-                  <a href={item.url} className="recent-name">{item.filename}</a>
-                  <span className="recent-meta">{formatBytes(item.size)} · {formatRelativeTime(item.timestamp)}</span>
-                  <button type="button" className="man-btn" onClick={() => copyLink(item.url)}>
-                    {copiedUrl === item.url ? 'copied' : 'copy'}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+        <div className="t-manifest">
+          {MANIFEST.map((row) => (
+            <div className="t-manifest-row" key={row.k}>
+              <span>{row.k}</span>
+              <b>{row.v}</b>
+            </div>
+          ))}
+        </div>
 
-        <section className="man-section">
-          <h2 className="man-h">LIMITS</h2>
-          <div className="man-body">
-            {MANIFEST.map((row) => (
-              <div className="limits-row" key={row.k}>
-                <span>{row.k}</span>
-                <span className="leader" />
-                <b>{row.v}</b>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="man-section">
-          <h2 className="man-h">SEE ALSO</h2>
-          <p className="man-body">
-            <Link href="/pricing">pricing(1)</Link>, <Link href="/docs">docs(1)</Link>
-          </p>
-        </section>
-
-        <footer className="man-bar man-bar--foot">
-          {/* <span>RELAY</span> */}
-          <span>no accounts, no ads</span>
-          {/* <span>RELAY</span> */}
-        </footer>
+        <div className="t-cta">
+          <Link href="/pricing" className="t-btn t-btn--solid">See pricing</Link>
+          <Link href="/docs" className="t-btn t-btn--outline">API docs</Link>
+        </div>
       </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) runUpload(file);
-        }}
-      />
     </main>
   );
 }

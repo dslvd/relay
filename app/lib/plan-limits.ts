@@ -3,8 +3,9 @@
 // can't drift out of sync with each other the way the old per-route
 // FREE_MAX_FILE_BYTES/PLUS_MAX_FILE_BYTES constants did.
 
-export const FREE_MAX_FILE_BYTES = 100 * 1024 * 1024; // 100MB
+export const FREE_MAX_FILE_BYTES = 1 * 1024 * 1024 * 1024; // 1GB
 export const PLUS_MAX_FILE_BYTES = 8 * 1024 * 1024 * 1024; // 8GB
+export const FREE_STORAGE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024; // 2GB total per IP
 export const PLUS_STORAGE_LIMIT_BYTES = 80 * 1024 * 1024 * 1024; // 80GB total per account
 // Display only - the actual charge comes from LEMONSQUEEZY_VARIANT_ID's price
 // in the Lemon Squeezy dashboard (there's no API to set/read it dynamically).
