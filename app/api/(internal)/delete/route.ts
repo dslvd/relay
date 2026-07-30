@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { deleteObject, resolveObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 import { removeUploadUrls } from '@/app/lib/data/upload-history-store';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing url' }, { status: 400 });
     }
 
-    const objectKey = toObjectKeyFromAppUrl(url);
+    const objectKey = await resolveObjectKeyFromAppUrl(url);
     if (!objectKey) {
       return NextResponse.json({ error: 'Could not resolve object key from URL' }, { status: 400 });
     }

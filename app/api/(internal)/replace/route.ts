@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPresignedUploadUrl, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { createPresignedUploadUrl, resolveObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'url is required' }, { status: 400 });
     }
 
-    const objectKey = toObjectKeyFromAppUrl(url);
+    const objectKey = await resolveObjectKeyFromAppUrl(url);
     if (!objectKey) {
       return NextResponse.json({ error: 'Could not resolve object key from URL' }, { status: 400 });
     }

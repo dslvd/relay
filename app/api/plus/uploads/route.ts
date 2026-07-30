@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
 import { isExpired } from '@/app/lib/storage/retention';
 import { loadUploadHistory, removeUploadUrls } from '@/app/lib/data/upload-history-store';
-import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { deleteObject, resolveObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
 const PLUS_COOKIE_NAME = 'plus_auth';
 
@@ -69,7 +69,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const objectKey = toObjectKeyFromAppUrl(url);
+    const objectKey = await resolveObjectKeyFromAppUrl(url);
     if (!objectKey) {
       return NextResponse.json({ error: 'Invalid upload URL' }, { status: 400 });
     }

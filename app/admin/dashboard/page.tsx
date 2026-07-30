@@ -924,7 +924,7 @@ export default function AdminDashboard() {
               fontWeight: 300,
               marginBottom: '0.5rem'
             }}>
-              🛠️ Admin Dashboard
+              Admin Dashboard
             </h1>
             <p style={{
               fontSize: '0.9rem',

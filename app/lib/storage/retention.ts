@@ -4,9 +4,8 @@ import {
   touchLastAccessTime,
   type UploadHistoryScope,
 } from '@/app/lib/data/upload-history-store';
-import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
-import { deleteObject, objectExists, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { deleteObject, objectExists, resolveObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -14,14 +13,6 @@ export const RETENTION_DAYS = 15;
 export const RETENTION_MS = RETENTION_DAYS * DAY_MS;
 const HISTORY_SCOPES: UploadHistoryScope[] = ['public', 'plus'];
 const EXISTENCE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
-
-async function resolveObjectKeyFromAppUrl(url: string): Promise<string | null> {
-  const objectKey = toObjectKeyFromAppUrl(url);
-  if (!objectKey) return null;
-  const key = objectKey.startsWith('d/') ? objectKey.slice(2) : objectKey;
-  const aliasTarget = await resolveAliasObjectKey(key);
-  return aliasTarget || objectKey;
-}
 
 export async function pruneMissingHistoryEntries(input?: {
   now?: number;

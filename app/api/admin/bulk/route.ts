@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { deleteObject, resolveObjectKeyFromAppUrl as resolveObjectKeyFromUrl } from '@/app/lib/storage/r2-storage';
 import { loadUploadHistory, removeUploadUrls, updateUploadRecordsByUrls } from '@/app/lib/data/upload-history-store';
-import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
 import { removeQuarantineRecord, upsertQuarantineRecord } from '@/app/lib/data/abuse-store';
 import { requireAdmin } from '@/app/lib/auth/admin-auth';
@@ -18,14 +17,6 @@ function getClientIp(request: NextRequest): string {
 
 function getUserAgent(request: NextRequest): string {
   return request.headers.get('user-agent') || 'Unknown';
-}
-
-async function resolveObjectKeyFromUrl(url: string): Promise<string | null> {
-  const objectKey = toObjectKeyFromAppUrl(url);
-  if (!objectKey) return null;
-  const key = objectKey.startsWith('d/') ? objectKey.slice(2) : objectKey;
-  const aliasTarget = await resolveAliasObjectKey(key);
-  return aliasTarget || objectKey;
 }
 
 

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteObject, listAllObjects, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { deleteObject, listAllObjects, resolveObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 import { loadUploadHistory, removeUploadUrls, clearUploadHistory } from '@/app/lib/data/upload-history-store';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
 import { removeQuarantineRecord, saveQuarantineRecords } from '@/app/lib/data/abuse-store';
-import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { requireAdmin } from '@/app/lib/auth/admin-auth';
 
 function getClientIp(request: NextRequest): string {
@@ -55,17 +54,13 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const objectKey = toObjectKeyFromAppUrl(url);
-    if (!objectKey) {
+    const targetKey = await resolveObjectKeyFromAppUrl(url);
+    if (!targetKey) {
       return NextResponse.json(
         { error: 'Invalid URL' },
         { status: 400 }
       );
     }
-
-    const key = objectKey.startsWith('d/') ? objectKey.slice(2) : objectKey;
-    const aliasTarget = await resolveAliasObjectKey(key);
-    const targetKey = aliasTarget || objectKey;
 
     await deleteObject(targetKey);
     await removeQuarantineRecord(targetKey);
@@ -73,22 +68,14 @@ export async function DELETE(request: NextRequest) {
     const publicHistory = await loadUploadHistory('public');
     const plusHistory = await loadUploadHistory('plus');
 
-    const resolveKey = async (recordUrl: string): Promise<string | null> => {
-      const rawKey = toObjectKeyFromAppUrl(recordUrl);
-      if (!rawKey) return null;
-      const raw = rawKey.startsWith('d/') ? rawKey.slice(2) : rawKey;
-      const resolved = await resolveAliasObjectKey(raw);
-      return resolved || rawKey;
-    };
-
     const publicUrlsToRemove: string[] = [];
     await Promise.all(publicHistory.map(async (record) => {
-      const key = await resolveKey(record.url);
+      const key = await resolveObjectKeyFromAppUrl(record.url);
       if (key === targetKey) publicUrlsToRemove.push(record.url);
     }));
     const plusUrlsToRemove: string[] = [];
     await Promise.all(plusHistory.map(async (record) => {
-      const key = await resolveKey(record.url);
+      const key = await resolveObjectKeyFromAppUrl(record.url);
       if (key === targetKey) plusUrlsToRemove.push(record.url);
     }));
 

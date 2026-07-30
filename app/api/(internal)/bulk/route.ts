@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteObject, toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { deleteObject, resolveObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
 import { removeUploadUrls, updateUploadRecordsByUrls } from '@/app/lib/data/upload-history-store';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     if (action === 'delete') {
       let deleted = 0;
       for (const url of urls) {
-        const objectKey = toObjectKeyFromAppUrl(url);
+        const objectKey = await resolveObjectKeyFromAppUrl(url);
         if (!objectKey) continue;
         try {
           await deleteObject(objectKey);

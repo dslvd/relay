@@ -13,6 +13,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomBytes } from 'crypto';
+import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 
 const DEFAULT_MAX_UPLOAD_FILE_BYTES = 100 * 1024 * 1024;
 
@@ -113,6 +114,40 @@ export function toObjectKeyFromAppUrl(fileUrl: string): string | null {
   } catch {
     return null;
   }
+}
+
+// toObjectKeyFromAppUrl() above always guesses a "d/"-prefixed key. That's
+// correct for objects created via buildObjectKey() (snippets, remote-upload)
+// but NOT for the main multipart-upload flow, which stores the bare
+// filename with no prefix (see app/page.tsx: `pathname = randomFilename`).
+// Both conventions produce the identical /d/<x> URL, so the URL alone can't
+// tell you which one a given file actually used - guessing wrong here means
+// delete/quarantine/replace silently target a key that was never real while
+// the actual file stays completely unaffected.
+//
+// This checks the file-alias-store first (populated by nothing today, but
+// forward-looking), then verifies both key candidates directly against R2
+// and returns whichever one is real.
+export async function resolveObjectKeyFromAppUrl(fileUrl: string): Promise<string | null> {
+  const guessed = toObjectKeyFromAppUrl(fileUrl);
+  if (!guessed) return null;
+
+  const bareKey = guessed.startsWith('d/') ? guessed.slice(2) : guessed;
+
+  const aliasTarget = await resolveAliasObjectKey(bareKey);
+  if (aliasTarget) return aliasTarget;
+
+  if (bareKey !== guessed && (await objectExists(bareKey))) {
+    return bareKey;
+  }
+  if (await objectExists(guessed)) {
+    return guessed;
+  }
+
+  // Neither candidate exists right now (already deleted, or never did) -
+  // fall back to the historical guess so callers that already handle
+  // "object not found" gracefully keep doing so instead of getting null.
+  return guessed;
 }
 
 export async function createPresignedUploadUrl(input: {

@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadUploadHistory, updateUploadRecordsByUrls } from '@/app/lib/data/upload-history-store';
 import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
-import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
-import { toObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { resolveObjectKeyFromAppUrl as resolveObjectKeyFromUrl } from '@/app/lib/storage/r2-storage';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
 import { requireAdmin } from '@/app/lib/auth/admin-auth';
-
-async function resolveObjectKeyFromUrl(url: string): Promise<string | null> {
-  const objectKey = toObjectKeyFromAppUrl(url);
-  if (!objectKey) return null;
-  const key = objectKey.startsWith('d/') ? objectKey.slice(2) : objectKey;
-  const aliasTarget = await resolveAliasObjectKey(key);
-  return aliasTarget || objectKey;
-}
 
 function getClientIp(request: NextRequest): string {
   return (
