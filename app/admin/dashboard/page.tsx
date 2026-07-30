@@ -64,6 +64,8 @@ interface PlusUser {
   email: string;
   createdAt: number;
   lastLoginAt?: number;
+  planStatus?: 'active' | 'canceled' | 'past_due';
+  isPaidSubscriber?: boolean;
 }
 
 interface StorageStats {
@@ -1054,7 +1056,26 @@ export default function AdminDashboard() {
                     gap: '0.6rem'
                   }}>
                     <div>
-                      <div style={{ fontSize: '0.8rem', color: '#f5f5f5' }}>{user.email}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#f5f5f5' }}>{user.email}</span>
+                        {(() => {
+                          const badge = !user.isPaidSubscriber
+                            ? { label: 'Invited', color: '#8a92a1', bg: 'rgba(138,146,161,0.14)' }
+                            : user.planStatus === 'canceled'
+                              ? { label: 'Canceled', color: '#ff9e9e', bg: 'rgba(255,158,158,0.14)' }
+                              : user.planStatus === 'past_due'
+                                ? { label: 'Past due', color: '#f2c879', bg: 'rgba(242,200,121,0.14)' }
+                                : { label: 'Active', color: '#7ef4cb', bg: 'rgba(126,244,203,0.14)' };
+                          return (
+                            <span style={{
+                              fontSize: '0.62rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '999px',
+                              color: badge.color, background: badge.bg, letterSpacing: '0.03em', textTransform: 'uppercase',
+                            }}>
+                              {badge.label}
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <div style={{ fontSize: '0.72rem', color: '#8a8a8a' }}>
                         Created {new Date(user.createdAt).toLocaleString()}
                       </div>

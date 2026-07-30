@@ -43,6 +43,12 @@ export async function GET(request: NextRequest) {
     email: user.email,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
+    // Missing planStatus means the account predates Lemon Squeezy billing
+    // (invite-created) - matches the same "treat as active" default used by
+    // getPlusUserFromSession, so the admin view stays consistent with what
+    // actually grants Plus access.
+    planStatus: user.planStatus ?? 'active',
+    isPaidSubscriber: Boolean(user.lemonSqueezySubscriptionId),
   }));
 
   const invitesList = await listPlusInvites();
