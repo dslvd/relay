@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
 const MANIFEST = [
-  { k: 'free_tier_limit', v: '100mb / file' },
-  { k: 'plus_tier_limit', v: '8gb / file' },
+  { k: 'free_tier_upload_limit', v: '100mb / file' },
+  { k: 'plus_tier_upload_limit', v: '8gb / file' },
   { k: 'plus_vault', v: '80gb total' },
   { k: 'retention', v: '15d idle → gone' },
   { k: 'signup_required', v: 'false' },
@@ -511,9 +511,9 @@ export default function HomeTerminal() {
 
       <div className="t-wrap">
         <header className="man-bar">
-          <span>RELAY(1)</span>
+          {/* <span>RELAY(1)</span>
           <span>Developer Commands</span>
-          <span>RELAY(1)</span>
+          <span>RELAY(1)</span> */}
         </header>
 
         <section className="man-section">
@@ -589,13 +589,13 @@ export default function HomeTerminal() {
           </div>
         </section>
 
-        <section className="man-section">
+        {/* <section className="man-section">
           <h2 className="man-h">DESCRIPTION</h2>
           <p className="man-body">
             Upload something, get a link back. Files and snippets sit for 15 days without a
             visit, then they&apos;re gone — like /tmp, but shareable.
           </p>
-        </section>
+        </section> */}
 
         <section className="man-section">
           <h2 className="man-h">OUTPUT</h2>
@@ -652,9 +652,9 @@ export default function HomeTerminal() {
         </section>
 
         <footer className="man-bar man-bar--foot">
-          <span>RELAY(1)</span>
+          {/* <span>RELAY</span> */}
           <span>no accounts, no ads</span>
-          <span>RELAY(1)</span>
+          {/* <span>RELAY</span> */}
         </footer>
       </div>
 

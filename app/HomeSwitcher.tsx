@@ -64,10 +64,10 @@ export default function HomeSwitcher({ initialStyle }: { initialStyle: HomeStyle
           border-radius: 999px;
           background: transparent;
           color: rgba(255, 255, 255, 0.55);
-          font-size: 0.65rem;
-          letter-spacing: 0.06em;
+          font-size: 0.58rem;
+          letter-spacing: 0.05em;
           text-transform: uppercase;
-          padding: 0.2rem 0.5rem;
+          padding: 0.15rem 0.4rem;
           cursor: pointer;
           transition: background 0.15s ease, color 0.15s ease;
         }
