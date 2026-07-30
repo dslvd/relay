@@ -120,6 +120,19 @@ interface AbuseReport {
   resolvedByIp?: string;
 }
 
+interface R2File {
+  key: string;
+  size: number;
+  lastModified: number | null;
+  filename: string | null;
+  url: string | null;
+  ip: string | null;
+  scope: 'public' | 'plus' | null;
+  tracked: boolean;
+  quarantined: boolean;
+  quarantineReason: string | null;
+}
+
 interface AuditLogEntry {
   id: string;
   timestamp: number;
@@ -160,6 +173,12 @@ export default function AdminDashboard() {
   const [reports, setReports] = useState<AbuseReport[]>([]);
   const [reportActionId, setReportActionId] = useState<string | null>(null);
   const [reportFilter, setReportFilter] = useState<'open' | 'resolved' | 'dismissed' | 'all'>('open');
+  const [r2Files, setR2Files] = useState<R2File[]>([]);
+  const [r2Cursor, setR2Cursor] = useState<string | null>(null);
+  const [r2Loading, setR2Loading] = useState(false);
+  const [r2Loaded, setR2Loaded] = useState(false);
+  const [r2Prefix, setR2Prefix] = useState('');
+  const [r2ActionKey, setR2ActionKey] = useState<string | null>(null);
   const [blacklistType, setBlacklistType] = useState<'ip' | 'filename'>('ip');
   const [blacklistPattern, setBlacklistPattern] = useState('');
   const [addingRule, setAddingRule] = useState(false);
@@ -644,6 +663,62 @@ export default function AdminDashboard() {
       await updateReportStatusById(report.id, 'open', 'reopened');
     } finally {
       setReportActionId(null);
+    }
+  };
+
+  // R2 file manager - browses the bucket directly (paginated) rather than
+  // the upload-history table, so objects that lost their history record (or
+  // never had one) still show up. Lazy-loaded on demand since listing R2 is
+  // a real network call, not worth doing on every dashboard page load.
+  const loadR2Files = async (reset: boolean) => {
+    setR2Loading(true);
+    try {
+      const params = new URLSearchParams();
+      if (r2Prefix.trim()) params.set('prefix', r2Prefix.trim());
+      if (!reset && r2Cursor) params.set('cursor', r2Cursor);
+
+      const response = await fetch(`/api/admin/r2-files?${params.toString()}`, { credentials: 'include' });
+      if (!response.ok) {
+        alert('Failed to list R2 files');
+        return;
+      }
+      const data = await response.json();
+      setR2Files((prev) => (reset ? data.files : [...prev, ...data.files]));
+      setR2Cursor(data.nextCursor);
+      setR2Loaded(true);
+    } catch (error) {
+      console.error('Failed to list R2 files:', error);
+      alert('Failed to list R2 files');
+    } finally {
+      setR2Loading(false);
+    }
+  };
+
+  const r2FileAction = async (file: R2File, action: 'delete' | 'quarantine' | 'unquarantine') => {
+    if (action === 'delete' && !confirm(`Permanently delete this object?\n\n${file.key}\n\nThis cannot be undone.`)) return;
+    setR2ActionKey(file.key);
+    try {
+      const reason = action === 'quarantine' ? (prompt('Reason for quarantine (optional):') || '') : '';
+      const response = await fetch('/api/admin/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action, keys: [file.key], reason }),
+      });
+      if (!response.ok) {
+        alert('Action failed');
+        return;
+      }
+      if (action === 'delete') {
+        setR2Files((prev) => prev.filter((f) => f.key !== file.key));
+      } else {
+        setR2Files((prev) => prev.map((f) => (f.key === file.key ? { ...f, quarantined: action === 'quarantine' } : f)));
+      }
+    } catch (error) {
+      console.error('R2 file action failed:', error);
+      alert('Action failed');
+    } finally {
+      setR2ActionKey(null);
     }
   };
 
@@ -2284,6 +2359,131 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* R2 File Manager — browses the bucket directly, not just tracked history */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.04)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '16px',
+          padding: '1.5rem',
+          marginBottom: '2rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 300, margin: 0, color: '#f5f5f5' }}>
+              📦 File Manager (R2) {r2Loaded ? `(${r2Files.length} loaded)` : ''}
+            </h3>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <input
+                value={r2Prefix}
+                onChange={(e) => setR2Prefix(e.target.value)}
+                placeholder="Key prefix (optional)"
+                style={{
+                  padding: '0.45rem 0.65rem', background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px',
+                  color: '#f5f5f5', fontSize: '0.78rem', outline: 'none', width: '180px',
+                }}
+              />
+              <button
+                onClick={() => loadR2Files(true)}
+                disabled={r2Loading}
+                style={{
+                  padding: '0.45rem 0.8rem', background: 'rgba(233,236,242,0.15)', border: '1px solid rgba(233,236,242,0.35)',
+                  borderRadius: '999px', color: '#eef1f6', fontSize: '0.78rem', cursor: r2Loading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {r2Loading ? 'Loading…' : r2Loaded ? 'Reload' : 'Browse R2'}
+              </button>
+            </div>
+          </div>
+
+          {!r2Loaded ? (
+            <div style={{ fontSize: '0.8rem', color: '#666666' }}>
+              Not loaded yet - click &quot;Browse R2&quot; to list objects directly from storage (bypasses the tracked-history table above, so orphaned objects show up too).
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '420px', overflowY: 'auto' }}>
+                {r2Files.length === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No objects found</div>
+                )}
+                {r2Files.map((file) => {
+                  const isBusy = r2ActionKey === file.key;
+                  return (
+                    <div key={file.key} style={{
+                      border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', padding: '0.65rem',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
+                    }}>
+                      <div style={{ minWidth: 0, flex: '1 1 300px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.78rem', color: '#f5f5f5', wordBreak: 'break-all' }}>
+                            {file.filename || file.key}
+                          </span>
+                          {!file.tracked && (
+                            <span style={{
+                              fontSize: '0.6rem', fontWeight: 700, padding: '0.08rem 0.4rem', borderRadius: '999px',
+                              color: '#f2c879', background: 'rgba(242,200,121,0.14)', letterSpacing: '0.03em', textTransform: 'uppercase',
+                            }}>
+                              Orphaned
+                            </span>
+                          )}
+                          {file.quarantined && (
+                            <span style={{
+                              fontSize: '0.6rem', fontWeight: 700, padding: '0.08rem 0.4rem', borderRadius: '999px',
+                              color: '#ff9e9e', background: 'rgba(255,158,158,0.14)', letterSpacing: '0.03em', textTransform: 'uppercase',
+                            }}>
+                              Quarantined
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#8a8a8a', marginTop: '0.25rem', wordBreak: 'break-all' }}>
+                          {file.key} · {formatFileSize(file.size)}{file.lastModified ? ` · ${new Date(file.lastModified).toLocaleString()}` : ''}
+                          {file.ip ? ` · ${file.ip}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', flexShrink: 0 }}>
+                        <button
+                          onClick={() => r2FileAction(file, file.quarantined ? 'unquarantine' : 'quarantine')}
+                          disabled={isBusy}
+                          style={{
+                            padding: '0.32rem 0.6rem', borderRadius: '8px', border: '1px solid rgba(242,200,121,0.4)',
+                            background: 'rgba(242,200,121,0.12)', color: '#f2c879', fontSize: '0.68rem', fontWeight: 600,
+                            cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
+                          }}
+                        >
+                          {file.quarantined ? 'Unquarantine' : 'Quarantine'}
+                        </button>
+                        <button
+                          onClick={() => r2FileAction(file, 'delete')}
+                          disabled={isBusy}
+                          style={{
+                            padding: '0.32rem 0.6rem', borderRadius: '8px', border: '1px solid rgba(255,158,158,0.4)',
+                            background: 'rgba(255,158,158,0.12)', color: '#ff9e9e', fontSize: '0.68rem', fontWeight: 600,
+                            cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {r2Cursor && (
+                <button
+                  onClick={() => loadR2Files(false)}
+                  disabled={r2Loading}
+                  style={{
+                    marginTop: '0.8rem', padding: '0.5rem 1rem', background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.2)', borderRadius: '999px', color: '#f5f5f5',
+                    fontSize: '0.78rem', cursor: r2Loading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {r2Loading ? 'Loading…' : 'Load more'}
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         {/* File Manager — organization and delete panel */}

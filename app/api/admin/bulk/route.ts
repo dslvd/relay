@@ -30,17 +30,28 @@ export async function POST(request: NextRequest) {
     const urls: string[] = Array.isArray(body?.urls)
       ? (body.urls as unknown[]).filter((u: unknown): u is string => typeof u === 'string')
       : [];
+    // Accepts raw R2 keys directly (in addition to app URLs) so callers that
+    // already have the real key - like the R2 file manager, which lists
+    // straight from R2 - don't have to round-trip through URL guessing for
+    // objects that may have no upload-history record (and therefore no
+    // reconstructable /d/ URL) at all.
+    const keys: string[] = Array.isArray(body?.keys)
+      ? (body.keys as unknown[]).filter((k: unknown): k is string => typeof k === 'string')
+      : [];
     const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
     const folder = typeof body?.folder === 'string' ? body.folder.trim() : '';
 
-    if (!action || urls.length === 0) {
-      return NextResponse.json({ error: 'action and urls are required' }, { status: 400 });
+    if (!action || (urls.length === 0 && keys.length === 0)) {
+      return NextResponse.json({ error: 'action and urls or keys are required' }, { status: 400 });
     }
 
     const resolvedPairs = await Promise.all(
       urls.map(async (url) => ({ url, objectKey: await resolveObjectKeyFromUrl(url) }))
     );
-    const objectKeys = new Set(resolvedPairs.map((p) => p.objectKey).filter((k): k is string => Boolean(k)));
+    const objectKeys = new Set([
+      ...resolvedPairs.map((p) => p.objectKey).filter((k): k is string => Boolean(k)),
+      ...keys,
+    ]);
 
     if (action === 'move') {
       if (!folder) {

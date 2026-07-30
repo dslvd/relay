@@ -283,6 +283,30 @@ export async function listAllObjects(prefix?: string): Promise<_Object[]> {
   return objects;
 }
 
+// Single-page counterpart to listAllObjects() above, which loops until the
+// whole bucket is read - fine for the stats endpoint's one-off total, but
+// wrong for an interactive file manager where the bucket could hold far more
+// objects than should ever load into one response/render.
+export async function listObjectsPage(input: {
+  prefix?: string;
+  continuationToken?: string;
+  maxKeys?: number;
+}): Promise<{ objects: _Object[]; nextCursor?: string }> {
+  const response = await getR2Client().send(
+    new ListObjectsV2Command({
+      Bucket: getR2BucketName(),
+      Prefix: input.prefix,
+      ContinuationToken: input.continuationToken,
+      MaxKeys: Math.max(1, Math.min(input.maxKeys ?? 100, 1000)),
+    })
+  );
+
+  return {
+    objects: response.Contents || [],
+    nextCursor: response.IsTruncated ? response.NextContinuationToken : undefined,
+  };
+}
+
 export async function createMultipartUpload(input: {
   objectKey: string;
   contentType?: string;
