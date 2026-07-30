@@ -2,29 +2,56 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import logo from '../logo.png';
 import {
   PLUS_PRICE_PHP_CENTAVOS,
   PLUS_MAX_FILE_BYTES,
   PLUS_STORAGE_LIMIT_BYTES,
+  FREE_MAX_FILE_BYTES,
   PLUS_CHECKOUT_ENABLED,
   PLUS_CHECKOUT_CONTACT_EMAIL,
 } from '@/app/lib/plan-limits';
 
 function formatGb(bytes: number) {
-  return `${Math.round(bytes / (1024 * 1024 * 1024))}GB`;
+  const gb = bytes / (1024 * 1024 * 1024);
+  return gb >= 1 ? `${Math.round(gb)}GB` : `${Math.round(bytes / (1024 * 1024))}MB`;
 }
 
-const FEATURES = [
-  `Upload files up to ${formatGb(PLUS_MAX_FILE_BYTES)} each (vs. 100MB on the free tier)`,
-  `${formatGb(PLUS_STORAGE_LIMIT_BYTES)} of vault storage for your account`,
-  'Resumable, multipart uploads that survive a refresh',
-  'Folders to organize your files',
-  'Code snippet sharing with syntax highlighting',
-  'QR codes for quick sharing to mobile',
-  'No ads',
+const priceDisplay = `₱${(PLUS_PRICE_PHP_CENTAVOS / 100).toFixed(0)}`;
+const freeFileLabel = formatGb(FREE_MAX_FILE_BYTES);
+const plusFileLabel = formatGb(PLUS_MAX_FILE_BYTES);
+const plusStorageLabel = formatGb(PLUS_STORAGE_LIMIT_BYTES);
+
+// Real, code-verified differences only - folders and the 15-day retention
+// window are identical on both tiers today, so they're deliberately left off.
+const COMPARISON_ROWS: Array<{ label: string; free: string; plus: string }> = [
+  { label: 'Per-file upload limit', free: freeFileLabel, plus: plusFileLabel },
+  { label: 'Account & vault dashboard', free: '—', plus: 'Included' },
+  { label: 'Storage', free: 'This browser only', plus: `${plusStorageLabel} vault` },
+  { label: 'Developer API access', free: '—', plus: 'Included' },
+  { label: 'Code snippet sharing', free: 'Included', plus: 'Included' },
+  { label: 'Ads', free: 'Shown', plus: 'None' },
 ];
 
-const priceDisplay = `₱${(PLUS_PRICE_PHP_CENTAVOS / 100).toFixed(0)}`;
+const FAQ: Array<{ q: string; a: string }> = [
+  {
+    q: 'Can I cancel anytime?',
+    a: 'Yes. Cancel from the link in your receipt email whenever you want - no minimum term, no retention calls.',
+  },
+  {
+    q: 'What happens to files I already uploaded for free?',
+    a: 'Nothing changes. Plus adds an 80GB account vault on top; your existing public links keep working exactly as they do today.',
+  },
+  {
+    q: 'Is my payment information safe?',
+    a: 'Checkout and billing run entirely through Lemon Squeezy. Relay never sees or stores your card details.',
+  },
+  {
+    q: 'What payment methods can I use?',
+    a: "Cards and anything else Lemon Squeezy offers at checkout - you'll see the exact options on the payment page.",
+  },
+];
 
 export default function PricingPage() {
   const [checkingPlus, setCheckingPlus] = useState(true);
@@ -33,6 +60,7 @@ export default function PricingPage() {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [metersIn, setMetersIn] = useState(false);
 
   useEffect(() => {
     fetch('/api/plus/me', { cache: 'no-store' })
@@ -40,6 +68,11 @@ export default function PricingPage() {
       .then((data) => setIsPlus(Boolean(data?.plus)))
       .catch(() => setIsPlus(false))
       .finally(() => setCheckingPlus(false));
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setMetersIn(true), 120);
+    return () => window.clearTimeout(id);
   }, []);
 
   const startCheckout = async () => {
@@ -74,60 +107,184 @@ export default function PricingPage() {
   };
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        padding: 'clamp(1.5rem, 5vw, 4rem) 1.2rem',
-        background: 'radial-gradient(ellipse at 30% 20%, var(--wash-violet) 0%, var(--wash-base) 55%), radial-gradient(ellipse at 75% 80%, var(--wash-teal) 0%, var(--wash-base) 60%)',
-        backgroundAttachment: 'fixed',
-        color: 'var(--c-text)',
-        fontFamily: 'var(--font-body)',
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: '520px' }}>
-        <Link
-          href="/"
-          style={{ display: 'inline-block', marginBottom: '2rem', color: 'var(--c-dim)', fontSize: '0.8rem', textDecoration: 'none' }}
-        >
-          ← Back to Relay
-        </Link>
+    <>
+      <style jsx>{`
+        .meterTrack {
+          height: 10px;
+          border-radius: 999px;
+          overflow: hidden;
+          background: rgba(255, 255, 255, 0.06);
+        }
+        [data-theme='light'] .meterTrack {
+          background: rgba(0, 0, 0, 0.07);
+        }
+        .meterFill {
+          height: 100%;
+          border-radius: inherit;
+          width: 0%;
+          transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .meterFill--free {
+          background: rgba(var(--c-dim-ch), 0.55);
+        }
+        .meterFill--plus {
+          background: linear-gradient(90deg, #eef1f6 0%, #7ef4cb 100%);
+        }
+        .meterFill.in.free {
+          width: 2.5%;
+        }
+        .meterFill.in.plus {
+          width: 100%;
+        }
+        .faqItem summary {
+          cursor: pointer;
+          list-style: none;
+        }
+        .faqItem summary::-webkit-details-marker {
+          display: none;
+        }
+        .faqChevron {
+          transition: transform 0.2s ease;
+        }
+        .faqItem[open] .faqChevron {
+          transform: rotate(45deg);
+        }
+        .cmpRow:last-child {
+          border-bottom: none !important;
+        }
+        @media (max-width: 560px) {
+          .cmpTable {
+            grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+            font-size: 0.72rem !important;
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+          }
+        }
+      `}</style>
 
-        <h1 style={{ margin: 0, fontSize: 'clamp(1.8rem, 5vw, 2.3rem)' }}>Relay Plus</h1>
-        <p style={{ margin: '0.5rem 0 2rem', color: 'var(--c-sub)', fontSize: '0.9rem' }}>
-          More storage, bigger uploads, no ads.
-        </p>
-
-        <div
-          style={{
-            ...card,
-            borderRadius: '20px',
-            padding: '1.8rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '1.4rem' }}>
-            <span style={{ fontSize: '2.4rem', fontWeight: 700 }}>{priceDisplay}</span>
-            <span style={{ color: 'var(--c-dim)', fontSize: '0.9rem' }}>/month · PHP</span>
+      <main
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          padding: 'clamp(2rem, 6vw, 4.5rem) 1.2rem 4rem',
+          background:
+            'radial-gradient(ellipse at 30% 0%, var(--wash-violet) 0%, var(--wash-base) 55%), radial-gradient(ellipse at 80% 60%, var(--wash-teal) 0%, var(--wash-base) 60%)',
+          backgroundAttachment: 'fixed',
+          color: 'var(--c-text)',
+          fontFamily: 'var(--font-body)',
+        }}
+      >
+        <div style={{ width: '100%', maxWidth: '680px', minWidth: 0 }}>
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '2.4rem',
+              animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) both',
+            }}
+          >
+            <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', textDecoration: 'none' }}>
+              <Image src={logo} alt="" width={22} height={22} style={{ opacity: 0.92 }} />
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--c-text)' }}>Relay</span>
+            </Link>
+            <Link href="/plus" style={{ fontSize: '0.78rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
+              Log in
+            </Link>
           </div>
 
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.65rem' }}>
-            {FEATURES.map((feature) => (
-              <li key={feature} style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start', fontSize: '0.85rem', color: 'var(--c-sub)' }}>
-                <span style={{ color: 'var(--c-accent-mint)', flexShrink: 0 }}>✓</span>
-                {feature}
-              </li>
-            ))}
-          </ul>
+          {/* Hero */}
+          <div style={{ marginBottom: '2.2rem', animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both' }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: 'clamp(1.9rem, 5.5vw, 2.6rem)',
+                fontWeight: 700,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.15,
+              }}
+            >
+              Stop hitting the {freeFileLabel} wall.
+            </h1>
+            <p style={{ margin: '0.7rem 0 0', color: 'var(--c-sub)', fontSize: '0.95rem', maxWidth: '46ch' }}>
+              Relay Plus raises your per-file limit to{' '}
+              <strong style={{ color: 'var(--c-text)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{plusFileLabel}</strong>{' '}
+              and gives you an{' '}
+              <strong style={{ color: 'var(--c-text)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{plusStorageLabel}</strong>{' '}
+              account vault you can reach from any device.
+            </p>
+          </div>
 
-          <div style={{ marginTop: '1.6rem' }}>
+          {/* Signature element: capacity meters, styled like Relay's real upload progress bar */}
+          <div
+            style={{
+              ...card,
+              borderRadius: '18px',
+              padding: '1.4rem 1.5rem',
+              marginBottom: '1.5rem',
+              display: 'grid',
+              gap: '1.1rem',
+              animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.16s both',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)', marginBottom: '0.5rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                Per-file upload limit
+              </div>
+              <div style={{ display: 'grid', gap: '0.35rem' }}>
+                <div className="meterTrack">
+                  <div className={`meterFill meterFill--free ${metersIn ? 'in free' : ''}`} />
+                </div>
+                <div className="meterTrack">
+                  <div className={`meterFill meterFill--plus ${metersIn ? 'in plus' : ''}`} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
+                <span style={{ color: 'var(--c-dim)' }}>Free · {freeFileLabel}</span>
+                <span style={{ color: 'var(--c-accent-mint)', fontWeight: 700 }}>Plus · {plusFileLabel}</span>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)', marginBottom: '0.4rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                Account storage
+              </div>
+              <div className="meterTrack">
+                <div className={`meterFill meterFill--plus ${metersIn ? 'in plus' : ''}`} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.4rem', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
+                <span style={{ color: 'var(--c-dim)' }}>Free · no account vault</span>
+                <span style={{ color: 'var(--c-accent-mint)', fontWeight: 700 }}>Plus · {plusStorageLabel}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Price + CTA */}
+          <div
+            style={{
+              ...card,
+              borderRadius: '20px',
+              padding: '1.8rem',
+              marginBottom: '2.2rem',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+              animation: 'heroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.24s both',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.45rem', marginBottom: '0.3rem' }}>
+              <span style={{ fontSize: '2.6rem', fontWeight: 700, fontFamily: 'var(--font-mono)', letterSpacing: '-0.02em' }}>
+                {priceDisplay}
+              </span>
+              <span style={{ color: 'var(--c-dim)', fontSize: '0.9rem' }}>/month · PHP</span>
+            </div>
+            <p style={{ margin: '0 0 1.5rem', color: 'var(--c-dim)', fontSize: '0.78rem' }}>Cancel anytime. No minimum term.</p>
+
             {checkingPlus ? null : isPlus ? (
               <a
                 href="/plus/dashboard"
                 style={{
-                  display: 'block', textAlign: 'center', padding: '0.75rem 1rem', borderRadius: '999px',
+                  display: 'block', textAlign: 'center', padding: '0.8rem 1rem', borderRadius: '999px',
                   background: 'var(--c-accent-mint)', color: '#0a0a0a', fontWeight: 700, fontSize: '0.85rem',
                   textDecoration: 'none',
                 }}
@@ -138,7 +295,7 @@ export default function PricingPage() {
               <div
                 style={{
                   padding: '0.9rem 1rem', borderRadius: '14px', textAlign: 'center',
-                  border: '1px solid var(--border-default)', background: 'var(--surface-well, var(--surface-card))',
+                  border: '1px solid var(--border-default)', background: 'var(--surface-well)',
                 }}
               >
                 <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>Checkout is under construction</p>
@@ -154,7 +311,7 @@ export default function PricingPage() {
               <button
                 onClick={() => setShowEmailStep(true)}
                 style={{
-                  width: '100%', padding: '0.75rem 1rem', borderRadius: '999px', border: 'none', cursor: 'pointer',
+                  width: '100%', padding: '0.8rem 1rem', borderRadius: '999px', border: 'none', cursor: 'pointer',
                   background: 'var(--c-accent-mint)', color: '#0a0a0a', fontWeight: 700, fontSize: '0.85rem',
                 }}
               >
@@ -192,13 +349,63 @@ export default function PricingPage() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
 
-        <p style={{ color: 'var(--c-dim)', fontSize: '0.75rem', textAlign: 'center' }}>
-          Already subscribed? <Link href="/plus" style={{ color: 'var(--c-sub)' }}>Log in here</Link>.
-        </p>
-      </div>
-    </main>
+            <p style={{ margin: '1rem 0 0', textAlign: 'center', fontSize: '0.7rem', color: 'var(--c-dim)' }}>
+              Secure checkout via Lemon Squeezy · Relay never sees your card details
+            </p>
+          </div>
+
+          {/* Comparison table */}
+          <div style={{ marginBottom: '2.2rem' }}>
+            <h2 style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-dim)', marginBottom: '0.8rem' }}>
+              What&apos;s included
+            </h2>
+            <div style={{ ...card, borderRadius: '16px', overflow: 'hidden' }}>
+              <div
+                className="cmpTable"
+                style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)', padding: '0.7rem 1.1rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--c-dim)', borderBottom: '1px solid var(--border-subtle)' }}
+              >
+                <span />
+                <span>Free</span>
+                <span style={{ color: 'var(--c-accent-mint)' }}>Plus</span>
+              </div>
+              {COMPARISON_ROWS.map((row) => (
+                <div
+                  key={row.label}
+                  className="cmpRow cmpTable"
+                  style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)', padding: '0.75rem 1.1rem', fontSize: '0.82rem', borderBottom: '1px solid var(--border-subtle)', alignItems: 'center' }}
+                >
+                  <span style={{ color: 'var(--c-text)' }}>{row.label}</span>
+                  <span style={{ color: 'var(--c-dim)', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>{row.free}</span>
+                  <span style={{ color: 'var(--c-text)', fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>{row.plus}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* FAQ */}
+          <div style={{ marginBottom: '2.2rem' }}>
+            <h2 style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-dim)', marginBottom: '0.8rem' }}>
+              Questions
+            </h2>
+            <div style={{ display: 'grid', gap: '0.6rem' }}>
+              {FAQ.map((item) => (
+                <details key={item.q} className="faqItem" style={{ ...card, borderRadius: '14px', padding: '0.9rem 1.1rem' }}>
+                  <summary style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 600, color: 'var(--c-text)' }}>
+                    {item.q}
+                    <span className="faqChevron" style={{ color: 'var(--c-dim)', fontSize: '0.9rem' }}>+</span>
+                  </summary>
+                  <p style={{ margin: '0.7rem 0 0', fontSize: '0.82rem', color: 'var(--c-sub)', lineHeight: 1.55 }}>{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+
+          <p style={{ color: 'var(--c-dim)', fontSize: '0.75rem', textAlign: 'center' }}>
+            Already subscribed? <Link href="/plus" style={{ color: 'var(--c-sub)' }}>Log in here</Link>.
+          </p>
+        </div>
+      </main>
+    </>
   );
 }
