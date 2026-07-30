@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteObject, listAllObjects, resolveObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
-import { loadUploadHistory, removeUploadUrls, clearUploadHistory } from '@/app/lib/data/upload-history-store';
+import { deleteObject, resolveObjectKeyFromAppUrl } from '@/app/lib/storage/r2-storage';
+import { loadUploadHistory, removeUploadUrls } from '@/app/lib/data/upload-history-store';
 import { appendAuditLog } from '@/app/lib/data/admin-audit-store';
-import { removeQuarantineRecord, saveQuarantineRecords } from '@/app/lib/data/abuse-store';
+import { removeQuarantineRecord } from '@/app/lib/data/abuse-store';
 import { requireAdmin } from '@/app/lib/auth/admin-auth';
 
 function getClientIp(request: NextRequest): string {
@@ -15,26 +15,6 @@ function getClientIp(request: NextRequest): string {
 
 function getUserAgent(request: NextRequest): string {
   return request.headers.get('user-agent') || 'Unknown';
-}
-
-async function deleteAllBlobs(): Promise<number> {
-  let deleted = 0;
-
-  const objects = await listAllObjects('d/');
-  for (const object of objects) {
-    if (!object.Key) {
-      continue;
-    }
-
-    try {
-      await deleteObject(object.Key);
-      deleted += 1;
-    } catch (error) {
-      console.error('Failed to delete object:', object.Key, error);
-    }
-  }
-
-  return deleted;
 }
 
 export async function DELETE(request: NextRequest) {
@@ -104,47 +84,3 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const authError = requireAdmin(request);
-    if (authError) {
-      return authError;
-    }
-
-    const body = await request.json();
-    const { action } = body;
-
-    if (action === 'clear_all') {
-      const deleted = await deleteAllBlobs();
-      await clearUploadHistory('public');
-      await clearUploadHistory('plus');
-      await saveQuarantineRecords([]);
-
-      await appendAuditLog({
-        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-        timestamp: Date.now(),
-        action: 'files.clear_all',
-        actorIp: getClientIp(request),
-        userAgent: getUserAgent(request),
-        meta: { deleted },
-      });
-
-      return NextResponse.json({ 
-        success: true,
-        message: 'All files deleted successfully',
-        deleted
-      });
-    }
-
-    return NextResponse.json(
-      { error: 'Invalid action' },
-      { status: 400 }
-    );
-  } catch (error) {
-    console.error('Error in admin operation:', error);
-    return NextResponse.json(
-      { error: 'Failed to perform operation' },
-      { status: 500 }
-    );
-  }
-}

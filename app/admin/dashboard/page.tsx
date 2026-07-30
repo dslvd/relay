@@ -361,33 +361,6 @@ export default function AdminDashboard() {
   };
 
 
-  const clearAllFiles = async () => {
-    if (!confirm('Delete ALL files? This cannot be undone!')) return;
-    if (!confirm('Are you ABSOLUTELY sure? All files will be permanently deleted!')) return;
-
-    try {
-      setLoading(true);
-      const response = await fetch('/api/admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ action: 'clear_all' })
-      });
-
-      if (response.ok) {
-        await fetchFiles();
-        alert('All files deleted successfully');
-      } else {
-        alert('Failed to delete files');
-      }
-    } catch (error) {
-      console.error('Failed to clear files:', error);
-      alert('Failed to delete files');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const logout = () => {
     fetch('/api/admin/auth', { method: 'DELETE', credentials: 'include' }).finally(() => {
       sessionStorage.removeItem('admin_authenticated');
@@ -537,23 +510,6 @@ export default function AdminDashboard() {
       alert('Cleanup failed');
     } finally {
       setRunningCleanup(false);
-    }
-  };
-
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortKey(key);
-      setSortOrder('desc');
-    }
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedFiles.size === filteredFiles.length) {
-      setSelectedFiles(new Set());
-    } else {
-      setSelectedFiles(new Set(filteredFiles.map(f => f.url)));
     }
   };
 
@@ -1748,6 +1704,24 @@ export default function AdminDashboard() {
             </select>
 
             <button
+              type="button"
+              onClick={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+              title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+              style={{
+                padding: '0.75rem 0.9rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '10px',
+                color: '#f5f5f5',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                fontFamily: "'Open Sans', sans-serif"
+              }}
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </button>
+
+            <button
               onClick={runCleanup}
               disabled={runningCleanup}
               style={{
@@ -1966,46 +1940,6 @@ export default function AdminDashboard() {
               </button>
             </div>
           )}
-        </div>
-
-        {/* Danger Zone */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: '16px',
-          padding: '1.5rem',
-          marginBottom: '2rem'
-        }}>
-          <h3 style={{
-            fontSize: '1rem',
-          fontWeight: 300,
-            marginBottom: '0.75rem',
-          color: '#f5f5f5'
-          }}>
-            ⚠️ Danger Zone
-          </h3>
-          <button
-            onClick={clearAllFiles}
-            disabled={loading || files.length === 0}
-            style={{
-            padding: '0.625rem 1.25rem',
-            background: 'rgba(180,50,50,0.2)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            border: '1px solid rgba(220,80,80,0.35)',
-            borderRadius: '999px',
-            color: '#f5a5a5',
-              fontSize: '0.875rem',
-            fontWeight: 400,
-            letterSpacing: '0.02em',
-              cursor: loading || files.length === 0 ? 'not-allowed' : 'pointer',
-              opacity: loading || files.length === 0 ? 0.5 : 1,
-              fontFamily: "'Open Sans', sans-serif",
-              boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-            }}
-          >
-            🗑️ Delete All Files
-          </button>
         </div>
 
         {/* Reported content */}
