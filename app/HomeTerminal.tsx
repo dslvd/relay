@@ -111,8 +111,7 @@ async function readRemotePullStream(res: Response): Promise<RemotePullDone> {
 }
 
 const IDLE_LINES: LogLine[] = [
-  { text: '$ relay --help', tone: 'dim' },
-  { text: 'push a file, snip some code, or pull one from a url below.' },
+  { text: 'nothing run yet.', tone: 'dim' },
 ];
 
 export default function HomeTerminal() {
@@ -153,14 +152,14 @@ export default function HomeTerminal() {
   const runUpload = async (file: File) => {
     if (busy) return;
     if (file.size > FREE_MAX_FILE_BYTES) {
-      setLines([{ text: `$ relay push ./${file.name}` }, { text: `✗ over the 100mb free-tier limit (${formatBytes(file.size)})`, tone: 'err' }]);
+      setLines([{ text: `push ./${file.name}` }, { text: `over the 100mb free-tier limit (${formatBytes(file.size)})`, tone: 'err' }]);
       return;
     }
     setBusy(true);
     setPanel('none');
-    setLines([{ text: `$ relay push ./${file.name}` }]);
+    setLines([{ text: `push ./${file.name}` }]);
     try {
-      log('… hashing', 'dim');
+      log('hashing', 'dim');
       const hash = await hashFile(file);
 
       const pathname = randomName(file.name);
@@ -185,7 +184,7 @@ export default function HomeTerminal() {
       const parts: { partNumber: number; etag: string }[] = [];
 
       for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
-        log(`↑ uploading — part ${partNumber}/${totalParts}`, 'dim');
+        log(`uploading — part ${partNumber}/${totalParts}`, 'dim');
         const start = (partNumber - 1) * effectivePartSize;
         const end = Math.min(file.size, start + effectivePartSize);
 
@@ -241,10 +240,10 @@ export default function HomeTerminal() {
       }).catch(() => {});
 
       pushRecent({ url, filename: file.name, size: file.size, timestamp });
-      log(`✓ uploaded — ${formatBytes(file.size)}`);
+      log(`done — ${formatBytes(file.size)}`);
       log(url.replace(/^https?:\/\//, ''), 'link', url);
     } catch (error) {
-      log(`✗ ${error instanceof Error ? error.message : 'upload failed'}`, 'err');
+      log(error instanceof Error ? error.message : 'upload failed', 'err');
     } finally {
       setBusy(false);
     }
@@ -254,9 +253,9 @@ export default function HomeTerminal() {
     if (busy || !snippetText.trim()) return;
     setBusy(true);
     setPanel('none');
-    setLines([{ text: '$ relay snip' }]);
+    setLines([{ text: 'snip' }]);
     try {
-      log('↑ pushing snippet', 'dim');
+      log('pushing snippet', 'dim');
       const res = await fetch('/api/snippet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -266,11 +265,11 @@ export default function HomeTerminal() {
       if (!res.ok || !payload?.record?.url) throw new Error(payload?.error || 'snippet failed');
       const { url, filename, size } = payload.record;
       pushRecent({ url, filename: filename || 'snippet.txt', size: size || 0, timestamp: Date.now() });
-      log(`✓ uploaded — ${formatBytes(size || 0)}`);
+      log(`done — ${formatBytes(size || 0)}`);
       log(String(url).replace(/^https?:\/\//, ''), 'link', url);
       setSnippetText('');
     } catch (error) {
-      log(`✗ ${error instanceof Error ? error.message : 'snippet failed'}`, 'err');
+      log(error instanceof Error ? error.message : 'snippet failed', 'err');
     } finally {
       setBusy(false);
     }
@@ -283,15 +282,15 @@ export default function HomeTerminal() {
       const parsed = new URL(trimmed);
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error();
     } catch {
-      log('✗ enter a valid http(s) url', 'err');
+      log('enter a valid http(s) url', 'err');
       return;
     }
 
     setBusy(true);
     setPanel('none');
-    setLines([{ text: `$ relay pull ${trimmed}` }]);
+    setLines([{ text: `pull ${trimmed}` }]);
     try {
-      log('↓ downloading', 'dim');
+      log('downloading', 'dim');
       const res = await fetch('/api/remote-upload/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -311,11 +310,11 @@ export default function HomeTerminal() {
       }).catch(() => {});
 
       pushRecent({ url, filename: filename || 'remote-file', size: size || 0, timestamp: Date.now() });
-      log(`✓ pulled — ${formatBytes(size || 0)}`);
+      log(`done — ${formatBytes(size || 0)}`);
       log(String(url).replace(/^https?:\/\//, ''), 'link', url);
       setRemoteUrlText('');
     } catch (error) {
-      log(`✗ ${error instanceof Error ? error.message : 'remote pull failed'}`, 'err');
+      log(error instanceof Error ? error.message : 'remote pull failed', 'err');
     } finally {
       setBusy(false);
     }
@@ -325,360 +324,350 @@ export default function HomeTerminal() {
     <main className="tpage">
       <style>{`
         .tpage {
+          --bg: #060606;
+          --fg: #ededed;
+          --fg-dim: #8a8a8a;
+          --fg-faint: #4a4a4a;
+          --fg-ghost: #232323;
           min-height: 100vh;
-          background: #000;
-          color: #fff;
+          background: var(--bg);
+          color: var(--fg);
           font-family: var(--font-mono), ui-monospace, monospace;
           display: flex;
           flex-direction: column;
           align-items: center;
-          padding: clamp(2rem, 6vw, 5rem) 1.5rem 3rem;
+          padding: clamp(2.5rem, 6vw, 5rem) 1.25rem 4rem;
         }
-        .tpage a { color: #fff; }
-        .t-wrap { width: 100%; max-width: 680px; }
+        .tpage a { color: var(--fg); }
+        .tpage ::selection { background: var(--fg); color: var(--bg); }
+        .tpage :focus-visible { outline: 1px dashed var(--fg); outline-offset: 2px; }
 
-        .t-nav {
+        .t-wrap { width: 100%; max-width: 70ch; font-size: 0.86rem; }
+
+        /* man(1)-style header/footer bar — the one authentic borrowing this
+           whole page is built around: NAME(SECTION) on both edges, the
+           manual's title centered, exactly like "man" renders on any unix box. */
+        .man-bar {
           display: flex;
-          align-items: center;
-          margin-bottom: clamp(3rem, 10vw, 6rem);
+          justify-content: space-between;
+          gap: 1rem;
+          font-size: 0.7rem;
+          letter-spacing: 0.03em;
+          color: var(--fg-dim);
+          padding-bottom: 0.9rem;
+          border-bottom: 1px solid var(--fg-ghost);
+        }
+        .man-bar span:nth-child(2) { flex: 1; text-align: center; }
+        .man-bar--foot {
+          border-bottom: none;
+          border-top: 1px solid var(--fg-ghost);
+          padding-top: 0.9rem;
+          padding-bottom: 0;
+          margin-top: 2.6rem;
+        }
+
+        .man-section { margin-top: 1.9rem; }
+        .man-h {
           font-size: 0.72rem;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          color: var(--fg);
+          margin: 0 0 0.6rem;
         }
-        .t-nav .mark { display: flex; align-items: center; gap: 0.5rem; }
-        .t-diamond {
-          width: 9px; height: 9px;
-          border: 1px solid #fff;
-          transform: rotate(45deg);
-          flex-shrink: 0;
+        .man-body {
+          padding-left: 2ch;
+          color: var(--fg-dim);
+          line-height: 1.7;
+          max-width: 62ch;
         }
+        .man-body b { color: var(--fg); font-weight: 700; }
+        .man-dim { color: var(--fg-faint); margin: 0; }
 
-        .t-h1 {
-          font-size: clamp(1.5rem, 4.5vw, 2.1rem);
-          line-height: 1.35;
-          font-weight: 400;
-          margin: 0 0 0.9rem;
-          letter-spacing: -0.01em;
-        }
-        .t-h1 .dim { color: #666; }
-        .t-sub {
-          font-size: 0.82rem;
-          color: #888;
-          line-height: 1.6;
-          margin: 0 0 2.4rem;
-          max-width: 52ch;
-        }
-
-        .t-term {
-          border: 1px solid rgba(255,255,255,0.18);
-          background: #050505;
-          margin-bottom: 1rem;
-        }
-        .t-term-bar {
-          display: flex;
-          gap: 0.4rem;
-          padding: 0.65rem 0.8rem;
-          border-bottom: 1px solid rgba(255,255,255,0.12);
-        }
-        .t-term-dot {
-          width: 8px; height: 8px; border-radius: 50%;
-          border: 1px solid rgba(255,255,255,0.4);
-        }
-        .t-term-body {
-          padding: 1.1rem 1.2rem 1.4rem;
-          font-size: 0.78rem;
-          line-height: 1.9;
-          min-height: 5.7rem;
-        }
-        .t-line { white-space: pre-wrap; word-break: break-word; }
-        .t-line--dim { color: #888; }
-        .t-line--link { color: #fff; }
-        .t-line--link a { text-decoration: underline; text-underline-offset: 2px; }
-        .t-line--err { color: #ff6b6b; }
-        .t-cursor {
-          display: inline-block;
-          width: 7px; height: 1.05em;
-          background: #fff;
-          margin-left: 2px;
-          vertical-align: text-bottom;
-          animation: t-caret 0.8s step-end infinite;
-        }
-        @keyframes t-caret { 50% { opacity: 0; } }
-        @media (prefers-reduced-motion: reduce) {
-          .t-cursor { animation: none; }
-        }
-
-        .t-actions {
-          display: flex;
-          gap: 0.6rem;
-          flex-wrap: wrap;
-          margin-bottom: 0.6rem;
-        }
-        .t-action-btn {
-          font-family: inherit;
-          font-size: 0.74rem;
+        /* SYNOPSIS — the three commands double as the actual controls. */
+        .man-syn { display: flex; flex-direction: column; gap: 0.15rem; max-width: none; }
+        .syn-line {
+          appearance: none;
+          display: block;
+          width: fit-content;
+          max-width: 100%;
+          text-align: left;
           background: transparent;
-          color: #fff;
-          border: 1px solid rgba(255,255,255,0.3);
-          padding: 0.55rem 0.9rem;
+          border: none;
+          color: var(--fg);
+          font-family: inherit;
+          font-size: 0.95rem;
+          padding: 0.2rem 0;
+          margin: 0.1rem 0;
           cursor: pointer;
-          transition: border-color 0.15s ease, background 0.15s ease;
         }
-        .t-action-btn:hover:not(:disabled) { border-color: #fff; background: rgba(255,255,255,0.06); }
-        .t-action-btn[aria-pressed="true"] { background: #fff; color: #000; border-color: #fff; }
-        .t-action-btn:disabled { opacity: 0.4; cursor: default; }
-
-        .t-inline-panel {
-          border: 1px solid rgba(255,255,255,0.18);
-          background: #050505;
-          padding: 0.9rem;
-          margin-bottom: 1rem;
+        .syn-line::before { content: '$ '; color: var(--fg-faint); }
+        .syn-line:hover:not(:disabled),
+        .syn-line[aria-expanded="true"] { text-decoration: underline; text-underline-offset: 3px; }
+        .syn-line:disabled { color: var(--fg-faint); cursor: default; }
+        .syn-note {
+          color: var(--fg-faint);
+          font-size: 0.72rem;
+          margin: 0 0 0.7rem;
+          padding-left: 2ch;
+        }
+        .syn-block {
+          margin: 0.4rem 0 1rem 2ch;
+          padding: 0.8rem;
+          border: 1px solid var(--fg-ghost);
           display: flex;
           flex-direction: column;
           gap: 0.6rem;
         }
-        .t-inline-panel textarea,
-        .t-inline-panel input {
+        .syn-block textarea,
+        .syn-block input {
           font-family: inherit;
-          font-size: 0.78rem;
-          background: #000;
-          color: #fff;
-          border: 1px solid rgba(255,255,255,0.25);
-          padding: 0.6rem 0.7rem;
+          font-size: 0.82rem;
+          background: var(--bg);
+          color: var(--fg);
+          border: 1px solid var(--fg-faint);
+          padding: 0.55rem 0.65rem;
           resize: vertical;
         }
-        .t-inline-panel textarea:focus,
-        .t-inline-panel input:focus { outline: none; border-color: #fff; }
-        .t-inline-panel-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
+        .syn-block textarea:focus,
+        .syn-block input:focus { outline: none; border-color: var(--fg); }
+        .syn-block-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
 
-        .t-disclaimer {
-          font-size: 0.68rem;
-          color: #555;
-          line-height: 1.6;
-          margin-bottom: 2rem;
-          max-width: 56ch;
+        .man-btn {
+          font-family: inherit;
+          font-size: 0.7rem;
+          background: transparent;
+          color: var(--fg-dim);
+          border: 1px solid var(--fg-faint);
+          padding: 0.35rem 0.7rem;
+          cursor: pointer;
         }
+        .man-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--fg); }
+        .man-btn:disabled { opacity: 0.4; cursor: default; }
+        .man-btn--solid { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+        .man-btn--solid:hover:not(:disabled) { background: var(--fg); color: var(--bg); opacity: 0.85; }
 
-        .t-recent { margin-bottom: 2.4rem; font-size: 0.76rem; }
-        .t-recent-head {
-          color: #666;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          font-size: 0.66rem;
-          margin-bottom: 0.6rem;
+        /* OUTPUT — plain command output, no fake window chrome. Status is
+           signalled the way real monochrome terminals always have: reverse
+           video, not color. */
+        .man-output { display: flex; flex-direction: column; gap: 0.2rem; max-width: none; }
+        .out-line { white-space: pre-wrap; word-break: break-word; }
+        .out-line--dim { color: var(--fg-faint); }
+        .out-line--link a { text-decoration: underline; text-underline-offset: 2px; color: var(--fg); }
+        .out-line--err {
+          display: inline-block;
+          background: var(--fg);
+          color: var(--bg);
+          font-weight: 700;
+          padding: 0.05rem 0.4ch;
         }
-        .t-recent-empty { color: #555; }
-        .t-recent-row {
+        .out-line--err::before { content: '✗ '; }
+        .man-cursor {
+          display: inline-block;
+          width: 0.6ch; height: 1em;
+          background: var(--fg);
+          margin-left: 2px;
+          vertical-align: text-bottom;
+          animation: man-caret 0.8s step-end infinite;
+        }
+        @keyframes man-caret { 50% { opacity: 0; } }
+        @media (prefers-reduced-motion: reduce) { .man-cursor { animation: none; } }
+
+        /* RECENT */
+        .recent-row {
           display: flex;
           align-items: baseline;
           gap: 0.7rem;
-          padding: 0.45rem 0;
-          border-bottom: 1px solid rgba(255,255,255,0.08);
+          padding: 0.4rem 0;
+          border-bottom: 1px solid var(--fg-ghost);
         }
-        .t-recent-name {
+        .recent-row:last-child { border-bottom: none; }
+        .recent-name {
           flex: 1;
           min-width: 0;
-          color: #fff;
+          color: var(--fg);
           text-decoration: none;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-        .t-recent-name:hover { text-decoration: underline; }
-        .t-recent-meta { color: #666; font-size: 0.68rem; white-space: nowrap; }
-        .t-recent-copy {
-          font-family: inherit;
-          font-size: 0.66rem;
-          background: transparent;
-          color: #888;
-          border: 1px solid rgba(255,255,255,0.2);
-          padding: 0.2rem 0.55rem;
-          cursor: pointer;
-          flex-shrink: 0;
-        }
-        .t-recent-copy:hover { color: #fff; border-color: #fff; }
+        .recent-name:hover { text-decoration: underline; }
+        .recent-meta { color: var(--fg-faint); font-size: 0.72rem; white-space: nowrap; }
 
-        .t-manifest {
-          border-top: 1px solid rgba(255,255,255,0.15);
-          border-bottom: 1px solid rgba(255,255,255,0.15);
-          padding: 1.1rem 0;
-          margin-bottom: 2.4rem;
-          font-size: 0.74rem;
+        /* LIMITS — dot-leader table, same trick used in a printed manual's
+           table of contents to tie a label to its value across the gap. */
+        .limits-row { display: flex; align-items: baseline; gap: 0.6ch; max-width: none; }
+        .limits-row .leader { flex: 1; overflow: hidden; white-space: nowrap; }
+        .limits-row .leader::after {
+          content: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ';
+          color: var(--fg-ghost);
         }
-        .t-manifest-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 0.32rem 0;
-          color: #999;
-        }
-        .t-manifest-row b { color: #fff; font-weight: 400; }
+        .limits-row b { flex-shrink: 0; }
 
-        .t-cta {
-          display: flex;
-          gap: 0.7rem;
-          flex-wrap: wrap;
+        @media (max-width: 560px) {
+          .limits-row .leader { display: none; }
+          .limits-row { justify-content: space-between; }
         }
-        .t-btn {
-          display: inline-block;
-          padding: 0.7rem 1.1rem;
-          font-size: 0.76rem;
-          text-decoration: none;
-          border: 1px solid #fff;
-          transition: background 0.15s ease, color 0.15s ease;
-        }
-        .tpage a.t-btn--solid { background: #fff; color: #000; }
-        .tpage a.t-btn--solid:hover { background: #ccc; }
-        .t-btn--outline { color: #fff; }
-        .t-btn--outline:hover { background: #fff; color: #000; }
       `}</style>
 
       <div className="t-wrap">
-        <nav className="t-nav">
-          <span className="mark">
-            <span className="t-diamond" />
-            relay
-          </span>
-        </nav>
+        <header className="man-bar">
+          <span>RELAY(1)</span>
+          <span>Developer Commands</span>
+          <span>RELAY(1)</span>
+        </header>
 
-        <h1 className="t-h1">
-          Share a file.<br />
-          Get a link.<br />
-          <span className="dim">Nothing else.</span>
-        </h1>
-        <p className="t-sub">
-          No account, no dashboard tour, no upsell before you&apos;ve uploaded a single byte.
-          This terminal is wired to the real thing — try it.
-        </p>
+        <section className="man-section">
+          <h2 className="man-h">NAME</h2>
+          <p className="man-body">
+            <b>relay</b> — push a file, snip code, or pull a url. no account, no dashboard.
+          </p>
+        </section>
 
-        <div className="t-term">
-          <div className="t-term-bar">
-            <span className="t-term-dot" />
-            <span className="t-term-dot" />
-            <span className="t-term-dot" />
+        <section className="man-section">
+          <h2 className="man-h">SYNOPSIS</h2>
+          <div className="man-body man-syn">
+            <button
+              type="button"
+              className="syn-line"
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              relay push &lt;file&gt;
+            </button>
+            <p className="syn-note"># opens your device&apos;s file picker — relay only reads the one file you choose, nothing else, before or after.</p>
+
+            <button
+              type="button"
+              className="syn-line"
+              aria-expanded={panel === 'snippet'}
+              disabled={busy}
+              onClick={() => setPanel((p) => (p === 'snippet' ? 'none' : 'snippet'))}
+            >
+              relay snip
+            </button>
+            {panel === 'snippet' && (
+              <div className="syn-block">
+                <textarea
+                  rows={5}
+                  placeholder="paste code here…"
+                  value={snippetText}
+                  onChange={(e) => setSnippetText(e.target.value)}
+                  autoFocus
+                />
+                <div className="syn-block-row">
+                  <button type="button" className="man-btn" onClick={() => setPanel('none')}>cancel</button>
+                  <button type="button" className="man-btn man-btn--solid" disabled={!snippetText.trim() || busy} onClick={runSnippet}>push →</button>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="syn-line"
+              aria-expanded={panel === 'remote'}
+              disabled={busy}
+              onClick={() => setPanel((p) => (p === 'remote' ? 'none' : 'remote'))}
+            >
+              relay pull &lt;url&gt;
+            </button>
+            {panel === 'remote' && (
+              <div className="syn-block">
+                <input
+                  type="url"
+                  placeholder="https://example.com/file.zip"
+                  value={remoteUrlText}
+                  onChange={(e) => setRemoteUrlText(e.target.value)}
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === 'Enter') runRemotePull(); }}
+                />
+                <div className="syn-block-row">
+                  <button type="button" className="man-btn" onClick={() => setPanel('none')}>cancel</button>
+                  <button type="button" className="man-btn man-btn--solid" disabled={!remoteUrlText.trim() || busy} onClick={runRemotePull}>pull →</button>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="t-term-body">
+        </section>
+
+        <section className="man-section">
+          <h2 className="man-h">DESCRIPTION</h2>
+          <p className="man-body">
+            Upload something, get a link back. Files and snippets sit for 15 days without a
+            visit, then they&apos;re gone — like /tmp, but shareable.
+          </p>
+        </section>
+
+        <section className="man-section">
+          <h2 className="man-h">OUTPUT</h2>
+          <div className="man-body man-output">
             {lines.map((line, i) => (
               <div
                 key={`${i}-${line.text}`}
-                className={`t-line ${line.tone ? `t-line--${line.tone}` : ''}`}
+                className={`out-line ${line.tone ? `out-line--${line.tone}` : ''}`}
               >
                 {line.href ? <a href={line.href}>{line.text}</a> : line.text}
-                {i === lines.length - 1 && <span className="t-cursor" aria-hidden="true" />}
+                {i === lines.length - 1 && line.tone !== 'err' && <span className="man-cursor" aria-hidden="true" />}
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (file) runUpload(file);
-          }}
-        />
-
-        <div className="t-actions">
-          <button
-            type="button"
-            className="t-action-btn"
-            aria-pressed={panel === 'snippet'}
-            disabled={busy}
-            onClick={() => setPanel((p) => (p === 'snippet' ? 'none' : 'snippet'))}
-          >
-            Snip code
-          </button>
-          <button
-            type="button"
-            className="t-action-btn"
-            disabled={busy}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            Upload file
-          </button>
-          <button
-            type="button"
-            className="t-action-btn"
-            aria-pressed={panel === 'remote'}
-            disabled={busy}
-            onClick={() => setPanel((p) => (p === 'remote' ? 'none' : 'remote'))}
-          >
-            Remote pull
-          </button>
-        </div>
-
-        {panel === 'snippet' && (
-          <div className="t-inline-panel">
-            <textarea
-              rows={5}
-              placeholder="paste code here…"
-              value={snippetText}
-              onChange={(e) => setSnippetText(e.target.value)}
-              autoFocus
-            />
-            <div className="t-inline-panel-row">
-              <button type="button" className="t-action-btn" onClick={() => setPanel('none')}>Cancel</button>
-              <button type="button" className="t-action-btn" disabled={!snippetText.trim() || busy} onClick={runSnippet}>Push snippet</button>
-            </div>
+        <section className="man-section">
+          <h2 className="man-h">RECENT{recent.length ? `(${Math.min(recent.length, RECENT_DISPLAY)})` : ''}</h2>
+          <div className="man-body">
+            {recent.length === 0 ? (
+              <p className="man-dim">nothing yet — try a command above.</p>
+            ) : (
+              recent.slice(0, RECENT_DISPLAY).map((item) => (
+                <div className="recent-row" key={`${item.url}-${item.timestamp}`}>
+                  <a href={item.url} className="recent-name">{item.filename}</a>
+                  <span className="recent-meta">{formatBytes(item.size)} · {formatRelativeTime(item.timestamp)}</span>
+                  <button type="button" className="man-btn" onClick={() => copyLink(item.url)}>
+                    {copiedUrl === item.url ? 'copied' : 'copy'}
+                  </button>
+                </div>
+              ))
+            )}
           </div>
-        )}
+        </section>
 
-        {panel === 'remote' && (
-          <div className="t-inline-panel">
-            <input
-              type="url"
-              placeholder="https://example.com/file.zip"
-              value={remoteUrlText}
-              onChange={(e) => setRemoteUrlText(e.target.value)}
-              autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter') runRemotePull(); }}
-            />
-            <div className="t-inline-panel-row">
-              <button type="button" className="t-action-btn" onClick={() => setPanel('none')}>Cancel</button>
-              <button type="button" className="t-action-btn" disabled={!remoteUrlText.trim() || busy} onClick={runRemotePull}>Pull</button>
-            </div>
-          </div>
-        )}
-
-        <p className="t-disclaimer">
-          &quot;Upload file&quot; opens your browser&apos;s own file picker — Relay only ever reads the
-          single file you choose there. We get no access to your folders or any other files, and
-          nothing more once the upload finishes.
-        </p>
-
-        <div className="t-recent">
-          <div className="t-recent-head">recent</div>
-          {recent.length === 0 ? (
-            <div className="t-recent-empty">nothing yet — try the terminal above.</div>
-          ) : (
-            recent.slice(0, RECENT_DISPLAY).map((item) => (
-              <div className="t-recent-row" key={`${item.url}-${item.timestamp}`}>
-                <a href={item.url} className="t-recent-name">{item.filename}</a>
-                <span className="t-recent-meta">{formatBytes(item.size)} · {formatRelativeTime(item.timestamp)}</span>
-                <button type="button" className="t-recent-copy" onClick={() => copyLink(item.url)}>
-                  {copiedUrl === item.url ? 'copied' : 'copy'}
-                </button>
+        <section className="man-section">
+          <h2 className="man-h">LIMITS</h2>
+          <div className="man-body">
+            {MANIFEST.map((row) => (
+              <div className="limits-row" key={row.k}>
+                <span>{row.k}</span>
+                <span className="leader" />
+                <b>{row.v}</b>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        </section>
 
-        <div className="t-manifest">
-          {MANIFEST.map((row) => (
-            <div className="t-manifest-row" key={row.k}>
-              <span>{row.k}</span>
-              <b>{row.v}</b>
-            </div>
-          ))}
-        </div>
+        <section className="man-section">
+          <h2 className="man-h">SEE ALSO</h2>
+          <p className="man-body">
+            <Link href="/pricing">pricing(1)</Link>, <Link href="/docs">docs(1)</Link>
+          </p>
+        </section>
 
-        <div className="t-cta">
-          <Link href="/pricing" className="t-btn t-btn--solid">See pricing</Link>
-          <Link href="/docs" className="t-btn t-btn--outline">API docs</Link>
-        </div>
+        <footer className="man-bar man-bar--foot">
+          <span>RELAY(1)</span>
+          <span>no accounts, no ads</span>
+          <span>RELAY(1)</span>
+        </footer>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) runUpload(file);
+        }}
+      />
     </main>
   );
 }

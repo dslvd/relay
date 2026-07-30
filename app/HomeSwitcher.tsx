@@ -49,8 +49,8 @@ export default function HomeSwitcher({ initialStyle }: { initialStyle: HomeStyle
           left: 1.1rem;
           z-index: 60;
           display: flex;
-          gap: 2px;
-          padding: 3px;
+          gap: 1px;
+          padding: 2px;
           background: rgba(10, 10, 10, 0.82);
           border: 1px solid rgba(255, 255, 255, 0.14);
           border-radius: 999px;
@@ -64,10 +64,10 @@ export default function HomeSwitcher({ initialStyle }: { initialStyle: HomeStyle
           border-radius: 999px;
           background: transparent;
           color: rgba(255, 255, 255, 0.55);
-          font-size: 0.66rem;
-          letter-spacing: 0.04em;
+          font-size: 0.65rem;
+          letter-spacing: 0.06em;
           text-transform: uppercase;
-          padding: 0.4rem 0.75rem;
+          padding: 0.2rem 0.5rem;
           cursor: pointer;
           transition: background 0.15s ease, color 0.15s ease;
         }
