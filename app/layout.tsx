@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Space_Mono } from 'next/font/google';
-import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
 import ClickRipple from "./components/ClickRipple";
 import DisableInspect from "./components/DisableInspect";
 import ThemeProvider from "./components/ThemeProvider";
 import ThemeToggle from "./components/ThemeToggle";
-import PolicyMenu from "./components/PolicyMenu";
+import SiteFooterLinks from "./components/SiteFooterLinks";
 import type { Viewport } from "next";
 
 const spaceGrotesk = Space_Grotesk({
@@ -106,13 +105,7 @@ export default function RootLayout({
         </ThemeProvider>
         <ClickRipple />
         <DisableInspect />
-        <PolicyMenu />
-        <Link className="footer-link pricing-link" href="/pricing" prefetch>
-          Pricing
-        </Link>
-        <Link className="footer-link api-link" href="/api" prefetch>
-          API
-        </Link>
+        <SiteFooterLinks />
       </body>
     </html>
   );

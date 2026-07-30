@@ -173,6 +173,7 @@ export default function AdminDashboard() {
   const [reports, setReports] = useState<AbuseReport[]>([]);
   const [reportActionId, setReportActionId] = useState<string | null>(null);
   const [reportFilter, setReportFilter] = useState<'open' | 'resolved' | 'dismissed' | 'all'>('open');
+  const [auditActionFilter, setAuditActionFilter] = useState('all');
   const [r2Files, setR2Files] = useState<R2File[]>([]);
   const [r2Cursor, setR2Cursor] = useState<string | null>(null);
   const [r2Loading, setR2Loading] = useState(false);
@@ -941,9 +942,9 @@ export default function AdminDashboard() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(ellipse at 30% 20%, #1a1035 0%, #0a0a0a 55%), radial-gradient(ellipse at 75% 80%, #0d1f2d 0%, #0a0a0a 60%)',
+      background: 'radial-gradient(ellipse at 30% 20%, var(--wash-violet) 0%, var(--wash-base) 55%), radial-gradient(ellipse at 75% 80%, var(--wash-teal) 0%, var(--wash-base) 60%)',
       backgroundAttachment: 'fixed',
-      color: '#f5f5f5',
+      color: 'var(--c-text)',
       padding: '2rem'
     }}>
       <div style={{
@@ -960,19 +961,30 @@ export default function AdminDashboard() {
           gap: '1rem'
         }}>
           <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--c-text)', letterSpacing: '-0.01em' }}>Relay</span>
+              <span style={{
+                fontSize: '0.6rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: '999px',
+                color: 'var(--c-accent-mint)', background: 'rgba(126,244,203,0.14)', letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}>
+                Admin
+              </span>
+            </div>
             <h1 style={{
-              fontFamily: "'Open Sans', sans-serif",
-              fontSize: '1.75rem',
-              fontWeight: 300,
-              marginBottom: '0.5rem'
+              fontFamily: 'var(--font-body)',
+              fontSize: 'clamp(1.6rem, 3vw, 2rem)',
+              fontWeight: 700,
+              letterSpacing: '-0.02em',
+              margin: 0,
             }}>
-              Admin Dashboard
+              Operations
             </h1>
             <p style={{
-              fontSize: '0.9rem',
-              color: '#666666'
+              fontSize: '0.85rem',
+              color: 'var(--c-dim)',
+              marginTop: '0.3rem',
             }}>
-              Manage all uploads and monitor activity
+              Uploads, moderation, and account activity across Relay
             </p>
           </div>
 
@@ -984,17 +996,17 @@ export default function AdminDashboard() {
               href="/admin/analytics"
               style={{
                 padding: '0.625rem 1.25rem',
-                background: 'rgba(255,255,255,0.07)',
+                background: 'var(--surface-card-strong)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '999px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 fontWeight: 400,
                 letterSpacing: '0.02em',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif",
+                fontFamily: 'var(--font-body)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
                 textDecoration: 'none',
                 display: 'inline-flex',
@@ -1010,17 +1022,17 @@ export default function AdminDashboard() {
               disabled={loading}
               style={{
                 padding: '0.625rem 1.25rem',
-                background: 'rgba(255,255,255,0.07)',
+                background: 'var(--surface-card-strong)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '999px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 fontWeight: 400,
                 letterSpacing: '0.02em',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                fontFamily: "'Open Sans', sans-serif",
+                fontFamily: 'var(--font-body)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
@@ -1036,12 +1048,12 @@ export default function AdminDashboard() {
                 WebkitBackdropFilter: 'blur(12px)',
                 border: '1px solid rgba(233,236,242,0.35)',
                 borderRadius: '999px',
-                color: '#eef1f6',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 fontWeight: 400,
                 letterSpacing: '0.02em',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif",
+                fontFamily: 'var(--font-body)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
@@ -1050,10 +1062,57 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Ops status strip — at-a-glance triage signal, not just decoration */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gap: '0.7rem',
+          marginBottom: '2rem',
+        }}>
+          {(() => {
+            const openReports = reports.filter((r) => r.status === 'open').length;
+            const csamReports = reports.filter((r) => r.status === 'open' && r.category === 'csam').length;
+            const chips = [
+              {
+                label: 'Open reports',
+                value: openReports,
+                tone: csamReports > 0 ? 'error' : openReports > 0 ? 'warning' : 'ok',
+              },
+              { label: 'Blacklist rules', value: blacklistRules.length, tone: 'neutral' as const },
+              { label: 'Quarantined files', value: quarantineRecords.length, tone: quarantineRecords.length > 0 ? 'warning' as const : 'ok' as const },
+              { label: 'Storage', value: formatFileSize(storageStats?.storage.bytes ?? totalSize), tone: 'neutral' as const },
+            ];
+            const toneColors: Record<string, { fg: string; bg: string }> = {
+              ok: { fg: 'var(--c-accent-mint)', bg: 'rgba(126,244,203,0.1)' },
+              warning: { fg: '#f2c879', bg: 'rgba(242,200,121,0.1)' },
+              error: { fg: 'var(--c-accent-error)', bg: 'rgba(255,158,158,0.1)' },
+              neutral: { fg: 'var(--c-text)', bg: 'var(--surface-card)' },
+            };
+            return chips.map((chip) => {
+              const colors = toneColors[chip.tone];
+              return (
+                <div key={chip.label} style={{
+                  padding: '0.9rem 1.1rem',
+                  borderRadius: '14px',
+                  border: `1px solid ${chip.tone === 'neutral' ? 'var(--border-default)' : colors.bg.replace('0.1', '0.3')}`,
+                  background: colors.bg,
+                }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>
+                    {chip.label}
+                  </div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: colors.fg }}>
+                    {chip.value}
+                  </div>
+                </div>
+              );
+            });
+          })()}
+        </div>
+
         {/* Plus Access Manager */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          background: 'var(--surface-card)',
+          border: '1px solid var(--border-default)',
           borderRadius: '16px',
           padding: '1.5rem',
           marginBottom: '2rem'
@@ -1062,13 +1121,13 @@ export default function AdminDashboard() {
             fontSize: '1rem',
             fontWeight: 300,
             marginBottom: '0.75rem',
-            color: '#f5f5f5'
+            color: 'var(--c-text)'
           }}>
             ⭐ Manage Relay Plus Access 
           </h3>
 
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <label style={{ fontSize: '0.85rem', color: '#666666' }}>Invite TTL (hours)</label>
+            <label style={{ fontSize: '0.85rem', color: 'var(--c-dim)' }}>Invite TTL (hours)</label>
             <input
               type="number"
               min={1}
@@ -1077,10 +1136,10 @@ export default function AdminDashboard() {
               style={{
                 width: '110px',
                 padding: '0.45rem 0.6rem',
-                background: 'rgba(255, 255, 255, 0.06)',
+                background: 'var(--surface-input)',
                 border: '1px solid rgba(255, 255, 255, 0.18)',
                 borderRadius: '8px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.85rem'
               }}
             />
@@ -1094,10 +1153,10 @@ export default function AdminDashboard() {
                 WebkitBackdropFilter: 'blur(12px)',
                 border: '1px solid rgba(233,236,242,0.35)',
                 borderRadius: '999px',
-                color: '#eef1f6',
+                color: 'var(--c-text)',
                 fontSize: '0.85rem',
                 cursor: creatingInvite ? 'not-allowed' : 'pointer',
-                fontFamily: "'Open Sans', sans-serif",
+                fontFamily: 'var(--font-body)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
@@ -1107,15 +1166,15 @@ export default function AdminDashboard() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
             <div style={{
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--surface-well)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '12px',
               padding: '1rem'
             }}>
-              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>Signup Links ({plusInvites.length})</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--c-text)', marginBottom: '0.75rem' }}>Signup Links ({plusInvites.length})</div>
               <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
                 {plusInvites.length === 0 && (
-                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No plus invites yet</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)' }}>No plus invites yet</div>
                 )}
                 {plusInvites.map((invite) => {
                   const inviteLink = `${window.location.origin}/plus?invite=${invite.token}`;
@@ -1124,11 +1183,11 @@ export default function AdminDashboard() {
 
                   return (
                     <div key={invite.id} style={{
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      border: '1px solid var(--border-default)',
                       borderRadius: '10px',
                       padding: '0.65rem'
                     }}>
-                      <div style={{ fontSize: '0.75rem', color: '#8a8a8a', marginBottom: '0.45rem' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.45rem' }}>
                         {isUsed ? 'Used' : isExpired ? 'Expired' : 'Active'} • Expires {new Date(invite.expiresAt).toLocaleString()}
                       </div>
                       <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -1136,12 +1195,12 @@ export default function AdminDashboard() {
                           onClick={() => copyToClipboard(inviteLink)}
                           style={{
                             padding: '0.4rem 0.65rem',
-                            background: 'rgba(255,255,255,0.07)',
+                            background: 'var(--surface-card-strong)',
                             backdropFilter: 'blur(10px)',
                             WebkitBackdropFilter: 'blur(10px)',
-                            border: '1px solid rgba(255,255,255,0.15)',
+                            border: '1px solid var(--border-input)',
                             borderRadius: '8px',
-                            color: '#f5f5f5',
+                            color: 'var(--c-text)',
                             fontSize: '0.75rem',
                             cursor: 'pointer',
                             boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
@@ -1154,9 +1213,9 @@ export default function AdminDashboard() {
                           style={{
                             padding: '0.4rem 0.65rem',
                             background: 'transparent',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            border: '1px solid var(--border-strong)',
                             borderRadius: '8px',
-                            color: '#f5f5f5',
+                            color: 'var(--c-text)',
                             fontSize: '0.75rem',
                             cursor: 'pointer'
                           }}
@@ -1171,19 +1230,19 @@ export default function AdminDashboard() {
             </div>
 
             <div style={{
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--surface-well)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '12px',
               padding: '1rem'
             }}>
-              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>Plus Accounts ({plusUsers.length})</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--c-text)', marginBottom: '0.75rem' }}>Plus Accounts ({plusUsers.length})</div>
               <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
                 {plusUsers.length === 0 && (
-                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No plus users yet</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)' }}>No plus users yet</div>
                 )}
                 {plusUsers.map((user) => (
                   <div key={user.id} style={{
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '10px',
                     padding: '0.65rem',
                     display: 'flex',
@@ -1193,15 +1252,15 @@ export default function AdminDashboard() {
                   }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ fontSize: '0.8rem', color: '#f5f5f5' }}>{user.email}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--c-text)' }}>{user.email}</span>
                         {(() => {
                           const badge = !user.isPaidSubscriber
-                            ? { label: 'Invited', color: '#8a92a1', bg: 'rgba(138,146,161,0.14)' }
+                            ? { label: 'Invited', color: 'var(--c-dim)', bg: 'rgba(138,146,161,0.14)' }
                             : user.planStatus === 'canceled'
-                              ? { label: 'Canceled', color: '#ff9e9e', bg: 'rgba(255,158,158,0.14)' }
+                              ? { label: 'Canceled', color: 'var(--c-accent-error)', bg: 'rgba(255,158,158,0.14)' }
                               : user.planStatus === 'past_due'
                                 ? { label: 'Past due', color: '#f2c879', bg: 'rgba(242,200,121,0.14)' }
-                                : { label: 'Active', color: '#7ef4cb', bg: 'rgba(126,244,203,0.14)' };
+                                : { label: 'Active', color: 'var(--c-accent-mint)', bg: 'rgba(126,244,203,0.14)' };
                           return (
                             <span style={{
                               fontSize: '0.62rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '999px',
@@ -1212,7 +1271,7 @@ export default function AdminDashboard() {
                           );
                         })()}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: '#8a8a8a' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--c-dim)' }}>
                         Created {new Date(user.createdAt).toLocaleString()}
                       </div>
                     </div>
@@ -1221,9 +1280,9 @@ export default function AdminDashboard() {
                       style={{
                         padding: '0.38rem 0.62rem',
                         background: 'transparent',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        border: '1px solid var(--border-strong)',
                         borderRadius: '8px',
-                        color: '#f5f5f5',
+                        color: 'var(--c-text)',
                         fontSize: '0.75rem',
                         cursor: 'pointer'
                       }}
@@ -1245,102 +1304,102 @@ export default function AdminDashboard() {
           marginBottom: '2rem'
         }}>
           <div style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--surface-card)',
+            border: '1px solid var(--border-default)',
             borderRadius: '16px',
             padding: '1.5rem'
           }}>
-            <div style={{ fontSize: '0.8rem', color: '#666666', marginBottom: '0.5rem' }}>Total Files</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>Total Files</div>
             <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{files.length}</div>
           </div>
           <div style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--surface-card)',
+            border: '1px solid var(--border-default)',
             borderRadius: '16px',
             padding: '1.5rem'
           }}>
-            <div style={{ fontSize: '0.8rem', color: '#666666', marginBottom: '0.5rem' }}>Total Storage</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>Total Storage</div>
             <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>
               {formatFileSize(storageStats?.storage.bytes ?? totalSize)}
             </div>
           </div>
           <div style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--surface-card)',
+            border: '1px solid var(--border-default)',
             borderRadius: '16px',
             padding: '1.5rem'
           }}>
-            <div style={{ fontSize: '0.8rem', color: '#666666', marginBottom: '0.5rem' }}>Uploads Today</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>Uploads Today</div>
             <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{uploadsToday}</div>
           </div>
           <div style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--surface-card)',
+            border: '1px solid var(--border-default)',
             borderRadius: '16px',
             padding: '1.5rem'
           }}>
-            <div style={{ fontSize: '0.8rem', color: '#666666', marginBottom: '0.5rem' }}>Unique IPs</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>Unique IPs</div>
             <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{uniqueIPs}</div>
           </div>
         </div>
 
         {storageStats && (
           <div style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--surface-card)',
+            border: '1px solid var(--border-default)',
             borderRadius: '16px',
             padding: '1.5rem',
             marginBottom: '2rem'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 300, color: '#f5f5f5', margin: 0 }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 300, color: 'var(--c-text)', margin: 0 }}>
                 💸 Storage usage + cost estimates
               </h3>
-              <div style={{ fontSize: '0.72rem', color: '#666666' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--c-dim)' }}>
                 Updated {formatTimeAgo(storageStats.storage.updatedAt)} {storageStats.cached ? '• cached' : ''}
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
               <div style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--surface-well)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '12px',
                 padding: '1.1rem'
               }}>
-                <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.4rem' }}>Storage (current)</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.4rem' }}>Storage (current)</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{formatFileSize(storageStats.storage.bytes)}</div>
-                <div style={{ fontSize: '0.7rem', color: '#666666' }}>{storageStats.storage.objects} objects</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>{storageStats.storage.objects} objects</div>
               </div>
               <div style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--surface-well)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '12px',
                 padding: '1.1rem'
               }}>
-                <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.4rem' }}>Est. storage cost / mo</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.4rem' }}>Est. storage cost / mo</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{formatCurrency(storageStats.cost.storageMonthly)}</div>
-                <div style={{ fontSize: '0.7rem', color: '#666666' }}>${storageStats.cost.pricing.storagePerGbMonth}/GB-mo</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>${storageStats.cost.pricing.storagePerGbMonth}/GB-mo</div>
               </div>
               <div style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--surface-well)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '12px',
                 padding: '1.1rem'
               }}>
-                <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.4rem' }}>Bandwidth cost (24h)</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.4rem' }}>Bandwidth cost (24h)</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{formatCurrency(storageStats.cost.bandwidth24h)}</div>
-                <div style={{ fontSize: '0.7rem', color: '#666666' }}>{formatFileSize(storageStats.bandwidth.bytes24h)}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>{formatFileSize(storageStats.bandwidth.bytes24h)}</div>
               </div>
               <div style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--surface-well)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '12px',
                 padding: '1.1rem'
               }}>
-                <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.4rem' }}>Bandwidth cost (7d)</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.4rem' }}>Bandwidth cost (7d)</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{formatCurrency(storageStats.cost.bandwidth7days)}</div>
-                <div style={{ fontSize: '0.7rem', color: '#666666' }}>{formatFileSize(storageStats.bandwidth.bytes7days)}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>{formatFileSize(storageStats.bandwidth.bytes7days)}</div>
               </div>
             </div>
           </div>
@@ -1349,8 +1408,8 @@ export default function AdminDashboard() {
         {/* Analytics Section */}
         {analytics && (
           <div style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--surface-card)',
+            border: '1px solid var(--border-default)',
             borderRadius: '16px',
             padding: '1.5rem',
             marginBottom: '2rem'
@@ -1364,7 +1423,7 @@ export default function AdminDashboard() {
               <h3 style={{
                 fontSize: '1.1rem',
                 fontWeight: 300,
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 margin: 0
               }}>
                 📊 Analytics Dashboard
@@ -1374,12 +1433,12 @@ export default function AdminDashboard() {
                 style={{
                   padding: '0.5rem 1rem',
                   background: 'transparent',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: '10px',
-                  color: '#f5f5f5',
+                  color: 'var(--c-text)',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  fontFamily: "'Open Sans', sans-serif"
+                  fontFamily: 'var(--font-body)'
                 }}
               >
                 {showAnalytics ? 'Hide' : 'Show'}
@@ -1394,20 +1453,20 @@ export default function AdminDashboard() {
                   gap: '1rem',
                   marginBottom: '1.1rem'
                 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>Recent downloads</div>
+                  <div style={{ background: 'var(--surface-well)', border: '1px solid var(--border-default)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.35rem' }}>Recent downloads</div>
                     <div style={{ fontSize: '1.45rem', fontWeight: 700 }}>{analytics.recentDownloads.length}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Tracked events</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>Tracked events</div>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>Expiring soon</div>
+                  <div style={{ background: 'var(--surface-well)', border: '1px solid var(--border-default)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.35rem' }}>Expiring soon</div>
                     <div style={{ fontSize: '1.45rem', fontWeight: 700 }}>{expiringSoonFiles.length}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Within 48 hours</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>Within 48 hours</div>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.35rem' }}>Quarantined</div>
+                  <div style={{ background: 'var(--surface-well)', border: '1px solid var(--border-default)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.35rem' }}>Quarantined</div>
                     <div style={{ fontSize: '1.45rem', fontWeight: 700 }}>{quarantineRecords.length}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Flagged files</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>Flagged files</div>
                   </div>
                 </div>
 
@@ -1417,18 +1476,18 @@ export default function AdminDashboard() {
                   gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
                   gap: '1rem'
                 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.75rem' }}>Recent activity</div>
+                  <div style={{ background: 'var(--surface-well)', border: '1px solid var(--border-default)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--c-text)', marginBottom: '0.75rem' }}>Recent activity</div>
                     <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
                       {notificationAlerts.length === 0 ? (
-                        <div style={{ color: '#666666', fontSize: '0.8rem' }}>No activity yet.</div>
+                        <div style={{ color: 'var(--c-dim)', fontSize: '0.8rem' }}>No activity yet.</div>
                       ) : notificationAlerts.map((alert, index) => (
-                        <div key={`${alert.kind}-${alert.title}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div key={`${alert.kind}-${alert.title}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--surface-input)' }}>
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '0.82rem', color: '#f5f5f5', wordBreak: 'break-all' }}>{alert.title}</div>
-                            <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>{alert.detail}</div>
+                            <div style={{ fontSize: '0.82rem', color: 'var(--c-text)', wordBreak: 'break-all' }}>{alert.title}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>{alert.detail}</div>
                           </div>
-                          <div style={{ fontSize: '0.68rem', color: alert.kind === 'download' ? '#7ef4cb' : '#ffd1a3', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontSize: '0.68rem', color: alert.kind === 'download' ? 'var(--c-accent-mint)' : '#ffd1a3', whiteSpace: 'nowrap' }}>
                             {alert.kind === 'download' ? 'downloaded' : 'expiring'}
                           </div>
                         </div>
@@ -1436,16 +1495,16 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f5f5f5', marginBottom: '0.75rem' }}>Expiring soon</div>
+                  <div style={{ background: 'var(--surface-well)', border: '1px solid var(--border-default)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--c-text)', marginBottom: '0.75rem' }}>Expiring soon</div>
                     <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
                       {expiringSoonFiles.length === 0 ? (
-                        <div style={{ color: '#666666', fontSize: '0.8rem' }}>No files expiring within 48 hours.</div>
+                        <div style={{ color: 'var(--c-dim)', fontSize: '0.8rem' }}>No files expiring within 48 hours.</div>
                       ) : expiringSoonFiles.map((file) => (
-                        <div key={file.url} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div key={file.url} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--surface-input)' }}>
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '0.82rem', color: '#f5f5f5', wordBreak: 'break-all' }}>{file.filename}</div>
-                            <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>{file.expiresAt ? new Date(file.expiresAt).toLocaleString() : 'Based on last access time'}</div>
+                            <div style={{ fontSize: '0.82rem', color: 'var(--c-text)', wordBreak: 'break-all' }}>{file.filename}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>{file.expiresAt ? new Date(file.expiresAt).toLocaleString() : 'Based on last access time'}</div>
                           </div>
                           <div style={{ fontSize: '0.68rem', color: '#ffd1a3', whiteSpace: 'nowrap' }}>
                             expiring
@@ -1464,61 +1523,61 @@ export default function AdminDashboard() {
                   marginBottom: '1.5rem'
                 }}>
                   <div style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--surface-well)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '12px',
                     padding: '1.25rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>🔴 Live Visitors</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>🔴 Live Visitors</div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>{analytics.visitors.live}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Last 5 minutes</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>Last 5 minutes</div>
                   </div>
                   <div style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--surface-well)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '12px',
                     padding: '1.25rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>👥 Unique Visitors (24h)</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>👥 Unique Visitors (24h)</div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>{analytics.visitors.unique24h}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Total: {analytics.visitors.unique}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>Total: {analytics.visitors.unique}</div>
                   </div>
                   <div style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--surface-well)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '12px',
                     padding: '1.25rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>📄 Page Views (24h)</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>📄 Page Views (24h)</div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>{analytics.pageViews.last24h}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Total: {analytics.pageViews.total}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>Total: {analytics.pageViews.total}</div>
                   </div>
                   <div style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--surface-well)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '12px',
                     padding: '1.25rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>⬇️ Downloads (24h)</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>⬇️ Downloads (24h)</div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>{analytics.downloads.last24h}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#666666' }}>Total: {analytics.downloads.total}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>Total: {analytics.downloads.total}</div>
                   </div>
                   <div style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--surface-well)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '12px',
                     padding: '1.25rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>📈 7-Day Page Views</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>📈 7-Day Page Views</div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>{analytics.pageViews.last7days}</div>
                   </div>
                   <div style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--surface-well)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '12px',
                     padding: '1.25rem'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#666666', marginBottom: '0.5rem' }}>📈 7-Day Downloads</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--c-dim)', marginBottom: '0.5rem' }}>📈 7-Day Downloads</div>
                     <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>{analytics.downloads.last7days}</div>
                   </div>
                 </div>
@@ -1529,14 +1588,14 @@ export default function AdminDashboard() {
                     <h4 style={{
                       fontSize: '0.95rem',
                       fontWeight: 600,
-                      color: '#f5f5f5',
+                      color: 'var(--c-text)',
                       marginBottom: '1rem'
                     }}>
                       🏆 Most Downloaded Files
                     </h4>
                     <div style={{
                       background: 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '12px',
                       overflow: 'hidden'
                     }}>
@@ -1559,14 +1618,14 @@ export default function AdminDashboard() {
                             <div style={{
                               fontSize: '1.2rem',
                               fontWeight: 700,
-                              color: index < 3 ? '#FFD700' : '#666666',
+                              color: index < 3 ? '#FFD700' : 'var(--c-dim)',
                               textAlign: 'center'
                             }}>
                               #{index + 1}
                             </div>
                             <div style={{
                               fontSize: '0.875rem',
-                              color: '#f5f5f5',
+                              color: 'var(--c-text)',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap'
@@ -1575,21 +1634,21 @@ export default function AdminDashboard() {
                             </div>
                             <div style={{
                               fontSize: '0.8rem',
-                              color: '#666666',
+                              color: 'var(--c-dim)',
                               whiteSpace: 'nowrap'
                             }}>
                               <strong>{file.totalDownloads}</strong> total
                             </div>
                             <div style={{
                               fontSize: '0.8rem',
-                              color: '#666666',
+                              color: 'var(--c-dim)',
                               whiteSpace: 'nowrap'
                             }}>
                               {file.last24h} today
                             </div>
                             <div style={{
                               fontSize: '0.8rem',
-                              color: '#666666',
+                              color: 'var(--c-dim)',
                               whiteSpace: 'nowrap'
                             }}>
                               {file.uniqueUsers} users
@@ -1607,14 +1666,14 @@ export default function AdminDashboard() {
                     <h4 style={{
                       fontSize: '0.95rem',
                       fontWeight: 600,
-                      color: '#f5f5f5',
+                      color: 'var(--c-text)',
                       marginBottom: '1rem'
                     }}>
                       🕒 Recent Downloads
                     </h4>
                     <div style={{
                       background: 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '12px',
                       overflow: 'hidden'
                     }}>
@@ -1636,7 +1695,7 @@ export default function AdminDashboard() {
                           >
                             <div style={{
                               fontSize: '0.85rem',
-                              color: '#f5f5f5',
+                              color: 'var(--c-text)',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap'
@@ -1645,14 +1704,14 @@ export default function AdminDashboard() {
                             </div>
                             <div style={{
                               fontSize: '0.75rem',
-                              color: '#666666',
+                              color: 'var(--c-dim)',
                               fontFamily: 'monospace'
                             }}>
                               {download.ip}
                             </div>
                             <div style={{
                               fontSize: '0.75rem',
-                              color: '#666666',
+                              color: 'var(--c-dim)',
                               whiteSpace: 'nowrap'
                             }}>
                               {formatTimeAgo(download.timestamp)}
@@ -1670,8 +1729,8 @@ export default function AdminDashboard() {
 
         {/* Search, Filter & Export */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          background: 'var(--surface-card)',
+          border: '1px solid var(--border-default)',
           borderRadius: '16px',
           padding: '1.5rem',
           marginBottom: '2rem'
@@ -1685,13 +1744,13 @@ export default function AdminDashboard() {
               style={{
                 flex: '1 1 300px',
                 padding: '0.75rem 1rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-input)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 outline: 'none',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: 'var(--font-body)'
               }}
             />
             
@@ -1700,13 +1759,13 @@ export default function AdminDashboard() {
               onChange={(e) => setFilterType(e.target.value)}
               style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-input)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: 'var(--font-body)'
               }}
             >
               <option value="all">All Types</option>
@@ -1720,13 +1779,13 @@ export default function AdminDashboard() {
               onChange={(e) => setFolderFilter(e.target.value)}
               style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-input)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: 'var(--font-body)'
               }}
             >
               <option value="all">All folders</option>
@@ -1740,13 +1799,13 @@ export default function AdminDashboard() {
               onChange={(e) => setFavoriteFilter(e.target.value as typeof favoriteFilter)}
               style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-input)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: 'var(--font-body)'
               }}
             >
               <option value="all">All files</option>
@@ -1759,13 +1818,13 @@ export default function AdminDashboard() {
               onChange={(e) => setSortKey(e.target.value as SortKey)}
               style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-input)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: 'var(--font-body)'
               }}
             >
               <option value="timestamp">Newest</option>
@@ -1784,13 +1843,13 @@ export default function AdminDashboard() {
               title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
               style={{
                 padding: '0.75rem 0.9rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-input)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif"
+                fontFamily: 'var(--font-body)'
               }}
             >
               {sortOrder === 'asc' ? '↑' : '↓'}
@@ -1801,15 +1860,15 @@ export default function AdminDashboard() {
               disabled={runningCleanup}
               style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(255,255,255,0.07)',
+                background: 'var(--surface-card-strong)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 cursor: runningCleanup ? 'not-allowed' : 'pointer',
-                fontFamily: "'Open Sans', sans-serif",
+                fontFamily: 'var(--font-body)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
@@ -1820,15 +1879,15 @@ export default function AdminDashboard() {
               onClick={() => exportData('json')}
               style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(255,255,255,0.07)',
+                background: 'var(--surface-card-strong)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif",
+                fontFamily: 'var(--font-body)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
@@ -1839,15 +1898,15 @@ export default function AdminDashboard() {
               onClick={() => exportData('csv')}
               style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(255,255,255,0.07)',
+                background: 'var(--surface-card-strong)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                fontFamily: "'Open Sans', sans-serif",
+                fontFamily: 'var(--font-body)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
@@ -1857,7 +1916,7 @@ export default function AdminDashboard() {
 
           {selectedFiles.size > 0 && (
             <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ color: '#666666', fontSize: '0.875rem' }}>
+              <span style={{ color: 'var(--c-dim)', fontSize: '0.875rem' }}>
                 {selectedFiles.size} selected
               </span>
               <input
@@ -1866,10 +1925,10 @@ export default function AdminDashboard() {
                 placeholder="Target folder"
                 style={{
                   padding: '0.5rem 0.7rem',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  background: 'var(--surface-input)',
+                  border: '1px solid var(--border-input)',
                   borderRadius: '10px',
-                  color: '#f5f5f5',
+                  color: 'var(--c-text)',
                   fontSize: '0.875rem',
                   minWidth: '180px'
                 }}
@@ -1879,15 +1938,15 @@ export default function AdminDashboard() {
                 disabled={organizingFiles || !bulkMoveFolder.trim()}
                 style={{
                   padding: '0.5rem 1rem',
-                  background: 'rgba(255,255,255,0.07)',
+                  background: 'var(--surface-card-strong)',
                   backdropFilter: 'blur(12px)',
                   WebkitBackdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  border: '1px solid var(--border-input)',
                   borderRadius: '10px',
-                  color: '#f5f5f5',
+                  color: 'var(--c-text)',
                   fontSize: '0.875rem',
                   cursor: organizingFiles || !bulkMoveFolder.trim() ? 'not-allowed' : 'pointer',
-                  fontFamily: "'Open Sans', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                 }}
               >
@@ -1899,10 +1958,10 @@ export default function AdminDashboard() {
                 placeholder="Tags, comma separated"
                 style={{
                   padding: '0.5rem 0.7rem',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  background: 'var(--surface-input)',
+                  border: '1px solid var(--border-input)',
                   borderRadius: '10px',
-                  color: '#f5f5f5',
+                  color: 'var(--c-text)',
                   fontSize: '0.875rem',
                   minWidth: '220px'
                 }}
@@ -1912,15 +1971,15 @@ export default function AdminDashboard() {
                 disabled={organizingFiles}
                 style={{
                   padding: '0.5rem 1rem',
-                  background: 'rgba(255,255,255,0.07)',
+                  background: 'var(--surface-card-strong)',
                   backdropFilter: 'blur(12px)',
                   WebkitBackdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  border: '1px solid var(--border-input)',
                   borderRadius: '10px',
-                  color: '#f5f5f5',
+                  color: 'var(--c-text)',
                   fontSize: '0.875rem',
                   cursor: organizingFiles ? 'not-allowed' : 'pointer',
-                  fontFamily: "'Open Sans', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                 }}
               >
@@ -1935,10 +1994,10 @@ export default function AdminDashboard() {
                   WebkitBackdropFilter: 'blur(12px)',
                   border: '1px solid rgba(220,80,80,0.35)',
                   borderRadius: '10px',
-                  color: '#f5a5a5',
+                  color: 'var(--c-accent-error)',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  fontFamily: "'Open Sans', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                 }}
               >
@@ -1956,7 +2015,7 @@ export default function AdminDashboard() {
                   color: '#ffd1a3',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  fontFamily: "'Open Sans', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                 }}
               >
@@ -1974,7 +2033,7 @@ export default function AdminDashboard() {
                   color: '#f2bcbc',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  fontFamily: "'Open Sans', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                 }}
               >
@@ -1984,15 +2043,15 @@ export default function AdminDashboard() {
                 onClick={() => runBulkAction('unquarantine')}
                 style={{
                   padding: '0.5rem 1rem',
-                  background: 'rgba(255,255,255,0.06)',
+                  background: 'var(--surface-input)',
                   backdropFilter: 'blur(12px)',
                   WebkitBackdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: '10px',
                   color: '#c3cad6',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  fontFamily: "'Open Sans', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
                 }}
               >
@@ -2003,12 +2062,12 @@ export default function AdminDashboard() {
                 style={{
                   padding: '0.5rem 1rem',
                   background: 'transparent',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: '10px',
-                  color: '#f5f5f5',
+                  color: 'var(--c-text)',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
-                  fontFamily: "'Open Sans', sans-serif"
+                  fontFamily: 'var(--font-body)'
                 }}
               >
                 Clear Selection
@@ -2019,14 +2078,14 @@ export default function AdminDashboard() {
 
         {/* Reported content */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          background: 'var(--surface-card)',
+          border: '1px solid var(--border-default)',
           borderRadius: '16px',
           padding: '1.5rem',
           marginBottom: '2rem'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '1rem' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 300, margin: 0, color: '#f5f5f5' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 300, margin: 0, color: 'var(--c-text)' }}>
               🚩 Reported content ({reports.filter((r) => r.status === 'open').length} open)
             </h3>
             <select
@@ -2034,10 +2093,10 @@ export default function AdminDashboard() {
               onChange={(e) => setReportFilter(e.target.value as typeof reportFilter)}
               style={{
                 padding: '0.45rem 0.65rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-input)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '8px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.78rem',
                 cursor: 'pointer'
               }}
@@ -2051,7 +2110,7 @@ export default function AdminDashboard() {
 
           <div style={{ display: 'grid', gap: '0.7rem', maxHeight: '480px', overflowY: 'auto' }}>
             {reports.filter((r) => reportFilter === 'all' || r.status === reportFilter).length === 0 && (
-              <div style={{ fontSize: '0.8rem', color: '#666666' }}>No {reportFilter === 'all' ? '' : reportFilter} reports</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)' }}>No {reportFilter === 'all' ? '' : reportFilter} reports</div>
             )}
             {reports
               .filter((r) => reportFilter === 'all' || r.status === reportFilter)
@@ -2067,7 +2126,7 @@ export default function AdminDashboard() {
                 const isBusy = reportActionId === report.id;
                 return (
                   <div key={report.id} style={{
-                    border: report.category === 'csam' ? '1px solid rgba(255,100,100,0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                    border: report.category === 'csam' ? '1px solid rgba(255,100,100,0.4)' : '1px solid var(--border-default)',
                     borderRadius: '10px',
                     padding: '0.85rem',
                   }}>
@@ -2076,31 +2135,31 @@ export default function AdminDashboard() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                           <span style={{
                             fontSize: '0.62rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '999px',
-                            color: report.category === 'csam' ? '#ff9e9e' : '#7ef4cb',
+                            color: report.category === 'csam' ? 'var(--c-accent-error)' : 'var(--c-accent-mint)',
                             background: report.category === 'csam' ? 'rgba(255,158,158,0.14)' : 'rgba(126,244,203,0.14)',
                             letterSpacing: '0.03em', textTransform: 'uppercase',
                           }}>
                             {categoryLabels[report.category] || report.category}
                           </span>
-                          <span style={{ fontSize: '0.68rem', color: '#8a8a8a' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--c-dim)' }}>
                             Reported {new Date(report.timestamp).toLocaleString()}
                           </span>
                         </div>
-                        <div style={{ fontSize: '0.78rem', color: '#f5f5f5', wordBreak: 'break-all', marginTop: '0.35rem' }}>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--c-text)', wordBreak: 'break-all', marginTop: '0.35rem' }}>
                           {report.url}
                         </div>
                         <div style={{ fontSize: '0.78rem', color: '#a9b2c1', marginTop: '0.35rem', lineHeight: 1.5 }}>
                           {report.description}
                         </div>
                         {report.reporterEmail && (
-                          <div style={{ fontSize: '0.7rem', color: '#8a8a8a', marginTop: '0.3rem' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)', marginTop: '0.3rem' }}>
                             Reporter: {report.reporterEmail}
                           </div>
                         )}
                         {report.status !== 'open' && (
                           <div style={{
                             marginTop: '0.5rem', padding: '0.4rem 0.6rem', borderRadius: '8px',
-                            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                            background: 'var(--surface-card)', border: '1px solid rgba(255,255,255,0.08)',
                             fontSize: '0.7rem', color: '#a9b2c1',
                           }}>
                             {(() => {
@@ -2140,7 +2199,7 @@ export default function AdminDashboard() {
                               disabled={isBusy}
                               style={{
                                 padding: '0.35rem 0.65rem', borderRadius: '8px', border: '1px solid rgba(255,158,158,0.4)',
-                                background: 'rgba(255,158,158,0.12)', color: '#ff9e9e', fontSize: '0.72rem', fontWeight: 600,
+                                background: 'rgba(255,158,158,0.12)', color: 'var(--c-accent-error)', fontSize: '0.72rem', fontWeight: 600,
                                 cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
                               }}
                             >
@@ -2150,8 +2209,8 @@ export default function AdminDashboard() {
                               onClick={() => dismissReport(report)}
                               disabled={isBusy}
                               style={{
-                                padding: '0.35rem 0.65rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)',
-                                background: 'transparent', color: '#f5f5f5', fontSize: '0.72rem',
+                                padding: '0.35rem 0.65rem', borderRadius: '8px', border: '1px solid var(--border-strong)',
+                                background: 'transparent', color: 'var(--c-text)', fontSize: '0.72rem',
                                 cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
                               }}
                             >
@@ -2163,8 +2222,8 @@ export default function AdminDashboard() {
                             onClick={() => reopenReport(report)}
                             disabled={isBusy}
                             style={{
-                              padding: '0.35rem 0.65rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)',
-                              background: 'transparent', color: '#f5f5f5', fontSize: '0.72rem',
+                              padding: '0.35rem 0.65rem', borderRadius: '8px', border: '1px solid var(--border-strong)',
+                              background: 'transparent', color: 'var(--c-text)', fontSize: '0.72rem',
                               cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
                             }}
                           >
@@ -2181,13 +2240,13 @@ export default function AdminDashboard() {
 
         {/* Abuse + Blacklist */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          background: 'var(--surface-card)',
+          border: '1px solid var(--border-default)',
           borderRadius: '16px',
           padding: '1.5rem',
           marginBottom: '2rem'
         }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 300, marginBottom: '0.9rem', color: '#f5f5f5' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 300, marginBottom: '0.9rem', color: 'var(--c-text)' }}>
             🚫 Abuse flags + blacklist
           </h3>
 
@@ -2197,10 +2256,10 @@ export default function AdminDashboard() {
               onChange={(e) => setBlacklistType(e.target.value as 'ip' | 'filename')}
               style={{
                 padding: '0.55rem 0.75rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-input)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.82rem',
                 cursor: 'pointer'
               }}
@@ -2215,10 +2274,10 @@ export default function AdminDashboard() {
               style={{
                 flex: '1 1 280px',
                 padding: '0.55rem 0.75rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-input)',
+                border: '1px solid var(--border-input)',
                 borderRadius: '10px',
-                color: '#f5f5f5',
+                color: 'var(--c-text)',
                 fontSize: '0.82rem',
                 outline: 'none'
               }}
@@ -2233,10 +2292,10 @@ export default function AdminDashboard() {
                 WebkitBackdropFilter: 'blur(12px)',
                 border: '1px solid rgba(233,236,242,0.35)',
                 borderRadius: '999px',
-                color: '#eef1f6',
+                color: 'var(--c-text)',
                 fontSize: '0.82rem',
                 cursor: addingRule ? 'not-allowed' : 'pointer',
-                fontFamily: "'Open Sans', sans-serif",
+                fontFamily: 'var(--font-body)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}
             >
@@ -2246,21 +2305,21 @@ export default function AdminDashboard() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
             <div style={{
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--surface-well)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '12px',
               padding: '1rem'
             }}>
-              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--c-text)', marginBottom: '0.75rem' }}>
                 Blacklist rules ({blacklistRules.length})
               </div>
               <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
                 {blacklistRules.length === 0 && (
-                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No rules yet</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)' }}>No rules yet</div>
                 )}
                 {blacklistRules.map((rule) => (
                   <div key={rule.id} style={{
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '10px',
                     padding: '0.65rem',
                     display: 'flex',
@@ -2269,17 +2328,17 @@ export default function AdminDashboard() {
                     gap: '0.6rem'
                   }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '0.78rem', color: '#f5f5f5' }}>{rule.pattern}</div>
-                      <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>{rule.type} • {new Date(rule.createdAt).toLocaleString()}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--c-text)' }}>{rule.pattern}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>{rule.type} • {new Date(rule.createdAt).toLocaleString()}</div>
                     </div>
                     <button
                       onClick={() => removeBlacklistRuleById(rule.id)}
                       style={{
                         padding: '0.35rem 0.6rem',
                         background: 'transparent',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        border: '1px solid var(--border-strong)',
                         borderRadius: '8px',
-                        color: '#f5f5f5',
+                        color: 'var(--c-text)',
                         fontSize: '0.72rem',
                         cursor: 'pointer'
                       }}
@@ -2292,26 +2351,26 @@ export default function AdminDashboard() {
             </div>
 
             <div style={{
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--surface-well)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '12px',
               padding: '1rem'
             }}>
-              <div style={{ fontSize: '0.85rem', color: '#f5f5f5', marginBottom: '0.75rem' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--c-text)', marginBottom: '0.75rem' }}>
                 Quarantined files ({quarantineRecords.length})
               </div>
               <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
                 {quarantineRecords.length === 0 && (
-                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No quarantined files</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)' }}>No quarantined files</div>
                 )}
                 {quarantineRecords.slice(0, 25).map((record) => (
                   <div key={record.objectKey} style={{
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '10px',
                     padding: '0.65rem'
                   }}>
-                    <div style={{ fontSize: '0.78rem', color: '#f5f5f5', wordBreak: 'break-all' }}>{record.objectKey}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>{record.reason || 'No reason'} • {new Date(record.createdAt).toLocaleString()}</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--c-text)', wordBreak: 'break-all' }}>{record.objectKey}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>{record.reason || 'No reason'} • {new Date(record.createdAt).toLocaleString()}</div>
                   </div>
                 ))}
               </div>
@@ -2321,27 +2380,42 @@ export default function AdminDashboard() {
 
         {/* Admin Audit Log */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          background: 'var(--surface-card)',
+          border: '1px solid var(--border-default)',
           borderRadius: '16px',
           padding: '1.5rem',
           marginBottom: '2rem'
         }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 300, marginBottom: '0.9rem', color: '#f5f5f5' }}>
-            🧾 Admin audit log
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '0.9rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 300, margin: 0, color: 'var(--c-text)' }}>
+              🧾 Admin audit log
+            </h3>
+            <select
+              value={auditActionFilter}
+              onChange={(e) => setAuditActionFilter(e.target.value)}
+              style={{
+                padding: '0.4rem 0.6rem', background: 'var(--surface-input)', border: '1px solid var(--border-input)',
+                borderRadius: '8px', color: 'var(--c-text)', fontSize: '0.75rem', cursor: 'pointer',
+              }}
+            >
+              <option value="all">All actions</option>
+              {Array.from(new Set(auditLog.map((e) => e.action))).sort().map((action) => (
+                <option key={action} value={action}>{action}</option>
+              ))}
+            </select>
+          </div>
           <div style={{ maxHeight: '260px', overflowY: 'auto', display: 'grid', gap: '0.6rem' }}>
-            {auditLog.length === 0 && (
-              <div style={{ fontSize: '0.8rem', color: '#666666' }}>No recent activity</div>
+            {auditLog.filter((e) => auditActionFilter === 'all' || e.action === auditActionFilter).length === 0 && (
+              <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)' }}>No matching activity</div>
             )}
-            {auditLog.map((entry) => (
+            {auditLog.filter((e) => auditActionFilter === 'all' || e.action === auditActionFilter).map((entry) => (
               <div key={entry.id} style={{
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '10px',
                 padding: '0.65rem'
               }}>
-                <div style={{ fontSize: '0.78rem', color: '#f5f5f5' }}>{entry.action}</div>
-                <div style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--c-text)' }}>{entry.action}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)' }}>
                   {new Date(entry.timestamp).toLocaleString()} • {entry.actorIp || 'unknown'}
                   {entry.target ? ` • ${entry.target}` : ''}
                 </div>
@@ -2350,7 +2424,7 @@ export default function AdminDashboard() {
                     {Object.entries(entry.meta).map(([key, value]) => (
                       value === undefined || value === null || value === '' ? null : (
                         <div key={key} style={{ wordBreak: 'break-word' }}>
-                          <strong style={{ color: '#8a8a8a' }}>{key}:</strong> {String(value)}
+                          <strong style={{ color: 'var(--c-dim)' }}>{key}:</strong> {String(value)}
                         </div>
                       )
                     ))}
@@ -2363,14 +2437,14 @@ export default function AdminDashboard() {
 
         {/* R2 File Manager — browses the bucket directly, not just tracked history */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          background: 'var(--surface-card)',
+          border: '1px solid var(--border-default)',
           borderRadius: '16px',
           padding: '1.5rem',
           marginBottom: '2rem'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '1rem' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 300, margin: 0, color: '#f5f5f5' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 300, margin: 0, color: 'var(--c-text)' }}>
               📦 File Manager (R2) {r2Loaded ? `(${r2Files.length} loaded)` : ''}
             </h3>
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -2379,9 +2453,9 @@ export default function AdminDashboard() {
                 onChange={(e) => setR2Prefix(e.target.value)}
                 placeholder="Key prefix (optional)"
                 style={{
-                  padding: '0.45rem 0.65rem', background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px',
-                  color: '#f5f5f5', fontSize: '0.78rem', outline: 'none', width: '180px',
+                  padding: '0.45rem 0.65rem', background: 'var(--surface-input)',
+                  border: '1px solid var(--border-input)', borderRadius: '8px',
+                  color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none', width: '180px',
                 }}
               />
               <button
@@ -2389,7 +2463,7 @@ export default function AdminDashboard() {
                 disabled={r2Loading}
                 style={{
                   padding: '0.45rem 0.8rem', background: 'rgba(233,236,242,0.15)', border: '1px solid rgba(233,236,242,0.35)',
-                  borderRadius: '999px', color: '#eef1f6', fontSize: '0.78rem', cursor: r2Loading ? 'not-allowed' : 'pointer',
+                  borderRadius: '999px', color: 'var(--c-text)', fontSize: '0.78rem', cursor: r2Loading ? 'not-allowed' : 'pointer',
                 }}
               >
                 {r2Loading ? 'Loading…' : r2Loaded ? 'Reload' : 'Browse R2'}
@@ -2398,25 +2472,25 @@ export default function AdminDashboard() {
           </div>
 
           {!r2Loaded ? (
-            <div style={{ fontSize: '0.8rem', color: '#666666' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)' }}>
               Not loaded yet - click &quot;Browse R2&quot; to list objects directly from storage (bypasses the tracked-history table above, so orphaned objects show up too).
             </div>
           ) : (
             <>
               <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '420px', overflowY: 'auto' }}>
                 {r2Files.length === 0 && (
-                  <div style={{ fontSize: '0.8rem', color: '#666666' }}>No objects found</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--c-dim)' }}>No objects found</div>
                 )}
                 {r2Files.map((file) => {
                   const isBusy = r2ActionKey === file.key;
                   return (
                     <div key={file.key} style={{
-                      border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', padding: '0.65rem',
+                      border: '1px solid var(--border-default)', borderRadius: '10px', padding: '0.65rem',
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
                     }}>
                       <div style={{ minWidth: 0, flex: '1 1 300px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.78rem', color: '#f5f5f5', wordBreak: 'break-all' }}>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--c-text)', wordBreak: 'break-all' }}>
                             {file.filename || file.key}
                           </span>
                           {!file.tracked && (
@@ -2430,13 +2504,13 @@ export default function AdminDashboard() {
                           {file.quarantined && (
                             <span style={{
                               fontSize: '0.6rem', fontWeight: 700, padding: '0.08rem 0.4rem', borderRadius: '999px',
-                              color: '#ff9e9e', background: 'rgba(255,158,158,0.14)', letterSpacing: '0.03em', textTransform: 'uppercase',
+                              color: 'var(--c-accent-error)', background: 'rgba(255,158,158,0.14)', letterSpacing: '0.03em', textTransform: 'uppercase',
                             }}>
                               Quarantined
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: '#8a8a8a', marginTop: '0.25rem', wordBreak: 'break-all' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--c-dim)', marginTop: '0.25rem', wordBreak: 'break-all' }}>
                           {file.key} · {formatFileSize(file.size)}{file.lastModified ? ` · ${new Date(file.lastModified).toLocaleString()}` : ''}
                           {file.ip ? ` · ${file.ip}` : ''}
                         </div>
@@ -2458,7 +2532,7 @@ export default function AdminDashboard() {
                           disabled={isBusy}
                           style={{
                             padding: '0.32rem 0.6rem', borderRadius: '8px', border: '1px solid rgba(255,158,158,0.4)',
-                            background: 'rgba(255,158,158,0.12)', color: '#ff9e9e', fontSize: '0.68rem', fontWeight: 600,
+                            background: 'rgba(255,158,158,0.12)', color: 'var(--c-accent-error)', fontSize: '0.68rem', fontWeight: 600,
                             cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.6 : 1,
                           }}
                         >
@@ -2475,7 +2549,7 @@ export default function AdminDashboard() {
                   disabled={r2Loading}
                   style={{
                     marginTop: '0.8rem', padding: '0.5rem 1rem', background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.2)', borderRadius: '999px', color: '#f5f5f5',
+                    border: '1px solid var(--border-strong)', borderRadius: '999px', color: 'var(--c-text)',
                     fontSize: '0.78rem', cursor: r2Loading ? 'not-allowed' : 'pointer',
                   }}
                 >
@@ -2488,7 +2562,7 @@ export default function AdminDashboard() {
 
         {/* File Manager — organization and delete panel */}
         <div style={{
-          background: 'rgba(255,255,255,0.04)',
+          background: 'var(--surface-card)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
           border: '1px solid rgba(255,255,255,0.12)',
@@ -2500,10 +2574,10 @@ export default function AdminDashboard() {
           {/* Header row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 400, color: '#f5f5f5', marginBottom: '0.35rem', fontFamily: "'Open Sans', sans-serif" }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 400, color: 'var(--c-text)', marginBottom: '0.35rem', fontFamily: 'var(--font-body)' }}>
                 🗂️ File Manager
               </h3>
-              <p style={{ fontSize: '0.78rem', color: '#666666', margin: 0, lineHeight: 1.5 }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--c-dim)', margin: 0, lineHeight: 1.5 }}>
                 Organize files with folders, tags, favorites, and bulk moves. Delete actions still <strong style={{ color: '#a0a0a0' }}>permanently remove files from Cloudflare R2</strong> and invalidate their public URL immediately.
               </p>
             </div>
@@ -2517,15 +2591,15 @@ export default function AdminDashboard() {
                   }
                   style={{
                     padding: '0.45rem 0.9rem',
-                    background: 'rgba(255,255,255,0.07)',
+                    background: 'var(--surface-card-strong)',
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(255,255,255,0.15)',
+                    border: '1px solid var(--border-input)',
                     borderRadius: '999px',
                     color: '#c3cad6',
                     fontSize: '0.78rem',
                     cursor: 'pointer',
-                    fontFamily: "'Open Sans', sans-serif"
+                    fontFamily: 'var(--font-body)'
                   }}
                 >
                   {selectedFiles.size === filteredFiles.length && filteredFiles.length > 0 ? 'Deselect All' : `Select All (${filteredFiles.length})`}
@@ -2533,7 +2607,7 @@ export default function AdminDashboard() {
               )}
               {selectedFiles.size > 0 && (
                 <>
-                  <span style={{ color: '#8a92a1', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: 'var(--c-dim)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                     {selectedFiles.size} selected
                   </span>
                   <button
@@ -2546,12 +2620,12 @@ export default function AdminDashboard() {
                       WebkitBackdropFilter: 'blur(12px)',
                       border: '1px solid rgba(220,80,80,0.4)',
                       borderRadius: '999px',
-                      color: '#f5a5a5',
+                      color: 'var(--c-accent-error)',
                       fontSize: '0.78rem',
                       fontWeight: 600,
                       cursor: deletingSilent.size > 0 ? 'not-allowed' : 'pointer',
                       opacity: deletingSilent.size > 0 ? 0.6 : 1,
-                      fontFamily: "'Open Sans', sans-serif",
+                      fontFamily: 'var(--font-body)',
                       boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
                       whiteSpace: 'nowrap'
                     }}
@@ -2563,12 +2637,12 @@ export default function AdminDashboard() {
                     style={{
                       padding: '0.45rem 0.8rem',
                       background: 'transparent',
-                      border: '1px solid rgba(255,255,255,0.15)',
+                      border: '1px solid var(--border-input)',
                       borderRadius: '999px',
-                      color: '#8a92a1',
+                      color: 'var(--c-dim)',
                       fontSize: '0.78rem',
                       cursor: 'pointer',
-                      fontFamily: "'Open Sans', sans-serif"
+                      fontFamily: 'var(--font-body)'
                     }}
                   >
                     Clear
@@ -2580,9 +2654,9 @@ export default function AdminDashboard() {
 
           {/* File list */}
           {loading ? (
-            <div style={{ color: '#666666', fontSize: '0.875rem', padding: '1rem 0' }}>Loading files...</div>
+            <div style={{ color: 'var(--c-dim)', fontSize: '0.875rem', padding: '1rem 0' }}>Loading files...</div>
           ) : filteredFiles.length === 0 ? (
-            <div style={{ color: '#666666', fontSize: '0.875rem', padding: '1rem 0' }}>No files found. {searchQuery && 'Try clearing the search filter.'}</div>
+            <div style={{ color: 'var(--c-dim)', fontSize: '0.875rem', padding: '1rem 0' }}>No files found. {searchQuery && 'Try clearing the search filter.'}</div>
           ) : (
             <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '440px', overflowY: 'auto', paddingRight: '4px' }}>
               {filteredFiles.map(file => {
@@ -2598,8 +2672,8 @@ export default function AdminDashboard() {
                       gap: '0.85rem',
                       padding: '0.7rem 0.9rem',
                       borderRadius: '12px',
-                      background: isSelected ? 'rgba(233,236,242,0.07)' : 'rgba(255,255,255,0.03)',
-                      border: isSelected ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.07)',
+                      background: isSelected ? 'rgba(233,236,242,0.07)' : 'var(--surface-well)',
+                      border: isSelected ? '1px solid var(--border-input)' : '1px solid var(--surface-card-strong)',
                       transition: 'all 0.15s ease'
                     }}
                   >
@@ -2610,7 +2684,7 @@ export default function AdminDashboard() {
                       style={{ accentColor: '#e9ecf2', width: '15px', height: '15px', cursor: 'pointer', flexShrink: 0 }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#f5f5f5', wordBreak: 'break-all', lineHeight: 1.35 }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--c-text)', wordBreak: 'break-all', lineHeight: 1.35 }}>
                         {getFileDisplayName(file)}
                       </div>
                       <div style={{ marginTop: '0.35rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -2630,7 +2704,7 @@ export default function AdminDashboard() {
                         <span style={{
                           padding: '0.16rem 0.45rem',
                           borderRadius: '999px',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          border: '1px solid var(--border-default)',
                           background: 'rgba(255,255,255,0.05)',
                           color: '#d0d6e0',
                           fontSize: '0.65rem',
@@ -2655,9 +2729,9 @@ export default function AdminDashboard() {
                           <span style={{
                             padding: '0.16rem 0.45rem',
                             borderRadius: '999px',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            background: 'rgba(255,255,255,0.04)',
-                            color: '#8a92a1',
+                            border: '1px solid var(--border-default)',
+                            background: 'var(--surface-card)',
+                            color: 'var(--c-dim)',
                             fontSize: '0.65rem'
                           }}>
                             +{(file.tags || []).length - 4}
@@ -2681,10 +2755,10 @@ export default function AdminDashboard() {
                           Quarantined
                         </div>
                       )}
-                      <div style={{ fontSize: '0.72rem', color: '#666666', marginTop: '0.2rem' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>
                         {formatFileSize(file.size)} &bull; {formatTimestamp(file.timestamp)}{file.ip ? ` · ${file.ip}` : ''}
                         {downloadCountMap[file.filename] !== undefined && (
-                          <span style={{ marginLeft: '0.5rem', color: '#7ef4cb' }}>
+                          <span style={{ marginLeft: '0.5rem', color: 'var(--c-accent-mint)' }}>
                             &bull; {downloadCountMap[file.filename]} dl
                           </span>
                         )}
@@ -2695,7 +2769,7 @@ export default function AdminDashboard() {
                         <span style={{ fontSize: '0.75rem', color: '#4ff8c0' }}>✓ Deleted</span>
                       )}
                       {feedback === 'err' && (
-                        <span style={{ fontSize: '0.75rem', color: '#f5a5a5' }}>✗ Failed</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--c-accent-error)' }}>✗ Failed</span>
                       )}
                       <button
                         onClick={() => copyToClipboard(file.url)}
@@ -2706,11 +2780,11 @@ export default function AdminDashboard() {
                           background: 'rgba(255,255,255,0.05)',
                           backdropFilter: 'blur(10px)',
                           WebkitBackdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          border: '1px solid var(--border-default)',
                           color: '#c3cad6',
                           fontSize: '0.72rem',
                           cursor: 'pointer',
-                          fontFamily: "'Open Sans', sans-serif",
+                          fontFamily: 'var(--font-body)',
                           whiteSpace: 'nowrap'
                         }}
                       >
@@ -2726,11 +2800,11 @@ export default function AdminDashboard() {
                           background: file.favorite ? 'rgba(255,205,80,0.18)' : 'rgba(255,255,255,0.05)',
                           backdropFilter: 'blur(10px)',
                           WebkitBackdropFilter: 'blur(10px)',
-                          border: file.favorite ? '1px solid rgba(255,220,120,0.35)' : '1px solid rgba(255,255,255,0.1)',
+                          border: file.favorite ? '1px solid rgba(255,220,120,0.35)' : '1px solid var(--border-default)',
                           color: file.favorite ? '#ffe39c' : '#c3cad6',
                           fontSize: '0.72rem',
                           cursor: organizingFiles ? 'not-allowed' : 'pointer',
-                          fontFamily: "'Open Sans', sans-serif",
+                          fontFamily: 'var(--font-body)',
                           whiteSpace: 'nowrap'
                         }}
                       >
@@ -2745,11 +2819,11 @@ export default function AdminDashboard() {
                           background: 'rgba(255,255,255,0.05)',
                           backdropFilter: 'blur(10px)',
                           WebkitBackdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          border: '1px solid var(--border-default)',
                           color: '#d0d6e0',
                           fontSize: '0.75rem',
                           cursor: organizingFiles ? 'not-allowed' : 'pointer',
-                          fontFamily: "'Open Sans', sans-serif",
+                          fontFamily: 'var(--font-body)',
                           whiteSpace: 'nowrap'
                         }}
                       >
@@ -2764,11 +2838,11 @@ export default function AdminDashboard() {
                           background: 'rgba(255,255,255,0.05)',
                           backdropFilter: 'blur(10px)',
                           WebkitBackdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          border: '1px solid var(--border-default)',
                           color: '#d0d6e0',
                           fontSize: '0.75rem',
                           cursor: organizingFiles ? 'not-allowed' : 'pointer',
-                          fontFamily: "'Open Sans', sans-serif",
+                          fontFamily: 'var(--font-body)',
                           whiteSpace: 'nowrap'
                         }}
                       >
@@ -2783,11 +2857,11 @@ export default function AdminDashboard() {
                           background: 'rgba(255,255,255,0.05)',
                           backdropFilter: 'blur(10px)',
                           WebkitBackdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          border: '1px solid var(--border-default)',
                           color: '#d0d6e0',
                           fontSize: '0.75rem',
                           cursor: organizingFiles ? 'not-allowed' : 'pointer',
-                          fontFamily: "'Open Sans', sans-serif",
+                          fontFamily: 'var(--font-body)',
                           whiteSpace: 'nowrap'
                         }}
                       >
@@ -2799,16 +2873,16 @@ export default function AdminDashboard() {
                         style={{
                           padding: '0.35rem 0.75rem',
                           borderRadius: '8px',
-                          background: isDeleting ? 'rgba(255,255,255,0.04)' : 'rgba(180,50,50,0.2)',
+                          background: isDeleting ? 'var(--surface-card)' : 'rgba(180,50,50,0.2)',
                           backdropFilter: 'blur(10px)',
                           WebkitBackdropFilter: 'blur(10px)',
                           border: isDeleting ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(220,80,80,0.35)',
-                          color: isDeleting ? '#8a92a1' : '#f5a5a5',
+                          color: isDeleting ? 'var(--c-dim)' : 'var(--c-accent-error)',
                           fontSize: '0.75rem',
                           fontWeight: 600,
                           cursor: isDeleting ? 'not-allowed' : 'pointer',
                           transition: 'all 0.2s ease',
-                          fontFamily: "'Open Sans', sans-serif",
+                          fontFamily: 'var(--font-body)',
                           whiteSpace: 'nowrap'
                         }}
                       >
@@ -2822,12 +2896,12 @@ export default function AdminDashboard() {
                           background: file.quarantined ? 'rgba(255,255,255,0.05)' : 'rgba(255,200,100,0.18)',
                           backdropFilter: 'blur(10px)',
                           WebkitBackdropFilter: 'blur(10px)',
-                          border: file.quarantined ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,200,100,0.35)',
-                          color: file.quarantined ? '#8a92a1' : '#ffd1a3',
+                          border: file.quarantined ? '1px solid var(--border-default)' : '1px solid rgba(255,200,100,0.35)',
+                          color: file.quarantined ? 'var(--c-dim)' : '#ffd1a3',
                           fontSize: '0.75rem',
                           fontWeight: 600,
                           cursor: 'pointer',
-                          fontFamily: "'Open Sans', sans-serif",
+                          fontFamily: 'var(--font-body)',
                           whiteSpace: 'nowrap'
                         }}
                       >
@@ -2839,12 +2913,12 @@ export default function AdminDashboard() {
                           style={{
                             padding: '0.35rem 0.75rem',
                             borderRadius: '8px',
-                            background: 'rgba(255,255,255,0.04)',
-                            border: '1px solid rgba(255,255,255,0.1)',
+                            background: 'var(--surface-card)',
+                            border: '1px solid var(--border-default)',
                             color: '#d0d6e0',
                             fontSize: '0.72rem',
                             cursor: 'pointer',
-                            fontFamily: "'Open Sans', sans-serif",
+                            fontFamily: 'var(--font-body)',
                             whiteSpace: 'nowrap'
                           }}
                         >
