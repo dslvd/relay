@@ -568,6 +568,25 @@ button, input, select, textarea {
     color: rgba(var(--c-dim-ch), 0.65);
   }
 
+  /* Show files isn't inside .site-footer-links-wrap (it's homepage-only,
+     tied to transient upload state) so it needs the same flat override
+     spelled out again to match the Policy/Pricing/API look on desktop. */
+  .footer-link--show-files {
+    padding: 0.08rem 0;
+    border-radius: 0;
+    background: none;
+    border: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    color: rgba(245, 245, 245, 0.6);
+  }
+
+  [data-theme="light"] .footer-link--show-files {
+    background: none;
+    border: none;
+    color: rgba(var(--c-dim-ch), 0.65);
+  }
+
   .policy-menu-anchor {
     position: fixed;
     bottom: 1rem;
