@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import SnippetEditor from '@/app/components/SnippetEditor';
 import { languageFromFilename } from '@/app/lib/lang-map';
+import { PLUS_STORAGE_LIMIT_BYTES } from '@/app/lib/plan-limits';
 
 interface UploadRecord {
   url: string;
@@ -25,6 +26,121 @@ interface FolderRecord {
 }
 
 const UNFILED = '__unfiled__';
+
+type IconName = 'upload' | 'folder' | 'code' | 'copy' | 'refresh' | 'file' | 'search' | 'menu' | 'grid' | 'key' | 'book';
+
+function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none' as const,
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true as const,
+  };
+  switch (name) {
+    case 'upload':
+      return (
+        <svg {...common}>
+          <path d="M12 15V4M12 4l-4 4M12 4l4 4" />
+          <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+        </svg>
+      );
+    case 'folder':
+      return (
+        <svg {...common}>
+          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
+        </svg>
+      );
+    case 'code':
+      return (
+        <svg {...common}>
+          <path d="m8 6-6 6 6 6" />
+          <path d="m16 6 6 6-6 6" />
+        </svg>
+      );
+    case 'copy':
+      return (
+        <svg {...common}>
+          <rect x="8" y="8" width="12" height="12" rx="2" />
+          <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+        </svg>
+      );
+    case 'refresh':
+      return (
+        <svg {...common}>
+          <path d="M21 12a9 9 0 1 1-3-6.7" />
+          <path d="M21 3v6h-6" />
+        </svg>
+      );
+    case 'file':
+      return (
+        <svg {...common}>
+          <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+          <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+        </svg>
+      );
+    case 'search':
+      return (
+        <svg {...common}>
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+      );
+    case 'menu':
+      return (
+        <svg {...common}>
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      );
+    case 'grid':
+      return (
+        <svg {...common}>
+          <rect x="3" y="3" width="8" height="8" rx="1.5" />
+          <rect x="13" y="3" width="8" height="8" rx="1.5" />
+          <rect x="3" y="13" width="8" height="8" rx="1.5" />
+          <rect x="13" y="13" width="8" height="8" rx="1.5" />
+        </svg>
+      );
+    case 'key':
+      return (
+        <svg {...common}>
+          <circle cx="7.5" cy="15.5" r="4.5" />
+          <path d="m10.6 12.4 8.4-8.4M16 3l3 3M13.5 8l2 2" />
+        </svg>
+      );
+    case 'book':
+      return (
+        <svg {...common}>
+          <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5Z" />
+          <path d="M4 19a2 2 0 0 1 2-2h13" />
+        </svg>
+      );
+  }
+}
+
+function IconBadge({ name, tone = 'mint' }: { name: IconName; tone?: 'mint' | 'blue' }) {
+  return (
+    <span
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '30px',
+        height: '30px',
+        borderRadius: '9px',
+        flexShrink: 0,
+        background: tone === 'blue' ? 'rgba(96,165,250,0.14)' : 'rgba(126,244,203,0.14)',
+        color: tone === 'blue' ? '#60a5fa' : 'var(--c-accent-mint)',
+      }}
+    >
+      <Icon name={name} size={15} />
+    </span>
+  );
+}
 
 function StatusDot({ active, tone = 'mint' }: { active: boolean; tone?: 'mint' | 'error' }) {
   return (
@@ -357,6 +473,7 @@ export default function PlusDashboard() {
     });
 
   const totalBytes = uploads.reduce((sum, file) => sum + (file.size || 0), 0);
+  const storagePct = Math.min(100, (totalBytes / PLUS_STORAGE_LIMIT_BYTES) * 100);
   const isBusy = syncing || loading || uploadingCount > 0;
   const statusLabel = uploadingCount > 0
     ? `Uploading ${uploadingCount} file${uploadingCount === 1 ? '' : 's'}…`
@@ -417,7 +534,10 @@ export default function PlusDashboard() {
           className="flex lg:hidden"
           style={{
             position: 'sticky', top: 0, zIndex: 20, alignItems: 'center', gap: '0.7rem',
-            padding: '0.9rem 1rem', borderBottom: '1px solid var(--border-subtle)', background: 'var(--background)',
+            // Right padding clears the fixed global theme toggle (top-right,
+            // 40px wide at right: 1.25rem — see ThemeToggle.tsx), which
+            // otherwise sits on top of the storage pill below.
+            padding: '0.9rem 3.4rem 0.9rem 1rem', borderBottom: '1px solid var(--border-subtle)', background: 'var(--background)',
           }}
         >
           <button
@@ -425,15 +545,20 @@ export default function PlusDashboard() {
             onClick={() => setSidebarOpen((v) => !v)}
             aria-label="Toggle menu"
             aria-expanded={sidebarOpen}
+            className="pressable"
             style={{
               width: '32px', height: '32px', borderRadius: '8px', border: '1px solid var(--border-input)',
-              background: 'var(--surface-input)', color: 'var(--c-text)', fontSize: '0.9rem', cursor: 'pointer',
+              background: 'var(--surface-input)', color: 'var(--c-text)', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}
           >
-            ☰
+            <Icon name="menu" size={16} />
           </button>
-          <div style={{ fontSize: '1rem', fontWeight: 700 }}>Relay</div>
+          <div style={{ fontSize: '1rem', fontWeight: 700, flex: 1, minWidth: 0 }}>Relay</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', borderRadius: '999px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', color: 'var(--c-sub)', fontSize: '0.65rem' }}>
+            <StatusDot active={isBusy} tone={error ? 'error' : 'mint'} />
+            {formatFileSize(totalBytes)}
+          </div>
         </div>
 
         {sidebarOpen && (
@@ -482,17 +607,17 @@ export default function PlusDashboard() {
           </div>
 
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-            <div className="navItem" style={{ padding: '0.5rem 0.6rem', borderRadius: '8px', background: 'var(--surface-card-strong)', fontSize: '0.82rem', fontWeight: 600 }}>
-              Dashboard
+            <div className="navItem" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', background: 'var(--surface-card-strong)', fontSize: '0.82rem', fontWeight: 600 }}>
+              <Icon name="grid" size={14} /> Dashboard
             </div>
-            <Link href="/" className="navItem pressable" style={{ padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
-              Upload
+            <Link href="/" className="navItem pressable" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
+              <Icon name="upload" size={14} /> Upload
             </Link>
-            <Link href="/api" className="navItem pressable" style={{ padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
-              API keys
+            <Link href="/api" className="navItem pressable" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
+              <Icon name="key" size={14} /> API keys
             </Link>
-            <Link href="/docs" className="navItem pressable" style={{ padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
-              Docs
+            <Link href="/docs" className="navItem pressable" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
+              <Icon name="book" size={14} /> Docs
             </Link>
           </nav>
 
@@ -529,7 +654,7 @@ export default function PlusDashboard() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', overflowY: 'auto' }}>
               <button
-                onClick={() => setSelectedFolderId(null)}
+                onClick={() => { setSelectedFolderId(null); setSidebarOpen(false); }}
                 className="folderItem pressable"
                 style={{
                   display: 'flex', justifyContent: 'space-between', textAlign: 'left', padding: '0.4rem 0.6rem', borderRadius: '7px', border: 'none', cursor: 'pointer',
@@ -541,7 +666,7 @@ export default function PlusDashboard() {
                 <span style={{ color: 'var(--c-dim)' }}>{uploads.length}</span>
               </button>
               <button
-                onClick={() => setSelectedFolderId(UNFILED)}
+                onClick={() => { setSelectedFolderId(UNFILED); setSidebarOpen(false); }}
                 className="folderItem pressable"
                 style={{
                   display: 'flex', justifyContent: 'space-between', textAlign: 'left', padding: '0.4rem 0.6rem', borderRadius: '7px', border: 'none', cursor: 'pointer',
@@ -555,7 +680,7 @@ export default function PlusDashboard() {
               {folders.map((folder) => (
                 <button
                   key={folder.id}
-                  onClick={() => setSelectedFolderId(folder.id)}
+                  onClick={() => { setSelectedFolderId(folder.id); setSidebarOpen(false); }}
                   className="folderItem pressable"
                   style={{
                     display: 'flex', justifyContent: 'space-between', textAlign: 'left', padding: '0.4rem 0.6rem', borderRadius: '7px', border: 'none', cursor: 'pointer',
@@ -571,11 +696,27 @@ export default function PlusDashboard() {
           </div>
 
           <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.8rem' }}>
-            <div style={{ fontSize: '0.66rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--c-dim)', marginBottom: '0.2rem' }}>
-              Storage used
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+              <div style={{ fontSize: '0.66rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--c-dim)' }}>
+                Storage used
+              </div>
+              <div style={{ fontSize: '0.66rem', color: 'var(--c-dim)' }}>{storagePct.toFixed(storagePct < 1 ? 2 : 0)}%</div>
             </div>
-            <div className="fileList" style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.7rem', opacity: syncing ? 0.7 : 1 }}>
-              {formatFileSize(totalBytes)}
+            <div style={{ height: '5px', borderRadius: '999px', background: 'var(--surface-input)', overflow: 'hidden', marginBottom: '0.5rem' }}>
+              <div
+                className="fileList"
+                style={{
+                  height: '100%',
+                  width: `${storagePct}%`,
+                  borderRadius: '999px',
+                  background: storagePct > 90 ? 'var(--c-accent-error)' : 'var(--c-accent-mint)',
+                  transition: 'width 0.4s ease',
+                  opacity: syncing ? 0.7 : 1,
+                }}
+              />
+            </div>
+            <div className="fileList" style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.7rem', opacity: syncing ? 0.7 : 1 }}>
+              {formatFileSize(totalBytes)} <span style={{ fontWeight: 400, color: 'var(--c-dim)', fontSize: '0.7rem' }}>of {formatFileSize(PLUS_STORAGE_LIMIT_BYTES)}</span>
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--c-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.4rem' }}>
               {userEmail}
@@ -617,17 +758,23 @@ export default function PlusDashboard() {
               <h1 style={{ margin: 0, fontSize: 'clamp(1.5rem, 3.4vw, 1.9rem)' }}>Welcome back</h1>
               <p style={{ margin: '0.3rem 0 0', color: 'var(--c-sub)', fontSize: '0.85rem' }}>{userEmail}</p>
             </div>
-            {/* marginRight reserves space for the fixed global theme toggle
+            {/* lg:mr-14 reserves space for the fixed global theme toggle
                 (top-right, see app/components/ThemeToggle.tsx) so it never
-                sits on top of the search/status row at narrower viewports. */}
-            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap', marginRight: '3.5rem' }}>
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search files"
-                style={{ padding: '0.55rem 0.85rem', borderRadius: '999px', border: '1px solid var(--border-input)', background: 'var(--surface-input)', color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none', width: '200px' }}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.75rem', borderRadius: '999px', ...glass, color: 'var(--c-sub)', fontSize: '0.7rem' }}>
+                sits on top of this row — only matters on desktop, since on
+                mobile this row sits below the sticky top bar instead. */}
+            <div className="lg:mr-14" style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 260px', justifyContent: 'flex-end' }}>
+              <div style={{ position: 'relative', flex: '1 1 180px', maxWidth: '280px' }}>
+                <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--c-dim)', display: 'flex', pointerEvents: 'none' }}>
+                  <Icon name="search" size={13} />
+                </span>
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search files"
+                  style={{ width: '100%', padding: '0.55rem 0.85rem 0.55rem 2rem', borderRadius: '999px', border: '1px solid var(--border-input)', background: 'var(--surface-input)', color: 'var(--c-text)', fontSize: '0.78rem', outline: 'none' }}
+                />
+              </div>
+              <div className="hidden lg:flex" style={{ alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.75rem', borderRadius: '999px', ...glass, color: 'var(--c-sub)', fontSize: '0.7rem' }}>
                 <StatusDot active={isBusy} tone={error ? 'error' : 'mint'} />
                 {statusLabel}
               </div>
@@ -635,55 +782,70 @@ export default function PlusDashboard() {
           </div>
 
           {/* Action cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.7rem', marginBottom: '1.8rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.7rem', marginBottom: '1.8rem' }}>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="actionCard pressable"
-              style={{ ...glass, borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
+              style={{ ...glass, display: 'flex', alignItems: 'center', gap: '0.7rem', borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>
-                + Upload files
-                {uploadingCount > 0 && <StatusDot active tone="mint" />}
-              </div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>
-                {uploadingCount > 0 ? `Uploading ${uploadingCount}…` : 'or drop anywhere'}
+              <IconBadge name="upload" />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Upload files
+                  {uploadingCount > 0 && <StatusDot active tone="mint" />}
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>
+                  {uploadingCount > 0 ? `Uploading ${uploadingCount}…` : 'or drop anywhere'}
+                </div>
               </div>
             </button>
             <button
               onClick={() => setCreatingFolder(true)}
               className="actionCard pressable"
-              style={{ ...glass, borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
+              style={{ ...glass, display: 'flex', alignItems: 'center', gap: '0.7rem', borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
             >
-              <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>+ New folder</div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>Organize your files</div>
+              <IconBadge name="folder" />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>New folder</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>Organize your files</div>
+              </div>
             </button>
             <button
               onClick={() => setShowSnippetModal(true)}
               className="actionCard pressable"
-              style={{ ...glass, borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
+              style={{ ...glass, display: 'flex', alignItems: 'center', gap: '0.7rem', borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
             >
-              <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>+ New snippet</div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>Paste and share code</div>
+              <IconBadge name="code" tone="blue" />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>New snippet</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>Paste and share code</div>
+              </div>
             </button>
             <button
               onClick={copyAllLinks}
               disabled={uploads.length === 0}
               className="actionCard pressable"
-              style={{ ...glass, borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: uploads.length === 0 ? 'default' : 'pointer', color: 'var(--c-text)', opacity: uploads.length === 0 ? 0.5 : 1 }}
+              style={{ ...glass, display: 'flex', alignItems: 'center', gap: '0.7rem', borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: uploads.length === 0 ? 'default' : 'pointer', color: 'var(--c-text)', opacity: uploads.length === 0 ? 0.5 : 1 }}
             >
-              <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{copiedAll ? 'Copied!' : 'Copy all links'}</div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>{uploads.length} file{uploads.length === 1 ? '' : 's'}</div>
+              <IconBadge name="copy" />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{copiedAll ? 'Copied!' : 'Copy all links'}</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>{uploads.length} file{uploads.length === 1 ? '' : 's'}</div>
+              </div>
             </button>
             <button
               onClick={() => syncAll(false)}
               className="actionCard pressable"
-              style={{ ...glass, borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
+              style={{ ...glass, display: 'flex', alignItems: 'center', gap: '0.7rem', borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>
-                Refresh
-                <StatusDot active={syncing} tone="mint" />
+              <IconBadge name="refresh" />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Refresh
+                  <StatusDot active={syncing} tone="mint" />
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>{formatFileSize(totalBytes)} stored</div>
               </div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>{formatFileSize(totalBytes)} stored</div>
             </button>
           </div>
 
@@ -707,8 +869,11 @@ export default function PlusDashboard() {
                         borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)',
                       }}
                     >
-                      <div style={{ fontSize: '0.84rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {folder.name}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: isSelected ? 'var(--c-accent-mint)' : 'var(--c-dim)' }}>
+                        <Icon name="folder" size={14} />
+                        <div style={{ fontSize: '0.84rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--c-text)' }}>
+                          {folder.name}
+                        </div>
                       </div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.3rem' }}>
                         {stats.count} file{stats.count === 1 ? '' : 's'} · {formatFileSize(stats.size)}
@@ -737,7 +902,10 @@ export default function PlusDashboard() {
             ) : error ? (
               <div style={{ color: 'var(--c-accent-error)', fontSize: '0.85rem' }}>{error}</div>
             ) : visibleUploads.length === 0 ? (
-              <div style={{ padding: '1.2rem', borderRadius: '14px', border: '1px dashed var(--border-strong)', color: 'var(--c-sub)', textAlign: 'center', fontSize: '0.82rem' }}>
+              <div style={{ padding: '2rem 1.2rem', borderRadius: '14px', border: '1px dashed var(--border-strong)', color: 'var(--c-sub)', textAlign: 'center', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{ color: 'var(--c-dim)' }}>
+                  <Icon name={uploads.length === 0 ? 'upload' : 'search'} size={22} />
+                </div>
                 {uploads.length === 0
                   ? 'No uploads yet. Drop a file anywhere on this page, or use "Upload files" above.'
                   : 'No files match this view.'}
@@ -748,25 +916,41 @@ export default function PlusDashboard() {
                   <div
                     key={`${file.url}-${index}`}
                     style={{
+                      minWidth: 0,
                       padding: '0.75rem 0.9rem', borderRadius: '12px', border: '1px solid var(--border-subtle)',
                       background: 'var(--surface-well)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem', flexWrap: 'wrap',
                     }}
                   >
-                    <div style={{ minWidth: 0, flex: '1 1 240px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 600, wordBreak: 'break-all' }}>{file.displayName || file.filename}</div>
-                        {file.kind === 'snippet' && (
-                          <span style={{
-                            flexShrink: 0, padding: '0.1rem 0.4rem', borderRadius: '999px',
-                            fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.04em',
-                            background: 'rgba(96,165,250,0.14)', color: '#60a5fa',
-                          }}>
-                            {file.language ? file.language.toUpperCase() : 'SNIPPET'}
-                          </span>
-                        )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', minWidth: 0, flex: '1 1 240px' }}>
+                      <div style={{
+                        width: '32px', height: '32px', borderRadius: '9px', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: file.kind === 'snippet' ? 'rgba(96,165,250,0.14)' : 'var(--surface-input)',
+                        color: file.kind === 'snippet' ? '#60a5fa' : 'var(--c-sub)',
+                      }}>
+                        <Icon name={file.kind === 'snippet' ? 'code' : 'file'} size={15} />
                       </div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.25rem' }}>
-                        {formatFileSize(file.size)} · {formatTimestamp(file.timestamp)}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <div
+                            title={file.displayName || file.filename}
+                            style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+                          >
+                            {file.displayName || file.filename}
+                          </div>
+                          {file.kind === 'snippet' && (
+                            <span style={{
+                              flexShrink: 0, padding: '0.1rem 0.4rem', borderRadius: '999px',
+                              fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.04em',
+                              background: 'rgba(96,165,250,0.14)', color: '#60a5fa',
+                            }}>
+                              {file.language ? file.language.toUpperCase() : 'SNIPPET'}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.25rem' }}>
+                          {formatFileSize(file.size)} · {formatTimestamp(file.timestamp)}
+                        </div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
