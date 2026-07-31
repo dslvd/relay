@@ -163,8 +163,15 @@ const PLUS_MAX_UPLOAD_BYTES = PLUS_MAX_FILE_BYTES;
 const QUEUE_META_KEY = 'relay:uploadQueueMeta:v1';
 const IDB_NAME = 'relay_uploads_v1';
 const IDB_STORE = 'files';
-const MAX_CONCURRENT_UPLOADS = 3;
-const PARALLEL_PARTS = 8;
+// Plus accounts get uncapped concurrency (bandwidth-bound, not throttle-bound).
+// Free accounts are mildly throttled — fewer parts/files in flight at once —
+// but there's no artificial per-upload time cap: a single/small-part file
+// (the common case) ignores this entirely and just uploads at connection
+// speed, so typical uploads still finish in a few seconds either way.
+const PLUS_MAX_CONCURRENT_UPLOADS = 6;
+const FREE_MAX_CONCURRENT_UPLOADS = 2;
+const PLUS_PARALLEL_PARTS = 16;
+const FREE_PARALLEL_PARTS = 3;
 
 const DARK_T = {
   card: 'rgba(255,255,255,0.04)',
@@ -1236,12 +1243,14 @@ export default function Home() {
       if (!done.has(pn)) pendingParts.push(pn);
     }
 
-    // Upload PARALLEL_PARTS parts at a time: presign + PUT run concurrently within each batch.
-    for (let i = 0; i < pendingParts.length; i += PARALLEL_PARTS) {
+    // Upload parts in batches: presign + PUT run concurrently within each batch.
+    // Batch size is plan-gated — Plus gets max concurrency, Free is throttled.
+    const parallelParts = isPlus ? PLUS_PARALLEL_PARTS : FREE_PARALLEL_PARTS;
+    for (let i = 0; i < pendingParts.length; i += parallelParts) {
       throwIfPaused();
       throwIfCancelled();
 
-      const batch = pendingParts.slice(i, i + PARALLEL_PARTS);
+      const batch = pendingParts.slice(i, i + parallelParts);
 
       const presigned = await Promise.all(
         batch.map(async (partNumber) => {
@@ -1361,12 +1370,13 @@ export default function Home() {
   useEffect(() => {
     if (queuePaused) return;
 
+    const maxConcurrentUploads = isPlus ? PLUS_MAX_CONCURRENT_UPLOADS : FREE_MAX_CONCURRENT_UPLOADS;
     const active = uploadQueue.filter((q) => q.status === 'uploading').length;
-    if (active >= MAX_CONCURRENT_UPLOADS) return;
+    if (active >= maxConcurrentUploads) return;
 
     const toStart = uploadQueue
       .filter((q) => q.status === 'queued')
-      .slice(0, MAX_CONCURRENT_UPLOADS - active);
+      .slice(0, maxConcurrentUploads - active);
     if (toStart.length === 0) return;
 
     // Mark as uploading synchronously to avoid double-start.

@@ -1125,6 +1125,14 @@ body {
   to { opacity: 0; }
 }
 
+/* The transition snapshots live in the browser's top layer, stacked above
+   everything else in the document — without this, dragging a file onto the
+   drop zone or clicking cancel mid-upload while the ~0.5s theme animation is
+   playing hits the snapshot overlay instead of the real page underneath. */
+::view-transition {
+  pointer-events: none;
+}
+
 ::view-transition-old(root) {
   animation: vt-fade-out 0.35s ease forwards;
 }
