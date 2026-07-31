@@ -62,6 +62,7 @@ export default function PlusDashboard() {
   const [uploadingCount, setUploadingCount] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
   const [storageWarning, setStorageWarning] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const mountedRef = useRef(false);
   const syncRequestIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -394,6 +395,7 @@ export default function PlusDashboard() {
         style={{
           minHeight: '100vh',
           display: 'flex',
+          flexDirection: 'column',
           background: 'radial-gradient(ellipse at 30% 20%, var(--wash-violet) 0%, var(--wash-base) 55%), radial-gradient(ellipse at 75% 80%, var(--wash-teal) 0%, var(--wash-base) 60%)',
           backgroundAttachment: 'fixed',
           color: 'var(--c-text)',
@@ -408,17 +410,55 @@ export default function PlusDashboard() {
           onChange={(e) => { if (e.target.files?.length) void uploadFiles(e.target.files); e.target.value = ''; }}
         />
 
+        {/* Mobile top bar: gives narrow viewports a way to reach the sidebar,
+            which is otherwise an always-visible 240px column that would eat
+            most of the screen width if left in the row layout below. */}
+        <div
+          className="flex lg:hidden"
+          style={{
+            position: 'sticky', top: 0, zIndex: 20, alignItems: 'center', gap: '0.7rem',
+            padding: '0.9rem 1rem', borderBottom: '1px solid var(--border-subtle)', background: 'var(--background)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((v) => !v)}
+            aria-label="Toggle menu"
+            aria-expanded={sidebarOpen}
+            style={{
+              width: '32px', height: '32px', borderRadius: '8px', border: '1px solid var(--border-input)',
+              background: 'var(--surface-input)', color: 'var(--c-text)', fontSize: '0.9rem', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}
+          >
+            ☰
+          </button>
+          <div style={{ fontSize: '1rem', fontWeight: 700 }}>Relay</div>
+        </div>
+
+        {sidebarOpen && (
+          <div
+            className="lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+            style={{ position: 'fixed', top: '62px', right: 0, bottom: 0, left: 0, zIndex: 30, background: 'rgba(0,0,0,0.45)' }}
+          />
+        )}
+
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+
         {/* Sidebar */}
         <aside
+          className={`fixed lg:sticky top-[62px] lg:top-0 z-40 lg:z-10 h-[calc(100vh-62px)] lg:h-screen transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
           style={{
             width: '240px',
             flexShrink: 0,
-            position: 'sticky',
-            top: 0,
-            height: '100vh',
             overflowY: 'auto',
-            padding: '1.4rem 1rem',
+            // Extra bottom padding keeps "Log out" clear of the global fixed
+            // Policy/Pricing/API pills (see globals.css .footer-link), which
+            // float over whatever sits at the bottom of the viewport.
+            padding: '1.4rem 1rem calc(1.4rem + 2.75rem)',
             borderRight: '1px solid var(--border-subtle)',
+            background: 'var(--background)',
             display: 'flex',
             flexDirection: 'column',
             gap: '1.4rem',
@@ -768,6 +808,7 @@ export default function PlusDashboard() {
             )}
           </div>
         </main>
+        </div>
 
         {showSnippetModal && (
           <div

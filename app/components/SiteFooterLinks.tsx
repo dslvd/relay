@@ -13,7 +13,7 @@ export default function SiteFooterLinks() {
   if (pathname?.startsWith('/admin')) return null;
 
   return (
-    <>
+    <div className="site-footer-links-wrap">
       <PolicyMenu />
       <Link className="footer-link pricing-link" href="/pricing" prefetch>
         Pricing
@@ -21,6 +21,6 @@ export default function SiteFooterLinks() {
       <Link className="footer-link api-link" href="/api" prefetch>
         API
       </Link>
-    </>
+    </div>
   );
 }

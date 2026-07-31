@@ -35,7 +35,7 @@ export default function PolicyMenu() {
   }, [open]);
 
   return (
-    <div ref={containerRef} style={{ position: 'fixed', bottom: '1rem', left: '1rem', zIndex: 50 }}>
+    <div ref={containerRef} className="policy-menu-anchor">
       {open && (
         <div
           style={{
@@ -84,8 +84,6 @@ export default function PolicyMenu() {
         aria-haspopup="menu"
         style={{
           position: 'static',
-          border: 'none',
-          background: 'transparent',
           cursor: 'pointer',
           fontFamily: 'inherit',
           display: 'inline-flex',

@@ -3818,8 +3818,6 @@ export default function Home() {
             aria-expanded={showUploadedFiles}
             aria-controls="uploaded-files-list"
             style={{
-              border: 0,
-              background: 'transparent',
               cursor: 'pointer',
               opacity: showUploadedFiles ? 1 : 0.92,
             }}

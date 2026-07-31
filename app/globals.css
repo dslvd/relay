@@ -501,16 +501,19 @@ button, input, select, textarea {
 }
 
 .footer-link {
-  position: fixed;
-  bottom: 1rem;
   z-index: 50;
   font-size: 0.65rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   text-decoration: none;
-  color: rgba(245, 245, 245, 0.6);
-  padding: 0.08rem 0;
-  transition: color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+  color: rgba(245, 245, 245, 0.75);
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(15, 15, 18, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  transition: color 0.2s ease, transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
 }
 
 .footer-link:hover {
@@ -518,16 +521,59 @@ button, input, select, textarea {
   transform: translateY(-1px);
 }
 
+/* The global Policy/Pricing/API links (see SiteFooterLinks.tsx + PolicyMenu.tsx)
+   float as fixed corner chrome on desktop, where there's enough spare width
+   that they rarely sit over anything. Below that they'd inevitably drift over
+   real content as pages scroll (confirmed: they covered body text on
+   /terms and an input on /report-abuse), so on narrower viewports this wrapper
+   instead renders them as an ordinary in-flow footer row at the true end of
+   the page's content, where they can't overlap anything.  */
+.site-footer-links-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2rem 1.25rem 2.5rem;
+}
+
+.policy-menu-anchor {
+  position: relative;
+  z-index: 50;
+}
+
+@media (min-width: 1024px) {
+  .site-footer-links-wrap {
+    display: contents;
+  }
+
+  .site-footer-links-wrap .footer-link {
+    position: fixed;
+    bottom: 1rem;
+  }
+
+  .policy-menu-anchor {
+    position: fixed;
+    bottom: 1rem;
+    left: 1rem;
+  }
+}
+
 .api-link {
   right: 1rem;
 }
 
 .pricing-link {
-  right: 4.3rem;
+  right: 5rem;
 }
 
+/* Homepage-only "Show files" toggle: tied to transient upload state, not part
+   of the shared global footer, and the homepage already reserves clear space
+   for it, so it keeps the simple always-fixed treatment. */
 .footer-link--show-files {
-  right: 7.6rem;
+  position: fixed;
+  bottom: 1rem;
+  right: 10.6rem;
 }
 
 .minimal-link {
@@ -951,7 +997,7 @@ button, input, select, textarea {
 }
 
 /* ─── Light-theme overrides ────────────────────────────────── */
-[data-theme="light"] .footer-link { color: rgba(var(--c-dim-ch), 0.65); }
+[data-theme="light"] .footer-link { color: rgba(var(--c-dim-ch), 0.85); background: rgba(255, 255, 255, 0.65); border-color: rgba(0, 0, 0, 0.08); }
 [data-theme="light"] .footer-link:hover { color: var(--c-text); }
 [data-theme="light"] .minimal-link { color: rgba(var(--c-dim-ch), 0.65); }
 [data-theme="light"] .minimal-link:hover { color: var(--c-text); }
