@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadUploadHistory, type UploadRecord } from '@/app/lib/data/upload-history-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
-import { getObjectMetadata } from '@/app/lib/storage/r2-storage';
+import { getObjectMetadata, objectExists } from '@/app/lib/storage/r2-storage';
 
 function findRecordByKey(history: UploadRecord[], key: string): UploadRecord | null {
   for (const record of history) {
@@ -73,8 +73,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Fallback: object metadata (keeps the download page informative even without history).
+    // Mirrors /dl/[...path]'s key resolution: try the bare key (regular
+    // uploads) before the `d/`-prefixed form (snippets, remote-pulled files).
     const aliasTarget = await resolveAliasObjectKey(key);
-    const metadata = await getObjectMetadata(aliasTarget || `d/${key}`);
+    const resolvedKey = aliasTarget
+      || (await objectExists(key) ? key : `d/${key}`);
+    const metadata = await getObjectMetadata(resolvedKey);
     if (metadata) {
       return NextResponse.json(
         {

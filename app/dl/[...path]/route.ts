@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateLastAccessTime } from '@/app/lib/storage/retention';
-import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage/r2-storage';
+import { createPresignedDownloadUrl, getObjectMetadata, objectExists } from '@/app/lib/storage/r2-storage';
 import { loadUploadHistory } from '@/app/lib/data/upload-history-store';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
@@ -65,7 +65,19 @@ function fileQuarantinedResponse(): NextResponse {
 async function resolveDownloadObjectKey(pathParts: string[]): Promise<string> {
   const key = pathParts.join('/');
   const aliasTarget = await resolveAliasObjectKey(key);
-  return aliasTarget || key;
+  if (aliasTarget) return aliasTarget;
+
+  // Files created via buildObjectKey() - snippets and remote-pulled ("paste a
+  // URL") uploads - are stored in R2 under a `d/` prefix, but their shareable
+  // /d/{key} URL strips that prefix (see buildObjectKey's `uniqueName`).
+  // Regular drag-and-drop uploads use a bare key that already matches the
+  // URL. Try the bare key first (the common case), then the prefixed form,
+  // so both conventions resolve to the real object instead of 404ing.
+  if (await objectExists(key)) return key;
+  const prefixed = `d/${key}`;
+  if (await objectExists(prefixed)) return prefixed;
+
+  return key;
 }
 
 export async function GET(

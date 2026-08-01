@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
-import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage/r2-storage';
+import { createPresignedDownloadUrl, getObjectMetadata, objectExists } from '@/app/lib/storage/r2-storage';
+import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -22,7 +23,14 @@ export async function GET(request: NextRequest) {
     const w = clampInt(request.nextUrl.searchParams.get('w'), 320, 64, 1024);
     const h = clampInt(request.nextUrl.searchParams.get('h'), 0, 0, 1024);
 
-    const objectKey = `d/${key}`;
+    // Regular drag-and-drop uploads use a bare R2 key that matches `key`
+    // directly; snippets and remote-pulled uploads store it under a `d/`
+    // prefix (see the matching comment in app/dl/[...path]/route.ts). This
+    // used to always assume the `d/`-prefixed form, which meant thumbnails
+    // silently failed for the common case (ordinary image uploads).
+    const aliasTarget = await resolveAliasObjectKey(key);
+    const objectKey = aliasTarget
+      || (await objectExists(key) ? key : `d/${key}`);
     const meta = await getObjectMetadata(objectKey);
     const contentType = meta?.contentType || '';
 

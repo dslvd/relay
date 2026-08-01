@@ -21,11 +21,11 @@ interface TreeEntry {
 }
 
 interface RepoBrowserProps {
-  downloadUrl: string;
+  previewUrl: string;
   onReady?: () => void;
 }
 
-export default function RepoBrowser({ downloadUrl, onReady }: RepoBrowserProps) {
+export default function RepoBrowser({ previewUrl, onReady }: RepoBrowserProps) {
   const [zip, setZip] = useState<JSZip | null>(null);
   const [entries, setEntries] = useState<TreeEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export default function RepoBrowser({ downloadUrl, onReady }: RepoBrowserProps) 
     (async () => {
       try {
         setLoadingZip(true);
-        const res = await fetch(downloadUrl, { cache: 'no-store' });
+        const res = await fetch(previewUrl, { cache: 'no-store' });
         if (!res.ok) throw new Error('Failed to download archive');
         const buffer = await res.arrayBuffer();
         if (cancelled) return;
@@ -87,7 +87,7 @@ export default function RepoBrowser({ downloadUrl, onReady }: RepoBrowserProps) 
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [downloadUrl]);
+  }, [previewUrl]);
 
   useEffect(() => {
     if (!zip || !selectedPath) return;

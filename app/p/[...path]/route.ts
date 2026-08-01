@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateLastAccessTime } from '@/app/lib/storage/retention';
-import { createPresignedDownloadUrl, getObjectMetadata } from '@/app/lib/storage/r2-storage';
+import { createPresignedDownloadUrl, getObjectMetadata, objectExists } from '@/app/lib/storage/r2-storage';
 import { resolveAliasObjectKey } from '@/app/lib/data/file-alias-store';
 import { loadQuarantineMap } from '@/app/lib/data/abuse-store';
 import { notFoundResponse } from '@/app/lib/not-found-html';
@@ -8,7 +8,16 @@ import { notFoundResponse } from '@/app/lib/not-found-html';
 async function resolveObjectKey(pathParts: string[]): Promise<string> {
   const key = pathParts.join('/');
   const aliasTarget = await resolveAliasObjectKey(key);
-  return aliasTarget || key;
+  if (aliasTarget) return aliasTarget;
+
+  // Files created via buildObjectKey() (snippets, remote-pulled uploads) are
+  // stored under a `d/` prefix, but their shareable URL uses the bare key -
+  // see the matching comment in app/dl/[...path]/route.ts.
+  if (await objectExists(key)) return key;
+  const prefixed = `d/${key}`;
+  if (await objectExists(prefixed)) return prefixed;
+
+  return key;
 }
 
 export async function GET(

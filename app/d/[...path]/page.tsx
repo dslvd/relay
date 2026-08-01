@@ -35,6 +35,7 @@ export default function DownloadPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewText, setPreviewText] = useState<string>('');
   const [previewTextTruncated, setPreviewTextTruncated] = useState(false);
+  const [mediaPreviewError, setMediaPreviewError] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isEmbedCopied, setIsEmbedCopied] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
@@ -73,6 +74,17 @@ export default function DownloadPage() {
     if (ext === 'md') return 'markdown';
     if (['txt', 'json'].includes(ext)) return 'text';
     return 'unknown';
+  };
+
+  // <source> without a `type` makes the browser guess from the response's
+  // Content-Type header alone - if that's ever wrong or missing (e.g. an
+  // upload whose browser-reported MIME type was empty), playback silently
+  // fails with no visible error. Passing it explicitly, derived from the
+  // filename the user already trusts, avoids depending on that header.
+  const getVideoMimeType = (fname: string): string => {
+    const ext = fname.split('.').pop()?.toLowerCase() || '';
+    const map: Record<string, string> = { mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg' };
+    return map[ext] || '';
   };
 
   const embedSnippet = useMemo((): string | null => {
@@ -139,7 +151,12 @@ export default function DownloadPage() {
         setPreviewText('');
         setPreviewTextTruncated(false);
 
-        const res = await fetch(downloadUrl, { cache: 'no-store' });
+        // Read from /p/ (same-origin proxy) rather than /dl/ (a redirect to a
+        // cross-origin R2 URL) - fetch() enforces CORS on the final response,
+        // but <img>/<video>/<iframe> don't, which is why text/markdown/
+        // snippet previews specifically could silently fail while other
+        // preview types looked fine.
+        const res = await fetch(cdnUrl, { cache: 'no-store' });
         if (!res.ok || !res.body) {
           return;
         }
@@ -188,7 +205,7 @@ export default function DownloadPage() {
     return () => {
       cancelled = true;
     };
-  }, [showPreview, fileData, downloadUrl]);
+  }, [showPreview, fileData, cdnUrl]);
 
   useEffect(() => {
     const fetchFileData = async () => {
@@ -489,35 +506,50 @@ export default function DownloadPage() {
                       </span>
                     </div>
                   )}
-                  {getFileType(fileData.filename, fileData.kind) === 'image' && (
+                  {mediaPreviewError && ['image', 'video', 'pdf'].includes(getFileType(fileData.filename, fileData.kind)) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', textAlign: 'center' }}>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--c-dim)' }}>Preview unavailable for this file.</span>
+                      <a
+                        href={downloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: '0.78rem', color: '#7ef4cb', textDecoration: 'none' }}
+                      >
+                        Open it directly instead
+                      </a>
+                    </div>
+                  )}
+                  {!mediaPreviewError && getFileType(fileData.filename, fileData.kind) === 'image' && (
                     <img
                       src={downloadUrl}
                       alt="Preview"
                       style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }}
                       onLoad={() => setPreviewLoading(false)}
-                      onError={() => setPreviewLoading(false)}
+                      onError={() => { setPreviewLoading(false); setMediaPreviewError(true); }}
                     />
                   )}
-                  {getFileType(fileData.filename, fileData.kind) === 'video' && (
+                  {!mediaPreviewError && getFileType(fileData.filename, fileData.kind) === 'video' && (
                     <video
                       controls
                       style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px' }}
                       onLoadedData={() => setPreviewLoading(false)}
-                      onError={() => setPreviewLoading(false)}
+                      onError={() => { setPreviewLoading(false); setMediaPreviewError(true); }}
                     >
-                      <source src={downloadUrl} />
+                      <source src={downloadUrl} type={getVideoMimeType(fileData.filename) || undefined} />
                       Your browser does not support the video tag.
                     </video>
                   )}
-                  {getFileType(fileData.filename, fileData.kind) === 'pdf' && (
+                  {!mediaPreviewError && getFileType(fileData.filename, fileData.kind) === 'pdf' && (
                     <iframe
                       src={downloadUrl}
+                      title={fileData.filename}
                       style={{ width: '100%', height: '100%', borderRadius: '12px', border: 'none' }}
                       onLoad={() => setPreviewLoading(false)}
+                      onError={() => { setPreviewLoading(false); setMediaPreviewError(true); }}
                     />
                   )}
                   {getFileType(fileData.filename, fileData.kind) === 'repo' && (
-                    <RepoBrowser downloadUrl={downloadUrl} onReady={() => setPreviewLoading(false)} />
+                    <RepoBrowser previewUrl={cdnUrl} onReady={() => setPreviewLoading(false)} />
                   )}
                   {(getFileType(fileData.filename, fileData.kind) === 'text' ||
                     getFileType(fileData.filename, fileData.kind) === 'snippet') && (
@@ -784,7 +816,7 @@ export default function DownloadPage() {
 
                   {isPreviewable(fileData.filename, fileData.kind) && (
                     <button
-                      onClick={() => { setPreviewLoading(true); setShowPreview(true); }}
+                      onClick={() => { setPreviewLoading(true); setMediaPreviewError(false); setShowPreview(true); }}
                       style={{
                         flex: 1,
                         display: 'flex',
