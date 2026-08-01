@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect, type SVGProps, type CSSProperties } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import logo from './logo.png';
 import { useTheme } from './components/ThemeProvider';
 import LordIcon from './components/LordIcon';
@@ -3820,20 +3821,33 @@ export default function Home() {
           </div>
         )}
 
-        {activeView === 'upload' && uploadedFiles.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowUploadedFiles((prev) => !prev)}
-            className="footer-link footer-link--show-files"
-            aria-expanded={showUploadedFiles}
-            aria-controls="uploaded-files-list"
-            style={{
-              cursor: 'pointer',
-              opacity: showUploadedFiles ? 1 : 0.92,
-            }}
-          >
-            {showUploadedFiles ? 'Hide files' : `Show files (${uploadedFiles.length})`}
-          </button>
+        {activeView === 'upload' && (isPlus || uploadedFiles.length > 0) && (
+          isPlus ? (
+            // Plus accounts have a persistent server-side vault (synced on every
+            // upload via /api/history, regardless of this tab's local state), so
+            // send them straight to it instead of toggling the local-only list.
+            <Link
+              href="/plus/dashboard"
+              className="footer-link footer-link--show-files"
+              style={{ opacity: 0.92 }}
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowUploadedFiles((prev) => !prev)}
+              className="footer-link footer-link--show-files"
+              aria-expanded={showUploadedFiles}
+              aria-controls="uploaded-files-list"
+              style={{
+                cursor: 'pointer',
+                opacity: showUploadedFiles ? 1 : 0.92,
+              }}
+            >
+              {showUploadedFiles ? 'Hide files' : `Show files (${uploadedFiles.length})`}
+            </button>
+          )
         )}
       </main>
 
