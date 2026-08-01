@@ -8,6 +8,11 @@ import {
   FREE_STORAGE_LIMIT_BYTES,
   PLUS_MAX_FILE_BYTES,
   PLUS_STORAGE_LIMIT_BYTES,
+  FREE_MAX_API_KEYS,
+  PLUS_MAX_API_KEYS,
+  FREE_API_MAX_REQUESTS_PER_HOUR,
+  PLUS_API_MAX_REQUESTS_PER_HOUR,
+  FREE_API_STORAGE_LIMIT_BYTES,
 } from '@/app/lib/plan-limits';
 
 function formatGb(bytes: number) {
@@ -19,9 +24,11 @@ const freeFileLabel = formatGb(FREE_MAX_FILE_BYTES);
 const freeStorageLabel = formatGb(FREE_STORAGE_LIMIT_BYTES);
 const plusFileLabel = formatGb(PLUS_MAX_FILE_BYTES);
 const plusStorageLabel = formatGb(PLUS_STORAGE_LIMIT_BYTES);
+const freeApiStorageLabel = formatGb(FREE_API_STORAGE_LIMIT_BYTES);
 
 type SectionId =
   | 'welcome'
+  | 'changelog'
   | 'overview'
   | 'upload'
   | 'remote-upload'
@@ -35,6 +42,7 @@ type Lang = 'curl' | 'javascript' | 'python';
 
 const SECTION_ORDER: SectionId[] = [
   'welcome',
+  'changelog',
   'overview',
   'upload',
   'remote-upload',
@@ -47,6 +55,7 @@ const SECTION_ORDER: SectionId[] = [
 
 const SECTION_LABELS: Record<SectionId, string> = {
   welcome: 'Welcome',
+  changelog: 'Version history',
   overview: 'Overview',
   upload: 'Upload a file',
   'remote-upload': 'Remote upload',
@@ -196,6 +205,54 @@ const FAQ_ITEMS: { q: string; a: React.ReactNode }[] = [
   },
 ];
 
+const CHANGELOG_ENTRIES: { date: string; title: string; items: string[] }[] = [
+  {
+    date: '2026-08-02',
+    title: 'API key limits, pooled storage quotas, and rate-limit ceilings',
+    items: [
+      `API keys are now capped per account: ${FREE_MAX_API_KEYS} keys for free accounts, ${PLUS_MAX_API_KEYS} for Plus.`,
+      `Storage is pooled per account across all of its keys, not per key: ${freeApiStorageLabel} total for free accounts, and ${plusStorageLabel} for Plus - shared with your regular web-upload vault, not a separate pool.`,
+      `A key's own \`requestsPerHour\` and upload-size settings are now capped server-side (${FREE_API_MAX_REQUESTS_PER_HOUR}/hr and ${freeFileLabel}/upload for free, ${PLUS_API_MAX_REQUESTS_PER_HOUR}/hr and ${plusFileLabel}/upload for Plus) - previously these were unbounded self-reported values.`,
+      'Files uploaded through the API with a Plus key now appear in a dedicated "API Uploads" folder in the Plus dashboard.',
+      'Fixed a bug where an authenticated key\'s configured upload-size limit was ignored in favor of the (larger) anonymous ceiling, making the per-key cap decorative.',
+      'Anonymous (no API key) uploads via /api/files/upload and /api/files/multipart/init are now rate-limited, matching the existing limit on /api/files/remote-upload.',
+    ],
+  },
+  {
+    date: '2026-08-01',
+    title: 'Fixed broken downloads, previews, and thumbnails for API-created files',
+    items: [
+      'Files created via code snippets or remote-pull uploads were 404ing on download and preview due to an object-key resolution bug - fixed.',
+      'Thumbnails for ordinary drag-and-drop image uploads were silently failing due to the same class of bug - fixed.',
+    ],
+  },
+  {
+    date: '2026-07-30',
+    title: 'Raised free-tier limits',
+    items: [`Free per-file upload limit raised to ${freeFileLabel}, with a new ${freeStorageLabel} total free storage cap.`],
+  },
+];
+
+function Changelog() {
+  return (
+    <div className="space-y-8">
+      {CHANGELOG_ENTRIES.map((entry) => (
+        <div key={entry.date}>
+          <div className="flex items-baseline gap-3 mb-2">
+            <span className="text-xs font-mono text-[var(--c-dim)]">{entry.date}</span>
+            <h3 className="text-base font-semibold">{entry.title}</h3>
+          </div>
+          <ul className="list-disc list-outside pl-5 space-y-1.5 text-sm text-[var(--c-dim)]">
+            {entry.items.map((item, i) => (
+              <li key={i}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Faq() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -330,6 +387,9 @@ export default function ApiDocumentation() {
               <button onClick={() => navigate('welcome')} className={navButtonClass(section === 'welcome')}>
                 Welcome
               </button>
+              <button onClick={() => navigate('changelog')} className={navButtonClass(section === 'changelog')}>
+                Version history
+              </button>
             </div>
             <div>
               <h3 className="text-xs font-semibold text-[var(--c-dim)] uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -364,6 +424,17 @@ export default function ApiDocumentation() {
               </div>
             )}
 
+            {section === 'changelog' && (
+              <div>
+                <h1 className="text-4xl font-bold mb-3">Version history</h1>
+                <p className="text-[var(--c-dim)] text-lg mb-10">
+                  API-relevant changes, newest first. This only covers behavior developers integrate against -
+                  not every website/UI change.
+                </p>
+                <Changelog />
+              </div>
+            )}
+
             {section === 'overview' && (
               <div>
                 <h1 className="text-4xl font-bold mb-3">Overview</h1>
@@ -391,6 +462,12 @@ export default function ApiDocumentation() {
                     download, and file-info work without a key. Anonymous uploads are capped at 25GB and expire
                     after 15 days (7 days for remote uploads); they will not appear in <InlineCode>/api/files/list</InlineCode>.
                   </p>
+                  <p className="text-[var(--c-dim)] text-sm">
+                    <strong className="text-[var(--foreground)]">Key limits:</strong> each account can have up to{' '}
+                    {FREE_MAX_API_KEYS} API keys on the free tier, or {PLUS_MAX_API_KEYS} on Plus. The dashboard
+                    doesn&apos;t require a Plus account to create keys - a free account (no login, scoped by IP)
+                    still gets {FREE_MAX_API_KEYS} keys with a smaller quota, described below.
+                  </p>
                 </Section>
 
                 <Section title="Base URL">
@@ -406,13 +483,30 @@ export default function ApiDocumentation() {
                   </p>
                 </Section>
 
+                <Section title="Rate limits">
+                  <p className="text-[var(--c-dim)]">
+                    Each key has its own <InlineCode>requestsPerHour</InlineCode>, configurable up to a per-plan
+                    ceiling: {FREE_API_MAX_REQUESTS_PER_HOUR.toLocaleString()}/hour for free accounts,{' '}
+                    {PLUS_API_MAX_REQUESTS_PER_HOUR.toLocaleString()}/hour for Plus. Exceeding it returns{' '}
+                    <InlineCode>429 Too Many Requests</InlineCode>. Anonymous (no-key) requests are limited per IP
+                    instead: 20/hour for direct and multipart uploads, 10/hour for remote-pull uploads.
+                  </p>
+                </Section>
+
                 <Section title="Storage quota">
                   <p className="text-[var(--c-dim)]">
-                    Each API key has a total storage cap (10GB by default) in addition to the per-upload size
-                    limit. Uploads that would push a key over its cap are rejected with{' '}
-                    <InlineCode>507 Insufficient Storage</InlineCode> before any data is written. Check current
-                    usage via <InlineCode>rateLimit.storageLimit</InlineCode> and <InlineCode>storageUsed</InlineCode>{' '}
-                    on your key in the <Link href="/api" className="underline hover:text-[var(--foreground)]">dashboard</Link>.
+                    Storage is pooled per account across every key it has, not tracked per individual key:{' '}
+                    {freeApiStorageLabel} total for free accounts, {plusStorageLabel} for Plus. A Plus account&apos;s
+                    API storage shares the same pool as its regular web-upload vault - it&apos;s one 80GB budget,
+                    not a separate one - and files uploaded through the API appear in a dedicated{' '}
+                    <InlineCode>API Uploads</InlineCode> folder in the{' '}
+                    <Link href="/plus/dashboard" className="underline hover:text-[var(--foreground)]">Plus dashboard</Link>.
+                    Per-upload size is capped at {freeFileLabel} (free) or {plusFileLabel} (Plus). Uploads that
+                    would exceed either cap are rejected with <InlineCode>507 Insufficient Storage</InlineCode> or{' '}
+                    <InlineCode>413 Payload Too Large</InlineCode> before any data is written. Check current usage
+                    via the <InlineCode>account</InlineCode> object returned by{' '}
+                    <InlineCode>GET /dev/keys</InlineCode>, or in the{' '}
+                    <Link href="/api" className="underline hover:text-[var(--foreground)]">dashboard</Link>.
                   </p>
                 </Section>
 

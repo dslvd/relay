@@ -59,6 +59,11 @@ create table if not exists folders (
 alter table folders enable row level security;
 
 -- Files created through the rootz-compatible /api/files/* API.
+-- owner_id is the owning ACCOUNT, not the individual API key: a real
+-- plus_users.id for Plus accounts, or a synthetic `ip:{address}` id for
+-- free/anonymous accounts (see resolveApiKeyAccount in
+-- app/lib/auth/api-key-account.ts) - so storage is pooled across every key
+-- an account has, not tracked per-key.
 create table if not exists api_files (
   id uuid primary key default gen_random_uuid(),
   short_id text unique not null,
@@ -122,6 +127,10 @@ create index if not exists idx_plus_sessions_user on plus_sessions (user_id);
 alter table plus_sessions enable row level security;
 
 -- Developer API keys (app/api/dev/keys, used by /api/v1/* and /api/files/*).
+-- user_id is the owning ACCOUNT id, same convention as api_files.owner_id
+-- above (a real plus_users.id, or a synthetic `ip:{address}` for free
+-- accounts) - key-count limits (FREE_MAX_API_KEYS / PLUS_MAX_API_KEYS) and
+-- storage pooling are both enforced per account, across all of its keys.
 create table if not exists api_keys (
   id text primary key,
   hashed_key text unique not null,

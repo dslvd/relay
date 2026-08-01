@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey } from '@/app/lib/auth/api-auth';
 import { completeMultipartUpload, createPresignedDownloadUrl } from '@/app/lib/storage/r2-storage';
 import { createFileRecord } from '@/app/lib/data/api-file-store';
+import { isFreeAccountId } from '@/app/lib/auth/api-key-account';
+import { syncPlusApiUpload } from '@/app/lib/data/api-upload-sync';
 import { dispatchFileWebhook } from '@/app/lib/webhooks/dispatch';
 
 const ANON_EXPIRY_MS = 15 * 24 * 60 * 60 * 1000; // 15 days
@@ -10,7 +12,10 @@ const ANON_EXPIRY_MS = 15 * 24 * 60 * 60 * 1000; // 15 days
 export async function POST(request: NextRequest) {
   try {
     const auth = await authenticateApiKey(request);
-    const ownerId = auth.success ? auth.apiKey!.id : null;
+    // `userId` on an API key is the owning ACCOUNT, not the key itself -
+    // see the matching comment in multipart/init/route.ts.
+    const ownerId = auth.success ? auth.apiKey!.userId ?? null : null;
+    const isPlusAccount = ownerId ? !isFreeAccountId(ownerId) : false;
 
     const body = await request.json().catch(() => ({}));
     const key = typeof body?.key === 'string' ? body.key : '';
@@ -45,6 +50,7 @@ export async function POST(request: NextRequest) {
     });
 
     const url = await createPresignedDownloadUrl({ objectKey: key, expiresInSeconds: 24 * 60 * 60 });
+    const viewUrl = new URL(`/i/${record.shortId}`, request.nextUrl.origin).toString();
 
     if (auth.success) {
       dispatchFileWebhook(auth.apiKey!, 'file.created', {
@@ -53,6 +59,16 @@ export async function POST(request: NextRequest) {
         size: record.size,
         mimeType: record.mimeType,
         shortId: record.shortId,
+      });
+    }
+
+    if (isPlusAccount && ownerId) {
+      await syncPlusApiUpload({
+        plusUserId: ownerId,
+        plusEmail: auth.apiKey?.email,
+        url: viewUrl,
+        filename: record.name,
+        size: record.size,
       });
     }
 

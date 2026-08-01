@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from 'crypto';
 import { getSupabaseClient, hasSupabaseConfigured } from '@/app/lib/data/supabase-client';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
+import { isFreeAccountId } from '@/app/lib/auth/api-key-account';
+import { FREE_API_MAX_REQUESTS_PER_HOUR, PLUS_API_MAX_REQUESTS_PER_HOUR } from '@/app/lib/plan-limits';
 
 export interface ApiKeyRecord {
   id: string;
@@ -18,17 +20,13 @@ export interface ApiKeyRecord {
   rateLimit: {
     requestsPerHour: number;
     uploadSizeLimit: number; // in bytes, per upload
-    storageLimit?: number; // in bytes, total across all files owned by this key
+    // Storage is enforced per-account (pooled across all of that account's
+    // keys), not per-key - see getAccountStorageUsage() below and
+    // FREE_API_STORAGE_LIMIT_BYTES / PLUS_STORAGE_LIMIT_BYTES. Kept optional
+    // here only so rows written before this change still deserialize.
+    storageLimit?: number;
   };
   webhook?: { url: string; secret: string } | null;
-}
-
-// Rows written before storageLimit existed won't have it - this is the
-// fallback applied everywhere quota is enforced or reported.
-export const DEFAULT_STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024; // 10GB
-
-export function getStorageLimit(apiKey: Pick<ApiKeyRecord, 'rateLimit'>): number {
-  return apiKey.rateLimit.storageLimit ?? DEFAULT_STORAGE_LIMIT_BYTES;
 }
 
 export interface ApiKeyPermissions {
@@ -170,7 +168,6 @@ export async function createApiKey(input: {
   rateLimit?: {
     requestsPerHour?: number;
     uploadSizeLimit?: number;
-    storageLimit?: number;
   };
   expiresInDays?: number;
 }): Promise<{ apiKey: ApiKeyRecord; plainKey: string }> {
@@ -203,7 +200,6 @@ export async function createApiKey(input: {
     rateLimit: {
       requestsPerHour: input.rateLimit?.requestsPerHour ?? 1000,
       uploadSizeLimit: input.rateLimit?.uploadSizeLimit ?? 100 * 1024 * 1024, // 100MB default
-      storageLimit: input.rateLimit?.storageLimit ?? DEFAULT_STORAGE_LIMIT_BYTES,
     },
     webhook: null,
     expiresAt: input.expiresInDays ? now + input.expiresInDays * 24 * 60 * 60 * 1000 : undefined,
@@ -336,9 +332,25 @@ export async function setApiKeyWebhook(id: string, url: string | null): Promise<
 // counter against the hourly limit and only reset it after an hour of total
 // inactivity - an active key would trip the limit once and then stay
 // rate-limited forever, since `usage.requestCount` never actually resets.
+//
+// The effective limit is also clamped to an absolute per-plan ceiling here,
+// not just at key-creation time - creation/update-time clamping keeps newly
+// stored values honest, but this is the one choke point every authenticated
+// request passes through, so it's what actually prevents a key whose stored
+// value predates these ceilings (or was written some other way) from being
+// used to bypass them.
 export async function checkApiKeyRateLimit(apiKey: ApiKeyRecord): Promise<boolean> {
-  const result = await checkRateLimit(`api-key:${apiKey.id}`, apiKey.rateLimit.requestsPerHour, 60 * 60 * 1000);
+  const ceiling = isFreeAccountId(apiKey.userId) ? FREE_API_MAX_REQUESTS_PER_HOUR : PLUS_API_MAX_REQUESTS_PER_HOUR;
+  const effectiveLimit = Math.min(apiKey.rateLimit.requestsPerHour, ceiling);
+  const result = await checkRateLimit(`api-key:${apiKey.id}`, effectiveLimit, 60 * 60 * 1000);
   return result.allowed;
+}
+
+// A key counts against its account's key-count limit while it's actually
+// usable - revoked or expired keys don't, so revoking one frees up a slot
+// without requiring the user to also delete it.
+export function isKeyUsable(apiKey: Pick<ApiKeyRecord, 'isActive' | 'expiresAt'>): boolean {
+  return apiKey.isActive && (!apiKey.expiresAt || apiKey.expiresAt > Date.now());
 }
 
 declare global {

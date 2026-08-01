@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiKey, revokeApiKey, deleteApiKey, updateApiKey, setApiKeyWebhook, getStorageLimit } from '@/app/lib/data/api-key-store';
-import { getOwnerStorageUsed } from '@/app/lib/data/api-file-store';
-import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
+import { getApiKey, revokeApiKey, deleteApiKey, updateApiKey, setApiKeyWebhook } from '@/app/lib/data/api-key-store';
+import { getAccountApiStorageUsage } from '@/app/lib/data/api-file-store';
+import { resolveApiKeyAccount } from '@/app/lib/auth/api-key-account';
+import { FREE_API_MAX_REQUESTS_PER_HOUR, PLUS_API_MAX_REQUESTS_PER_HOUR, FREE_MAX_FILE_BYTES, PLUS_MAX_FILE_BYTES } from '@/app/lib/plan-limits';
 
-const PLUS_COOKIE_NAME = 'plus_auth';
-
-async function getAuthenticatedUser(request: NextRequest) {
-  const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
-  if (!token) return null;
-
-  const plusUser = await getPlusUserFromSession(token);
-  return plusUser;
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(value, min), max);
 }
 
 // GET /api/dev/keys/[keyId] - Get a specific API key
@@ -19,14 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
+    const account = await resolveApiKeyAccount(request);
     const { keyId } = await params;
 
     const apiKey = await getApiKey(keyId);
@@ -41,7 +30,7 @@ export async function GET(
       );
     }
 
-    if (apiKey.userId !== user.id) {
+    if (apiKey.userId !== account.id) {
       return NextResponse.json(
         {
           success: false,
@@ -62,10 +51,10 @@ export async function GET(
         isActive: apiKey.isActive,
         permissions: apiKey.permissions,
         usage: apiKey.usage,
-        rateLimit: { ...apiKey.rateLimit, storageLimit: getStorageLimit(apiKey) },
-        storageUsed: await getOwnerStorageUsed(apiKey.id),
+        rateLimit: apiKey.rateLimit,
+        storageUsed: await getAccountApiStorageUsage(account.id, account.isPlus),
         webhookUrl: apiKey.webhook?.url ?? null,
-        webhookSecret: apiKey.webhook?.secret ?? null,
+        webhookSecret: account.isPlus ? apiKey.webhook?.secret ?? null : null,
         keyPreview: apiKey.hashedKey.substring(0, 8) + '...',
       },
     });
@@ -87,14 +76,7 @@ export async function PATCH(
   { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
+    const account = await resolveApiKeyAccount(request);
     const { keyId } = await params;
     const body = await request.json();
 
@@ -110,7 +92,7 @@ export async function PATCH(
       );
     }
 
-    if (apiKey.userId !== user.id) {
+    if (apiKey.userId !== account.id) {
       return NextResponse.json(
         {
           success: false,
@@ -144,7 +126,13 @@ export async function PATCH(
 
     // Handle webhook URL changes separately - setApiKeyWebhook also rotates
     // the signing secret so a stale integration can't keep verifying.
+    // Plus-only: webhooks aren't offered on free/IP-scoped keys, since
+    // free-tier key management is shared across anyone on the same IP and
+    // webhook secrets shouldn't be exposed to that wider a group.
     if ('webhookUrl' in body) {
+      if (!account.isPlus) {
+        return NextResponse.json({ success: false, error: 'Webhooks are a Plus feature' }, { status: 403 });
+      }
       const webhookUrl = typeof body.webhookUrl === 'string' && body.webhookUrl ? body.webhookUrl : null;
       if (webhookUrl) {
         try {
@@ -180,7 +168,14 @@ export async function PATCH(
     }
 
     if (body.rateLimit) {
-      updates.rateLimit = { ...apiKey.rateLimit, ...body.rateLimit };
+      const maxRequestsPerHour = account.isPlus ? PLUS_API_MAX_REQUESTS_PER_HOUR : FREE_API_MAX_REQUESTS_PER_HOUR;
+      const maxUploadSizeBytes = account.isPlus ? PLUS_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES;
+      const nextRateLimit = { ...apiKey.rateLimit, ...body.rateLimit };
+      updates.rateLimit = {
+        ...nextRateLimit,
+        requestsPerHour: clamp(Number(nextRateLimit.requestsPerHour), 1, maxRequestsPerHour),
+        uploadSizeLimit: clamp(Number(nextRateLimit.uploadSizeLimit), 1, maxUploadSizeBytes),
+      };
     }
 
     const updated = await updateApiKey(keyId, updates);
@@ -202,7 +197,7 @@ export async function PATCH(
         name: updated.name,
         isActive: updated.isActive,
         permissions: updated.permissions,
-        rateLimit: { ...updated.rateLimit, storageLimit: getStorageLimit(updated) },
+        rateLimit: updated.rateLimit,
       },
     });
   } catch (error) {
@@ -223,14 +218,7 @@ export async function DELETE(
   { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
+    const account = await resolveApiKeyAccount(request);
     const { keyId } = await params;
 
     const apiKey = await getApiKey(keyId);
@@ -245,7 +233,7 @@ export async function DELETE(
       );
     }
 
-    if (apiKey.userId !== user.id) {
+    if (apiKey.userId !== account.id) {
       return NextResponse.json(
         {
           success: false,

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { PLUS_MAX_API_KEYS } from '@/app/lib/plan-limits';
 
 interface ApiKey {
   id: string;
@@ -29,6 +30,16 @@ interface ApiKey {
     uploadSizeLimit: number;
   };
   keyPreview?: string;
+}
+
+interface AccountStats {
+  isPlus: boolean;
+  keyCount: number;
+  maxKeys: number;
+  storageUsed: number;
+  storageLimit: number;
+  maxRequestsPerHour: number;
+  maxUploadSizeBytes: number;
 }
 
 interface NewKeyData {
@@ -141,6 +152,7 @@ function permissionPillStyle(color: string): React.CSSProperties {
 export default function DeveloperDashboard() {
   const router = useRouter();
   const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [account, setAccount] = useState<AccountStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [showNewKeyModal, setShowNewKeyModal] = useState(false);
@@ -166,6 +178,15 @@ export default function DeveloperDashboard() {
       .catch(() => {});
   }, []);
 
+  // Once we know this account's plan ceilings, keep the form's defaults from
+  // silently exceeding them (the server clamps anyway, but showing "1000"
+  // and getting a key capped at 500 without explanation is confusing).
+  useEffect(() => {
+    if (!account) return;
+    setRequestsPerHour((v) => Math.min(v, account.maxRequestsPerHour));
+    setUploadSizeMB((v) => Math.min(v, Math.floor(account.maxUploadSizeBytes / (1024 * 1024))));
+  }, [account]);
+
   async function loadKeys() {
     try {
       const response = await fetch('/api/dev/keys');
@@ -173,6 +194,7 @@ export default function DeveloperDashboard() {
 
       if (data.success) {
         setKeys(data.data.keys);
+        setAccount(data.data.account ?? null);
       }
     } catch (error) {
       console.error('Failed to load keys:', error);
@@ -357,21 +379,36 @@ export default function DeveloperDashboard() {
 
         {/* Stats overview */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.7rem', marginBottom: '1.6rem' }}>
-          <StatCard label="Total keys" value={keys.length} />
-          <StatCard label="Active keys" value={keys.filter((k) => k.isActive).length} />
+          <StatCard label="API keys" value={account ? `${account.keyCount} of ${account.maxKeys}` : keys.length} />
+          <StatCard label="Storage used" value={account ? `${formatBytes(account.storageUsed)} of ${formatBytes(account.storageLimit)}` : '—'} />
           <StatCard label="Total uploads" value={keys.reduce((sum, k) => sum + k.usage.uploadCount, 0)} />
           <StatCard label="Total requests" value={keys.reduce((sum, k) => sum + k.usage.requestCount, 0)} />
         </div>
+        {account && !account.isPlus && (
+          <p style={{ margin: '-1rem 0 1.6rem', fontSize: '0.75rem', color: 'var(--c-dim)' }}>
+            Free accounts get up to {account.maxKeys} API keys sharing {formatBytes(account.storageLimit)} of storage.{' '}
+            <Link href="/pricing" style={{ color: 'var(--c-accent-mint)' }}>Upgrade to Plus</Link> for {PLUS_MAX_API_KEYS} keys and a bigger, shared vault.
+          </p>
+        )}
 
         {/* Action buttons */}
-        <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.6rem', flexWrap: 'wrap' }}>
-          <button onClick={() => setShowCreateForm(!showCreateForm)} style={pillButtonStyle('primary')}>
+        <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            disabled={!showCreateForm && Boolean(account) && account!.keyCount >= account!.maxKeys}
+            style={pillButtonStyle('primary', !showCreateForm && Boolean(account) && account!.keyCount >= account!.maxKeys)}
+          >
             {showCreateForm ? 'Cancel' : '+ Create new API key'}
           </button>
           <button onClick={() => router.push('/docs')} style={pillButtonStyle('secondary')}>
             View documentation
           </button>
         </div>
+        {account && account.keyCount >= account.maxKeys && (
+          <p style={{ margin: '0 0 1rem', fontSize: '0.75rem', color: 'var(--c-dim)' }}>
+            You&apos;ve reached the {account.maxKeys}-key limit for {account.isPlus ? 'Plus' : 'free'} accounts. Revoke or delete a key to create another.
+          </p>
+        )}
 
         {/* Create key form */}
         {showCreateForm && (
@@ -415,9 +452,11 @@ export default function DeveloperDashboard() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-                <Field label="Requests per hour">
+                <Field label={`Requests per hour${account ? ` (max ${account.maxRequestsPerHour.toLocaleString()})` : ''}`}>
                   <input
                     type="number"
+                    min={1}
+                    max={account?.maxRequestsPerHour}
                     value={requestsPerHour}
                     onChange={(e) => setRequestsPerHour(parseInt(e.target.value))}
                     style={inputStyle}
@@ -425,9 +464,11 @@ export default function DeveloperDashboard() {
                     onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-input)'; }}
                   />
                 </Field>
-                <Field label="Max upload size (MB)">
+                <Field label={`Max upload size (MB)${account ? ` (max ${Math.floor(account.maxUploadSizeBytes / (1024 * 1024)).toLocaleString()})` : ''}`}>
                   <input
                     type="number"
+                    min={1}
+                    max={account ? Math.floor(account.maxUploadSizeBytes / (1024 * 1024)) : undefined}
                     value={uploadSizeMB}
                     onChange={(e) => setUploadSizeMB(parseInt(e.target.value))}
                     style={inputStyle}

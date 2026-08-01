@@ -1,56 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createApiKey, listApiKeys, getStorageLimit } from '@/app/lib/data/api-key-store';
-import { getOwnerStorageUsed } from '@/app/lib/data/api-file-store';
-import { getPlusUserFromSession } from '@/app/lib/auth/plus-auth';
+import { createApiKey, listApiKeys, isKeyUsable } from '@/app/lib/data/api-key-store';
+import { getAccountApiStorageUsage } from '@/app/lib/data/api-file-store';
+import { resolveApiKeyAccount } from '@/app/lib/auth/api-key-account';
+import {
+  FREE_MAX_API_KEYS,
+  PLUS_MAX_API_KEYS,
+  FREE_API_MAX_REQUESTS_PER_HOUR,
+  PLUS_API_MAX_REQUESTS_PER_HOUR,
+  FREE_MAX_FILE_BYTES,
+  PLUS_MAX_FILE_BYTES,
+  FREE_API_STORAGE_LIMIT_BYTES,
+  PLUS_STORAGE_LIMIT_BYTES,
+} from '@/app/lib/plan-limits';
 
-const PLUS_COOKIE_NAME = 'plus_auth';
-
-// Helper to get authenticated user
-async function getAuthenticatedUser(request: NextRequest) {
-  const token = request.cookies.get(PLUS_COOKIE_NAME)?.value;
-  if (!token) return null;
-
-  const plusUser = await getPlusUserFromSession(token);
-  return plusUser;
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(value, min), max);
 }
 
-// GET /api/dev/keys - List all API keys for the current user
+// GET /api/dev/keys - List all API keys for the current account (a Plus
+// session, or a free/anonymous account scoped by IP - see resolveApiKeyAccount).
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
+    const account = await resolveApiKeyAccount(request);
+    const keys = await listApiKeys(account.id);
 
-    const keys = await listApiKeys(user.id);
+    const sanitizedKeys = keys.map((key) => ({
+      id: key.id,
+      name: key.name,
+      createdAt: new Date(key.createdAt).toISOString(),
+      lastUsedAt: key.lastUsedAt ? new Date(key.lastUsedAt).toISOString() : null,
+      expiresAt: key.expiresAt ? new Date(key.expiresAt).toISOString() : null,
+      isActive: key.isActive,
+      permissions: key.permissions,
+      usage: key.usage,
+      rateLimit: key.rateLimit,
+      webhookUrl: key.webhook?.url ?? null,
+      // Show masked key for identification
+      keyPreview: key.hashedKey.substring(0, 8) + '...',
+    }));
 
-    // Remove sensitive information
-    const sanitizedKeys = await Promise.all(
-      keys.map(async (key) => ({
-        id: key.id,
-        name: key.name,
-        createdAt: new Date(key.createdAt).toISOString(),
-        lastUsedAt: key.lastUsedAt ? new Date(key.lastUsedAt).toISOString() : null,
-        expiresAt: key.expiresAt ? new Date(key.expiresAt).toISOString() : null,
-        isActive: key.isActive,
-        permissions: key.permissions,
-        usage: key.usage,
-        rateLimit: { ...key.rateLimit, storageLimit: getStorageLimit(key) },
-        storageUsed: await getOwnerStorageUsed(key.id),
-        webhookUrl: key.webhook?.url ?? null,
-        // Show masked key for identification
-        keyPreview: key.hashedKey.substring(0, 8) + '...',
-      }))
-    );
+    // Storage is pooled per-account (see getAccountApiStorageUsage), not
+    // per-key, so it's reported once here rather than per key in the list.
+    const storageUsed = await getAccountApiStorageUsage(account.id, account.isPlus);
 
     return NextResponse.json({
       success: true,
       data: {
         keys: sanitizedKeys,
-        user: user ? { id: user.id, email: user.email } : null,
+        user: account.isPlus ? { id: account.id, email: account.email } : null,
+        account: {
+          isPlus: account.isPlus,
+          keyCount: keys.filter(isKeyUsable).length,
+          maxKeys: account.isPlus ? PLUS_MAX_API_KEYS : FREE_MAX_API_KEYS,
+          storageUsed,
+          storageLimit: account.isPlus ? PLUS_STORAGE_LIMIT_BYTES : FREE_API_STORAGE_LIMIT_BYTES,
+          maxRequestsPerHour: account.isPlus ? PLUS_API_MAX_REQUESTS_PER_HOUR : FREE_API_MAX_REQUESTS_PER_HOUR,
+          maxUploadSizeBytes: account.isPlus ? PLUS_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES,
+        },
       },
     });
   } catch (error) {
@@ -68,11 +75,17 @@ export async function GET(request: NextRequest) {
 // POST /api/dev/keys - Create a new API key
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
+    const account = await resolveApiKeyAccount(request);
+
+    const maxKeys = account.isPlus ? PLUS_MAX_API_KEYS : FREE_MAX_API_KEYS;
+    const existingKeys = await listApiKeys(account.id);
+    if (existingKeys.filter(isKeyUsable).length >= maxKeys) {
       return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
+        {
+          success: false,
+          error: `API key limit reached (${maxKeys} for ${account.isPlus ? 'Plus' : 'free'} accounts). Revoke or delete an existing key first.`,
+        },
+        { status: 403 }
       );
     }
 
@@ -81,7 +94,10 @@ export async function POST(request: NextRequest) {
     const name = typeof body?.name === 'string' ? body.name : 'Unnamed Key';
     const permissions = body?.permissions || {};
     const rateLimit = body?.rateLimit || {};
-    const expiresInDays = typeof body?.expiresInDays === 'number' ? body.expiresInDays : undefined;
+    const expiresInDays =
+      typeof body?.expiresInDays === 'number' && body.expiresInDays > 0
+        ? Math.min(body.expiresInDays, 3650)
+        : undefined;
 
     if (name.length > 100) {
       return NextResponse.json(
@@ -93,12 +109,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ceilings a key's own rate/size settings can be configured to - without
+    // this, the create-key form's numeric inputs had no server-side upper
+    // bound at all, so any caller could self-report an effectively unlimited
+    // rate limit or upload size. checkApiKeyRateLimit() enforces the same
+    // ceiling again at request time as a second line of defense.
+    const maxRequestsPerHour = account.isPlus ? PLUS_API_MAX_REQUESTS_PER_HOUR : FREE_API_MAX_REQUESTS_PER_HOUR;
+    const maxUploadSizeBytes = account.isPlus ? PLUS_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES;
+
     const result = await createApiKey({
       name,
-      userId: user.id,
-      email: user.email,
+      userId: account.id,
+      email: account.email,
       permissions,
-      rateLimit,
+      rateLimit: {
+        requestsPerHour: clamp(Number(rateLimit.requestsPerHour) || 1000, 1, maxRequestsPerHour),
+        uploadSizeLimit: clamp(Number(rateLimit.uploadSizeLimit) || maxUploadSizeBytes, 1, maxUploadSizeBytes),
+      },
       expiresInDays,
     });
 

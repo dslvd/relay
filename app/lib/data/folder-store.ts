@@ -100,6 +100,17 @@ export async function createFolder(name: string): Promise<FolderRecord> {
   return record;
 }
 
+// Folders have no per-account ownership (see listFolders() above - it's a
+// single shared list), so a well-known folder like "API Uploads" is found by
+// name rather than a fixed id. Two first-ever-uploads racing each other could
+// in theory both miss the lookup and create a duplicate - harmless (folders
+// aren't unique) and self-heals since every later call finds the first one.
+export async function getOrCreateFolderByName(name: string): Promise<FolderRecord> {
+  const existing = (await listFolders()).find((f) => f.name === name);
+  if (existing) return existing;
+  return createFolder(name);
+}
+
 export async function renameFolder(id: string, name: string): Promise<FolderRecord | null> {
   const updatedAt = Date.now();
 

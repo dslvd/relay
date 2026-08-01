@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateApiKey } from '@/app/lib/auth/api-auth';
 import { createPresignedUploadUrl, createPresignedDownloadUrl, buildApiObjectKey } from '@/app/lib/storage/r2-storage';
-import { createFileRecord, getOwnerStorageUsed } from '@/app/lib/data/api-file-store';
-import { getStorageLimit } from '@/app/lib/data/api-key-store';
+import { createFileRecord, getAccountApiStorageUsage } from '@/app/lib/data/api-file-store';
+import { isFreeAccountId } from '@/app/lib/auth/api-key-account';
+import { syncPlusApiUpload } from '@/app/lib/data/api-upload-sync';
 import { checkRateLimit } from '@/app/lib/security/rate-limit';
 import { dispatchFileWebhook } from '@/app/lib/webhooks/dispatch';
 import { fetchWithValidatedRedirects } from '@/app/lib/security/ssrf-guard';
+import { FREE_MAX_FILE_BYTES, PLUS_MAX_FILE_BYTES, FREE_API_STORAGE_LIMIT_BYTES, PLUS_STORAGE_LIMIT_BYTES } from '@/app/lib/plan-limits';
 
 const ANON_MAX_FILE_BYTES = 25 * 1024 * 1024 * 1024; // 25GB
 const ANON_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, matches rootz's anonymous remote-upload expiry
@@ -33,7 +35,11 @@ function sanitizeFilename(input: string): string {
 export async function POST(request: NextRequest) {
   try {
     const auth = await authenticateApiKey(request);
-    const ownerId = auth.success ? auth.apiKey!.id : null;
+    // `userId` on an API key is the owning ACCOUNT (a plus_users.id, or a
+    // synthetic `ip:{address}` for free accounts) - not the key itself - so
+    // storage/size limits are pooled across every key an account has.
+    const ownerId = auth.success ? auth.apiKey!.userId ?? null : null;
+    const isPlusAccount = ownerId ? !isFreeAccountId(ownerId) : false;
 
     if (!ownerId) {
       const ip = getClientIp(request);
@@ -91,18 +97,26 @@ export async function POST(request: NextRequest) {
     const contentLengthHeader = remoteResponse.headers.get('content-length');
     const declaredSize = contentLengthHeader ? Number(contentLengthHeader) : NaN;
 
-    const maxFileBytes = ownerId ? Math.max(ANON_MAX_FILE_BYTES, auth.apiKey!.rateLimit.uploadSizeLimit) : ANON_MAX_FILE_BYTES;
+    // Authenticated uploads are capped at the account's OWN per-upload limit
+    // (never maxed against the anonymous ceiling - a Plus account is capped
+    // at 8GB, not bumped up to the 25GB anonymous allowance).
+    const maxFileBytes = ownerId ? (isPlusAccount ? PLUS_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES) : ANON_MAX_FILE_BYTES;
     if (Number.isFinite(declaredSize) && declaredSize > maxFileBytes) {
       return NextResponse.json(
-        { success: false, error: `Anonymous uploads are limited to ${Math.round(ANON_MAX_FILE_BYTES / (1024 ** 3))}GB. Please create an account for larger files.` },
+        {
+          success: false,
+          error: ownerId
+            ? `Uploads with this API key are limited to ${Math.round(maxFileBytes / (1024 ** 3))}GB per file.`
+            : `Anonymous uploads are limited to ${Math.round(ANON_MAX_FILE_BYTES / (1024 ** 3))}GB. Please create an account for larger files.`,
+        },
         { status: 413 }
       );
     }
 
     let remainingQuota = Infinity;
     if (ownerId) {
-      const storageLimit = getStorageLimit(auth.apiKey!);
-      const used = await getOwnerStorageUsed(ownerId);
+      const storageLimit = isPlusAccount ? PLUS_STORAGE_LIMIT_BYTES : FREE_API_STORAGE_LIMIT_BYTES;
+      const used = await getAccountApiStorageUsage(ownerId, isPlusAccount);
       remainingQuota = storageLimit - used;
       if (remainingQuota <= 0 || (Number.isFinite(declaredSize) && declaredSize > remainingQuota)) {
         return NextResponse.json(
@@ -164,6 +178,7 @@ export async function POST(request: NextRequest) {
     });
 
     const url = await createPresignedDownloadUrl({ objectKey, expiresInSeconds: 24 * 60 * 60 });
+    const viewUrl = new URL(`/i/${record.shortId}`, request.nextUrl.origin).toString();
 
     if (auth.success) {
       dispatchFileWebhook(auth.apiKey!, 'file.created', {
@@ -172,6 +187,16 @@ export async function POST(request: NextRequest) {
         size: record.size,
         mimeType: record.mimeType,
         shortId: record.shortId,
+      });
+    }
+
+    if (isPlusAccount && ownerId) {
+      await syncPlusApiUpload({
+        plusUserId: ownerId,
+        plusEmail: auth.apiKey?.email,
+        url: viewUrl,
+        filename: record.name,
+        size: record.size,
       });
     }
 

@@ -10,6 +10,8 @@ import {
   PLUS_STORAGE_LIMIT_BYTES,
   FREE_MAX_FILE_BYTES,
   FREE_STORAGE_LIMIT_BYTES,
+  FREE_MAX_API_KEYS,
+  PLUS_MAX_API_KEYS,
   PLUS_CHECKOUT_ENABLED,
   PLUS_CHECKOUT_CONTACT_EMAIL,
 } from '@/app/lib/plan-limits';
@@ -37,7 +39,7 @@ const COMPARISON_ROWS: Array<{ label: string; free: string; plus: string }> = [
   { label: 'Per-file upload limit', free: freeFileLabel, plus: plusFileLabel },
   { label: 'Account & vault dashboard', free: '—', plus: 'Included' },
   { label: 'Storage', free: `${freeStorageLabel} total`, plus: `${plusStorageLabel} vault` },
-  { label: 'Developer API access', free: '—', plus: 'Included' },
+  { label: 'Developer API keys', free: `${FREE_MAX_API_KEYS} keys`, plus: `${PLUS_MAX_API_KEYS} keys` },
   { label: 'Code snippet sharing', free: 'Included', plus: 'Included' },
   { label: 'Ads', free: 'Shown', plus: 'None' },
 ];

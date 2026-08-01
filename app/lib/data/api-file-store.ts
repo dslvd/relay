@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'crypto';
 import { getSupabaseClient, hasSupabaseConfigured } from '@/app/lib/data/supabase-client';
+import { getPlusStorageUsedBytes } from '@/app/lib/data/upload-history-store';
 
 export interface ApiFileRecord {
   id: string;
@@ -227,6 +228,24 @@ export async function getOwnerStorageUsed(ownerId: string): Promise<number> {
   return getFallbackStore()
     .filter((r) => r.ownerId === ownerId)
     .reduce((sum, r) => sum + r.size, 0);
+}
+
+// `ownerId` on api_files is the owning ACCOUNT (a plus_users.id, or a
+// synthetic `ip:{address}` for free accounts) - not the individual API key -
+// so storage is pooled across every key an account has, matching how the
+// key-count and rate-limit ceilings are also account-scoped.
+//
+// Plus accounts share ONE 80GB pool with their regular web-upload vault
+// (API uploads are dual-written into upload-history-store - see
+// syncPlusApiUpload in app/lib/data/api-upload-sync.ts - so
+// getPlusStorageUsedBytes already includes them); free accounts get a
+// separate pool that only tracks API uploads, independent of their
+// anonymous website quota.
+export async function getAccountApiStorageUsage(accountId: string, isPlusAccount: boolean): Promise<number> {
+  if (isPlusAccount) {
+    return getPlusStorageUsedBytes(accountId);
+  }
+  return getOwnerStorageUsed(accountId);
 }
 
 export async function countFilesInFolder(folderId: string): Promise<{ count: number; totalSize: number }> {
