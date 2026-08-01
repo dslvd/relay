@@ -122,6 +122,22 @@ function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   }
 }
 
+function Spinner({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      style={{ animation: 'spin 0.8s linear infinite' }}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IconBadge({ name, tone = 'mint' }: { name: IconName; tone?: 'mint' | 'blue' }) {
   return (
     <span
@@ -493,12 +509,22 @@ export default function PlusDashboard() {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.55; transform: scale(0.82); }
         }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes uploadBarSlide {
+          0% { left: -35%; }
+          100% { left: 100%; }
+        }
         .pressable { transition: transform 0.14s ease, opacity 0.14s ease; will-change: transform; }
         .pressable:active { transform: scale(0.96); }
         .navItem:hover, .folderItem:hover { background: var(--surface-hover) !important; }
         .actionCard:hover { background: var(--surface-hover) !important; border-color: var(--border-strong) !important; }
         .dropzone { transition: border-color 0.15s ease, background 0.15s ease; }
         .fileList { transition: opacity 0.3s ease; }
+        @media (max-width: 480px) {
+          .actionGrid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important; gap: 0.5rem !important; }
+        }
       `}</style>
 
       <div
@@ -526,6 +552,27 @@ export default function PlusDashboard() {
           hidden
           onChange={(e) => { if (e.target.files?.length) void uploadFiles(e.target.files); e.target.value = ''; }}
         />
+
+        {/* Global upload progress indicator — fixed to the viewport so it's
+            visible the same way on mobile (above the sticky top bar) and
+            desktop (above everything else), regardless of scroll position. */}
+        <div
+          aria-hidden={uploadingCount === 0}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, height: '3px', zIndex: 60,
+            overflow: 'hidden', pointerEvents: 'none', background: 'transparent',
+            opacity: uploadingCount > 0 ? 1 : 0,
+            transition: 'opacity 0.25s ease',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute', top: 0, left: '-35%', height: '100%', width: '35%',
+              background: 'linear-gradient(90deg, transparent, var(--c-accent-mint), transparent)',
+              animation: uploadingCount > 0 ? 'uploadBarSlide 1.1s ease-in-out infinite' : 'none',
+            }}
+          />
+        </div>
 
         {/* Mobile top bar: gives narrow viewports a way to reach the sidebar,
             which is otherwise an always-visible 240px column that would eat
@@ -610,9 +657,15 @@ export default function PlusDashboard() {
             <div className="navItem" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', background: 'var(--surface-card-strong)', fontSize: '0.82rem', fontWeight: 600 }}>
               <Icon name="grid" size={14} /> Dashboard
             </div>
-            <Link href="/" className="navItem pressable" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
+            <button
+              type="button"
+              onClick={() => { setSidebarOpen(false); fileInputRef.current?.click(); }}
+              className="navItem pressable"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none', border: 'none', background: 'transparent', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+            >
               <Icon name="upload" size={14} /> Upload
-            </Link>
+              {uploadingCount > 0 && <StatusDot active tone="mint" />}
+            </button>
             <Link href="/api" className="navItem pressable" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
               <Icon name="key" size={14} /> API keys
             </Link>
@@ -782,17 +835,28 @@ export default function PlusDashboard() {
           </div>
 
           {/* Action cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.7rem', marginBottom: '1.8rem' }}>
+          <div className="actionGrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.7rem', marginBottom: '1.8rem' }}>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="actionCard pressable"
               style={{ ...glass, display: 'flex', alignItems: 'center', gap: '0.7rem', borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
             >
-              <IconBadge name="upload" />
+              {uploadingCount > 0 ? (
+                <span
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: '30px', height: '30px', borderRadius: '9px', flexShrink: 0,
+                    background: 'rgba(126,244,203,0.14)', color: 'var(--c-accent-mint)',
+                  }}
+                >
+                  <Spinner size={15} />
+                </span>
+              ) : (
+                <IconBadge name="upload" />
+              )}
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>
                   Upload files
-                  {uploadingCount > 0 && <StatusDot active tone="mint" />}
                 </div>
                 <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>
                   {uploadingCount > 0 ? `Uploading ${uploadingCount}…` : 'or drop anywhere'}
