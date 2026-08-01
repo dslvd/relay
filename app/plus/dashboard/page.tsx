@@ -603,10 +603,10 @@ export default function PlusDashboard() {
           >
             <Icon name="menu" size={16} />
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, minWidth: 0 }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, minWidth: 0, textDecoration: 'none', color: 'inherit' }}>
             <Image src={logo} alt="" width={18} height={18} style={{ borderRadius: '5px', flexShrink: 0 }} />
             <div style={{ fontSize: '1rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Relay</div>
-          </div>
+          </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', borderRadius: '999px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', color: 'var(--c-sub)', fontSize: '0.65rem' }}>
             <StatusDot active={isBusy} tone={error ? 'error' : 'mint'} />
             {formatFileSize(totalBytes)}
@@ -642,10 +642,10 @@ export default function PlusDashboard() {
           }}
         >
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <Link href="/" className="pressable" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: 'fit-content', textDecoration: 'none', color: 'inherit' }}>
               <Image src={logo} alt="" width={20} height={20} style={{ borderRadius: '5px', flexShrink: 0 }} />
               <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>Relay</div>
-            </div>
+            </Link>
             <div style={{
               display: 'inline-block',
               marginTop: '0.3rem',
@@ -665,15 +665,6 @@ export default function PlusDashboard() {
             <div className="navItem" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', background: 'var(--surface-card-strong)', fontSize: '0.82rem', fontWeight: 600 }}>
               <Icon name="grid" size={14} /> Dashboard
             </div>
-            <button
-              type="button"
-              onClick={() => { setSidebarOpen(false); fileInputRef.current?.click(); }}
-              className="navItem pressable"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none', border: 'none', background: 'transparent', cursor: 'pointer', width: '100%', textAlign: 'left' }}
-            >
-              <Icon name="upload" size={14} /> Upload
-              {uploadingCount > 0 && <StatusDot active tone="mint" />}
-            </button>
             <Link href="/api" className="navItem pressable" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.6rem', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--c-sub)', textDecoration: 'none' }}>
               <Icon name="key" size={14} /> API keys
             </Link>
