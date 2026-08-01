@@ -10,7 +10,7 @@ export const PLUS_STORAGE_LIMIT_BYTES = 80 * 1024 * 1024 * 1024; // 80GB total p
 // Display only - the actual charge comes from LEMONSQUEEZY_VARIANT_ID's price
 // in the Lemon Squeezy dashboard (there's no API to set/read it dynamically).
 // Keep this in sync with that variant's configured price.
-export const PLUS_PRICE_PHP_CENTAVOS = 48000; // PHP 480.00/month
+export const PLUS_PRICE_PHP_CENTAVOS = 38900; // PHP 389.00/month
 
 // Kill switch for the Lemon Squeezy checkout flow - flip to true once the
 // store is out of Test Mode and production env vars/migration are in place.
