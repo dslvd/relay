@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import logo from '@/app/logo.png';
 import SnippetEditor from '@/app/components/SnippetEditor';
 import { languageFromFilename } from '@/app/lib/lang-map';
 import { PLUS_STORAGE_LIMIT_BYTES } from '@/app/lib/plan-limits';
@@ -601,7 +603,10 @@ export default function PlusDashboard() {
           >
             <Icon name="menu" size={16} />
           </button>
-          <div style={{ fontSize: '1rem', fontWeight: 700, flex: 1, minWidth: 0 }}>Relay</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, minWidth: 0 }}>
+            <Image src={logo} alt="" width={18} height={18} style={{ borderRadius: '5px', flexShrink: 0 }} />
+            <div style={{ fontSize: '1rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Relay</div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', borderRadius: '999px', background: 'var(--surface-card)', border: '1px solid var(--border-default)', color: 'var(--c-sub)', fontSize: '0.65rem' }}>
             <StatusDot active={isBusy} tone={error ? 'error' : 'mint'} />
             {formatFileSize(totalBytes)}
@@ -637,7 +642,10 @@ export default function PlusDashboard() {
           }}
         >
           <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>Relay</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <Image src={logo} alt="" width={20} height={20} style={{ borderRadius: '5px', flexShrink: 0 }} />
+              <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>Relay</div>
+            </div>
             <div style={{
               display: 'inline-block',
               marginTop: '0.3rem',
