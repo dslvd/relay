@@ -25,11 +25,56 @@ interface FolderRecord {
   id: string;
   name: string;
   createdAt: number;
+  shareCode?: string;
 }
 
 const UNFILED = '__unfiled__';
 
-type IconName = 'upload' | 'folder' | 'code' | 'copy' | 'refresh' | 'file' | 'search' | 'menu' | 'grid' | 'key' | 'book';
+interface FolderUploadItem {
+  file: File;
+  // Path within the dropped/selected root folder, e.g. "sub/pic.png" for a
+  // file at "MyFolder/sub/pic.png" — does not include the root folder's own
+  // name, since that becomes the Relay folder rather than part of the path.
+  relativePath: string;
+}
+
+// Depth-first walk of a dropped FileSystemEntry tree (drag-and-drop folders
+// only expose files this way — File objects from a drop never carry
+// webkitRelativePath, that's populated only by the <input webkitdirectory>
+// picker). Kept as one item list to feed the same upload path as that picker.
+async function readAllDirectoryEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  const entries: FileSystemEntry[] = [];
+  // Browsers cap how many entries a single readEntries() call returns, so it
+  // must be called repeatedly until it reports empty.
+  for (;;) {
+    const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+    if (batch.length === 0) break;
+    entries.push(...batch);
+  }
+  return entries;
+}
+
+async function walkEntry(entry: FileSystemEntry, path: string, out: FolderUploadItem[]): Promise<void> {
+  if (entry.isFile) {
+    const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
+    out.push({ file, relativePath: `${path}${entry.name}` });
+  } else if (entry.isDirectory) {
+    const children = await readAllDirectoryEntries((entry as FileSystemDirectoryEntry).createReader());
+    for (const child of children) {
+      await walkEntry(child, `${path}${entry.name}/`, out);
+    }
+  }
+}
+
+async function collectDroppedFolderItems(entries: FileSystemEntry[]): Promise<FolderUploadItem[]> {
+  const out: FolderUploadItem[] = [];
+  for (const entry of entries) {
+    await walkEntry(entry, '', out);
+  }
+  return out;
+}
+
+type IconName = 'upload' | 'folder' | 'code' | 'copy' | 'refresh' | 'file' | 'search' | 'menu' | 'grid' | 'key' | 'book' | 'link';
 
 function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   const common = {
@@ -121,6 +166,13 @@ function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
           <path d="M4 19a2 2 0 0 1 2-2h13" />
         </svg>
       );
+    case 'link':
+      return (
+        <svg {...common}>
+          <path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1.5 1.5" />
+          <path d="M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1.5-1.5" />
+        </svg>
+      );
   }
 }
 
@@ -194,12 +246,15 @@ export default function PlusDashboard() {
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [uploadingCount, setUploadingCount] = useState(0);
+  const [sharingFolderId, setSharingFolderId] = useState<string | null>(null);
+  const [copiedFolderShareId, setCopiedFolderShareId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [storageWarning, setStorageWarning] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const mountedRef = useRef(false);
   const syncRequestIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const [showSnippetModal, setShowSnippetModal] = useState(false);
   const [snippetContent, setSnippetContent] = useState('');
@@ -369,6 +424,61 @@ export default function PlusDashboard() {
     }
   };
 
+  const shareLinkFor = (folder: FolderRecord) => `${window.location.origin}/folder/${folder.shareCode}`;
+
+  const shareFolder = async (folderId: string) => {
+    setSharingFolderId(folderId);
+    try {
+      const res = await fetch(`/api/folders/${folderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'share' }),
+      });
+      const data = await res.json();
+      if (!data?.success) throw new Error(data?.error || 'Failed to share folder');
+      const shareCode = data.data.shareCode as string;
+      setFolders((prev) => prev.map((f) => (f.id === folderId ? { ...f, shareCode } : f)));
+      try {
+        // Best-effort: sharing itself already succeeded above, so a denied
+        // clipboard permission shouldn't surface as a failed-share error.
+        await navigator.clipboard.writeText(`${window.location.origin}/folder/${shareCode}`);
+        setCopiedFolderShareId(folderId);
+        window.setTimeout(() => setCopiedFolderShareId((cur) => (cur === folderId ? null : cur)), 1200);
+      } catch {
+        // Ignored - the share link is still visible via "Copy link" afterward.
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to share folder');
+    } finally {
+      setSharingFolderId(null);
+    }
+  };
+
+  const copyShareLink = async (folder: FolderRecord) => {
+    if (!folder.shareCode) return;
+    await navigator.clipboard.writeText(shareLinkFor(folder));
+    setCopiedFolderShareId(folder.id);
+    window.setTimeout(() => setCopiedFolderShareId((cur) => (cur === folder.id ? null : cur)), 1200);
+  };
+
+  const unshareFolder = async (folderId: string) => {
+    setSharingFolderId(folderId);
+    try {
+      const res = await fetch(`/api/folders/${folderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unshare' }),
+      });
+      const data = await res.json();
+      if (!data?.success) throw new Error(data?.error || 'Failed to unshare folder');
+      setFolders((prev) => prev.map((f) => (f.id === folderId ? { ...f, shareCode: undefined } : f)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to unshare folder');
+    } finally {
+      setSharingFolderId(null);
+    }
+  };
+
   const uploadFiles = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList);
     if (files.length === 0) return;
@@ -409,6 +519,92 @@ export default function PlusDashboard() {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: downloadUrl, folder: selectedFolderId }),
+          });
+        }
+      } catch (err) {
+        alert(`Failed to upload ${file.name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      } finally {
+        setUploadingCount((c) => Math.max(0, c - 1));
+      }
+    }
+
+    void syncAll(false);
+  };
+
+  // Folder upload: auto-creates (or reuses) a Relay folder named after the
+  // dropped/selected root directory and files every upload into it, the same
+  // as manually creating a folder and moving files in via assignFolder()
+  // above — just automatic. Nested subdirectories aren't modeled as separate
+  // Relay folders (folders here are a flat namespace), so their path is kept
+  // in the file's displayName instead (e.g. "sub/pic.png").
+  const uploadFolderItems = async (items: FolderUploadItem[]) => {
+    const files = items.filter(({ file }) => !file.name.startsWith('.'));
+    if (files.length === 0) return;
+
+    const folderIdCache = new Map<string, string>();
+    const resolveFolderId = async (name: string): Promise<string> => {
+      const cached = folderIdCache.get(name);
+      if (cached) return cached;
+      const res = await fetch('/api/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, findOrCreate: true }),
+      });
+      const data = await res.json();
+      if (!data?.success) throw new Error(data?.error || 'Failed to create folder');
+      const folder: FolderRecord = data.data.folder;
+      folderIdCache.set(name, folder.id);
+      setFolders((prev) => (prev.some((f) => f.id === folder.id) ? prev : [folder, ...prev]));
+      return folder.id;
+    };
+
+    setUploadingCount((c) => c + files.length);
+
+    for (const { file, relativePath } of files) {
+      try {
+        const parts = relativePath.split('/').filter(Boolean);
+        const topFolderName = parts.length > 1 ? parts[0] : null;
+        const nestedDir = parts.length > 2 ? parts.slice(1, -1).join('/') : null;
+        const folderId = topFolderName ? await resolveFolderId(topFolderName) : null;
+
+        const random = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        const safeName = file.name.replace(/[/\\]/g, '-');
+        const pathname = `d/${random}-${safeName}`;
+        const contentType = file.type || 'application/octet-stream';
+
+        const initRes = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pathname, contentType, size: file.size, filename: file.name }),
+        });
+        const initData = await initRes.json();
+        if (!initRes.ok) throw new Error(initData?.error || 'Failed to start upload');
+
+        const putRes = await fetch(initData.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body: file,
+        });
+        if (!putRes.ok) throw new Error('Upload failed');
+
+        const downloadUrl = `${window.location.origin}/d/${initData.pathname}`;
+        const historyRes = await fetch('/api/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: downloadUrl, filename: file.name, size: file.size }),
+        });
+        if (!historyRes.ok) throw new Error('Failed to save upload');
+
+        const displayName = nestedDir ? `${nestedDir}/${file.name}` : null;
+        if (folderId || displayName) {
+          await fetch('/api/history', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: downloadUrl,
+              ...(folderId ? { folder: folderId } : {}),
+              ...(displayName ? { displayName } : {}),
+            }),
           });
         }
       } catch (err) {
@@ -535,7 +731,17 @@ export default function PlusDashboard() {
         onDrop={(e) => {
           e.preventDefault();
           setIsDragOver(false);
-          if (e.dataTransfer.files.length) void uploadFiles(e.dataTransfer.files);
+          const entries = e.dataTransfer.items
+            ? Array.from(e.dataTransfer.items)
+                .map((item) => item.webkitGetAsEntry?.())
+                .filter((entry): entry is FileSystemEntry => !!entry)
+            : [];
+          const hasDirectory = entries.some((entry) => entry.isDirectory);
+          if (hasDirectory) {
+            void collectDroppedFolderItems(entries).then(uploadFolderItems);
+          } else if (e.dataTransfer.files.length) {
+            void uploadFiles(e.dataTransfer.files);
+          }
         }}
         style={{
           minHeight: '100vh',
@@ -553,6 +759,31 @@ export default function PlusDashboard() {
           multiple
           hidden
           onChange={(e) => { if (e.target.files?.length) void uploadFiles(e.target.files); e.target.value = ''; }}
+        />
+        <input
+          ref={(el) => {
+            folderInputRef.current = el;
+            // webkitdirectory/directory aren't in React's input attribute
+            // types, so they're set directly on the element rather than as
+            // JSX props.
+            if (el) {
+              el.setAttribute('webkitdirectory', '');
+              el.setAttribute('directory', '');
+            }
+          }}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            if (e.target.files?.length) {
+              const items = Array.from(e.target.files).map((file) => ({
+                file,
+                relativePath: file.webkitRelativePath || file.name,
+              }));
+              void uploadFolderItems(items);
+            }
+            e.target.value = '';
+          }}
         />
 
         {/* Global upload progress indicator — fixed to the viewport so it's
@@ -740,7 +971,14 @@ export default function PlusDashboard() {
                     color: selectedFolderId === folder.id ? 'var(--c-text)' : 'var(--c-sub)', fontSize: '0.78rem',
                   }}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', overflow: 'hidden' }}>
+                    {folder.shareCode && (
+                      <span title="Shared" style={{ color: 'var(--c-accent-mint)', flexShrink: 0, display: 'flex' }}>
+                        <Icon name="link" size={11} />
+                      </span>
+                    )}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</span>
+                  </span>
                   <span style={{ color: 'var(--c-dim)', flexShrink: 0, marginLeft: '0.4rem' }}>{folderCounts.get(folder.id)?.count || 0}</span>
                 </button>
               ))}
@@ -874,6 +1112,17 @@ export default function PlusDashboard() {
               </div>
             </button>
             <button
+              onClick={() => folderInputRef.current?.click()}
+              className="actionCard pressable"
+              style={{ ...glass, display: 'flex', alignItems: 'center', gap: '0.7rem', borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
+            >
+              <IconBadge name="folder" tone="blue" />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Upload folder</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.2rem' }}>Auto-sorted, or drop one anywhere</div>
+              </div>
+            </button>
+            <button
               onClick={() => setShowSnippetModal(true)}
               className="actionCard pressable"
               style={{ ...glass, display: 'flex', alignItems: 'center', gap: '0.7rem', borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)' }}
@@ -920,28 +1169,81 @@ export default function PlusDashboard() {
                 {folders.map((folder) => {
                   const stats = folderCounts.get(folder.id) || { count: 0, size: 0 };
                   const isSelected = selectedFolderId === folder.id;
+                  const isSharing = sharingFolderId === folder.id;
+                  const justCopied = copiedFolderShareId === folder.id;
                   return (
-                    <button
+                    <div
                       key={folder.id}
-                      onClick={() => setSelectedFolderId(isSelected ? null : folder.id)}
-                      className="actionCard pressable"
+                      className="actionCard"
                       style={{
                         ...glass,
                         borderColor: isSelected ? 'rgba(126,244,203,0.4)' : 'var(--border-default)',
                         background: isSelected ? 'rgba(126,244,203,0.08)' : 'var(--surface-card)',
-                        borderRadius: '14px', padding: '0.9rem 1rem', textAlign: 'left', cursor: 'pointer', color: 'var(--c-text)',
+                        borderRadius: '14px', padding: '0.9rem 1rem', color: 'var(--c-text)',
+                        display: 'flex', flexDirection: 'column', gap: '0.55rem',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: isSelected ? 'var(--c-accent-mint)' : 'var(--c-dim)' }}>
-                        <Icon name="folder" size={14} />
-                        <div style={{ fontSize: '0.84rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--c-text)' }}>
-                          {folder.name}
+                      <button
+                        onClick={() => setSelectedFolderId(isSelected ? null : folder.id)}
+                        className="pressable"
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: isSelected ? 'var(--c-accent-mint)' : 'var(--c-dim)' }}>
+                          <Icon name="folder" size={14} />
+                          <div style={{ fontSize: '0.84rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--c-text)' }}>
+                            {folder.name}
+                          </div>
                         </div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.3rem' }}>
+                          {stats.count} file{stats.count === 1 ? '' : 's'} · {formatFileSize(stats.size)}
+                        </div>
+                      </button>
+
+                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        {folder.shareCode ? (
+                          <>
+                            <button
+                              onClick={() => void copyShareLink(folder)}
+                              className="pressable"
+                              style={{
+                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem',
+                                padding: '0.3rem 0.5rem', borderRadius: '999px', border: '1px solid rgba(126,244,203,0.3)',
+                                background: 'rgba(126,244,203,0.1)', color: 'var(--c-accent-mint)', fontSize: '0.66rem',
+                                fontWeight: 700, cursor: 'pointer',
+                              }}
+                            >
+                              <Icon name="link" size={11} /> {justCopied ? 'Copied!' : 'Copy link'}
+                            </button>
+                            <button
+                              onClick={() => void unshareFolder(folder.id)}
+                              disabled={isSharing}
+                              className="pressable"
+                              style={{
+                                padding: '0.3rem 0.5rem', borderRadius: '999px', border: '1px solid var(--border-subtle)',
+                                background: 'transparent', color: 'var(--c-dim)', fontSize: '0.66rem',
+                                cursor: isSharing ? 'default' : 'pointer',
+                              }}
+                            >
+                              {isSharing ? '…' : 'Stop'}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => void shareFolder(folder.id)}
+                            disabled={isSharing}
+                            className="pressable"
+                            style={{
+                              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem',
+                              padding: '0.3rem 0.5rem', borderRadius: '999px', border: '1px solid var(--border-input)',
+                              background: 'var(--surface-input)', color: 'var(--c-sub)', fontSize: '0.66rem',
+                              fontWeight: 600, cursor: isSharing ? 'default' : 'pointer',
+                            }}
+                          >
+                            <Icon name="link" size={11} /> {isSharing ? 'Sharing…' : 'Share'}
+                          </button>
+                        )}
                       </div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--c-dim)', marginTop: '0.3rem' }}>
-                        {stats.count} file{stats.count === 1 ? '' : 's'} · {formatFileSize(stats.size)}
-                      </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>

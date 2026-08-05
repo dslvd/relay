@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createFolder, listFolders } from '@/app/lib/data/folder-store';
+import { createFolder, getOrCreateFolderByName, listFolders } from '@/app/lib/data/folder-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +24,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'name is required' }, { status: 400 });
     }
 
-    const folder = await createFolder(name);
+    // findOrCreate: reuses an existing folder with this exact name instead of
+    // making a new one — used by folder uploads, which resolve the same
+    // dropped directory name to one folder across every file inside it
+    // (including re-uploads of that same folder later).
+    const findOrCreate = body?.findOrCreate === true;
+    const folder = findOrCreate ? await getOrCreateFolderByName(name) : await createFolder(name);
     return NextResponse.json({ success: true, data: { folder } });
   } catch (error) {
     console.error('Error creating folder:', error);
